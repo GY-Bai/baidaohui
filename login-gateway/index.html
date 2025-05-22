@@ -63,10 +63,23 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .logo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+
+    .logo-fallback {
       color: white;
       font-size: 32px;
       font-weight: bold;
-      box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+      display: none;
     }
 
     h1 {
@@ -147,11 +160,19 @@
 </head>
 <body>
   <canvas id="starfield"></canvas>
-  <div id="loading">正在处理登录...</div>
+  <div id="loading">跃迁引擎已启动！<br>正在前往Google登录...</div>
   <div id="error"></div>
   <div class="login-container">
-    <div class="logo">百刀会</div>
-    <h1>跃迁已启动，直达百刀会</h1>
+    <div class="logo">
+      <img 
+        src="./assets/pic/favicon.png" 
+        alt="百刀会Logo" 
+        class="logo-img"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+      />
+      <div class="logo-fallback"> </div>
+    </div>
+    <h1>即将跃迁到百刀会</h1>
     <p class="subtitle">Everything Both Nothing</p>
     <button id="googleLoginBtn" class="google-btn">
       <div class="google-icon"><i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i></div>
