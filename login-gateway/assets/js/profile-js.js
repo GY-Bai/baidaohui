@@ -1,6 +1,10 @@
 // 环境配置
-const SUPABASE_URL = window?.ENV?.SUPABASE_URL;
-const SUPABASE_ANON_KEY = window?.ENV?.SUPABASE_ANON_KEY;
+function getMetaContent(name) {
+    return document.querySelector(`meta[name="${name}"]`)?.content;
+}
+
+const SUPABASE_URL = getMetaContent("SUPABASE_URL");
+const SUPABASE_ANON_KEY = getMetaContent("SUPABASE_ANON_KEY");
 
 // 验证环境变量
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
