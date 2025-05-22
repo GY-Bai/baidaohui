@@ -1,10 +1,6 @@
-// 环境配置
-function getMetaContent(name) {
-    return document.querySelector(`meta[name="${name}"]`)?.content;
-}
-
-const SUPABASE_URL = getMetaContent("SUPABASE_URL");
-const SUPABASE_ANON_KEY = getMetaContent("SUPABASE_ANON_KEY");
+// 硬编码环境变量
+const SUPABASE_URL = 'https://pvjowkjksutkhpsomwvv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2am93a2prc3V0a2hwc29td3Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc4NzYxMzEsImV4cCI6MjA2MzQ1MjEzMX0.m98BRjqAnpjVpyDxUC-9LRrU4B3SRXYdHMO3Dez-qyc';
 
 // 验证环境变量
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -207,7 +203,7 @@ async function initializeUser() {
         // 设置用户头像
         if (user.user_metadata?.avatar_url || user.user_metadata?.picture) {
             const avatarUrl = user.user_metadata.avatar_url || user.user_metadata.picture;
-            userAvatar.innerHTML = `<img src="${avatarUrl}" alt="用户头像">`;
+            userAvatar.innerHTML = `<img src="${avatarUrl}" alt="用户头像" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
         }
 
         // 如果用户已有昵称，预填充
