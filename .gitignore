@@ -1,0 +1,8 @@
+# 忽略所有 Markdown、ZIP、TFVARS 文档（包含子文件夹）
+*.md
+*.zip
+*.tfvars
+.env
+infra/terraform/terraform.tfvars
+infra/terraform/main.tf
+infra/terraform

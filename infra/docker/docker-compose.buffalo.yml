@@ -1,0 +1,186 @@
+version: '3.8'
+
+services:
+  # Redis 缓存和队列
+  redis:
+    image: redis:7-alpine
+    container_name: buffalo-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 100mb --maxmemory-policy allkeys-lru
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # 算命API服务 (Flask + Gunicorn)
+  fortune-api:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile
+    container_name: buffalo-fortune-api
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - MONGO_URL=${MONGO_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - KW_API_BASE=${KW_API_BASE}
+      - KW_API_KEY=${KW_API_KEY}
+    depends_on:
+      - redis
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+  # Celery Worker (AI关键词生成)
+  celery-worker:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile.celery
+    container_name: buffalo-celery-worker
+    command: celery -A tasks worker --loglevel=info --concurrency=2 --queues=ai_keywords,ai_retry
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - MONGO_URL=${MONGO_URL}
+      - KW_API_BASE=${KW_API_BASE}
+      - KW_API_KEY=${KW_API_KEY}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+
+  # Celery Beat (定时任务调度器)
+  celery-beat:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile.celery
+    container_name: buffalo-celery-beat
+    command: celery -A tasks beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - MONGO_URL=${MONGO_URL}
+    volumes:
+      - celery_beat_data:/tmp
+    depends_on:
+      - redis
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+
+  # RQ Worker (备用队列处理器)
+  rq-worker:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile.rq
+    container_name: buffalo-rq-worker
+    command: rq worker --url redis://redis:6379/3 fortune_queue
+    environment:
+      - REDIS_URL=redis://redis:6379/3
+      - MONGO_URL=${MONGO_URL}
+      - KW_API_BASE=${KW_API_BASE}
+      - KW_API_KEY=${KW_API_KEY}
+    depends_on:
+      - redis
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: buffalo-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/buffalo.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - fortune-api
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+
+  # 队列监控面板 (RQ Dashboard)
+  rq-dashboard:
+    image: eoranged/rq-dashboard
+    container_name: buffalo-rq-dashboard
+    ports:
+      - "9181:9181"
+    environment:
+      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/3
+    depends_on:
+      - redis
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+
+  # 定时任务执行器 (Cron)
+  cron-scheduler:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile.cron
+    container_name: buffalo-cron
+    volumes:
+      - ./cron/crontab:/etc/cron.d/fortune-cron
+      - ../../apps/api/fortune:/app
+    environment:
+      - MONGO_URL=${MONGO_URL}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - buffalo-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 30M
+
+networks:
+  buffalo-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  celery_beat_data: 

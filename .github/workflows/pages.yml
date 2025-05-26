@@ -1,0 +1,189 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Build for fans subdomain
+      run: |
+        cd frontend
+        npm run build
+        cp -r build build-fans
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        VITE_API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        VITE_ROLE_FILTER: fans
+        
+    - name: Build for member subdomain
+      run: |
+        cd frontend
+        npm run build
+        cp -r build build-member
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        VITE_API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        VITE_ROLE_FILTER: member
+        
+    - name: Build for master subdomain
+      run: |
+        cd frontend
+        npm run build
+        cp -r build build-master
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        VITE_API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        VITE_ROLE_FILTER: master
+        
+    - name: Build for firstmate subdomain
+      run: |
+        cd frontend
+        npm run build
+        cp -r build build-firstmate
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        VITE_API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        VITE_ROLE_FILTER: firstmate
+
+    - name: Deploy to Cloudflare Pages - Fans
+      uses: cloudflare/pages-action@v1
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        projectName: baidaohui-fans
+        directory: frontend/build-fans
+        gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Deploy to Cloudflare Pages - Member
+      uses: cloudflare/pages-action@v1
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        projectName: baidaohui-member
+        directory: frontend/build-member
+        gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Deploy to Cloudflare Pages - Master
+      uses: cloudflare/pages-action@v1
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        projectName: baidaohui-master
+        directory: frontend/build-master
+        gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Deploy to Cloudflare Pages - Firstmate
+      uses: cloudflare/pages-action@v1
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        projectName: baidaohui-firstmate
+        directory: frontend/build-firstmate
+        gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure Cloudflare DNS
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # 配置子域名DNS记录
+        curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data '{
+            "type": "CNAME",
+            "name": "fans",
+            "content": "baidaohui-fans.pages.dev",
+            "ttl": 1
+          }' || echo "DNS record might already exist"
+          
+        curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data '{
+            "type": "CNAME",
+            "name": "member",
+            "content": "baidaohui-member.pages.dev",
+            "ttl": 1
+          }' || echo "DNS record might already exist"
+          
+        curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data '{
+            "type": "CNAME",
+            "name": "master",
+            "content": "baidaohui-master.pages.dev",
+            "ttl": 1
+          }' || echo "DNS record might already exist"
+          
+        curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data '{
+            "type": "CNAME",
+            "name": "firstmate",
+            "content": "baidaohui-firstmate.pages.dev",
+            "ttl": 1
+          }' || echo "DNS record might already exist"
+
+    - name: Run tests
+      run: |
+        cd frontend
+        npm run test:unit
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: |
+          frontend/build-fans/
+          frontend/build-member/
+          frontend/build-master/
+          frontend/build-firstmate/
+        retention-days: 7
+
+  lighthouse-audit:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Lighthouse CI
+      uses: treosh/lighthouse-ci-action@v9
+      with:
+        urls: |
+          https://fans.baidaohui.com
+          https://member.baidaohui.com
+          https://master.baidaohui.com
+          https://firstmate.baidaohui.com
+        uploadArtifacts: true
+        temporaryPublicStorage: true 

@@ -1,0 +1,14 @@
+# 百道会定时任务配置
+# 格式: 分 时 日 月 周 用户 命令
+
+# 每小时执行一次关键词生成任务
+0 * * * * root cd /app && python -c "from tasks import generate_keywords_batch; generate_keywords_batch.delay()"
+
+# 每天凌晨2点清理过期数据
+0 2 * * * root cd /app && python cleanup.py
+
+# 每天凌晨3点备份数据
+0 3 * * * root cd /app && python backup.py
+
+# 每5分钟检查系统状态
+*/5 * * * * root cd /app && python health_check.py 

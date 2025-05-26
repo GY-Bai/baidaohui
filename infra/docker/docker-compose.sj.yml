@@ -1,0 +1,359 @@
+version: '3.8'
+
+services:
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: baidaohui-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - prestashop_data:/var/www/html
+    depends_on:
+      - chat-api
+      - prestashop
+      - prosody
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: baidaohui-redis
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 50mb --maxmemory-policy allkeys-lru
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+
+  # 聊天API服务 (Flask + Gunicorn)
+  chat-api:
+    build:
+      context: ../../apps/api/chat
+      dockerfile: Dockerfile
+    container_name: baidaohui-chat-api
+    # 移除外部端口映射，通过nginx代理访问
+    # ports:
+    #   - "5003:5003"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5003
+      - MONGO_URL=${MONGO_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+
+  # Auth API服务
+  auth-api:
+    build:
+      context: ../../apps/api/auth
+      dockerfile: Dockerfile
+    container_name: baidaohui-auth-api
+    # 移除外部端口映射，通过nginx代理访问
+    # ports:
+    #   - "5001:5001"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5001
+      - MONGO_URL=${MONGO_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # Profile API服务
+  profile-api:
+    build:
+      context: ../../apps/api/profile
+      dockerfile: Dockerfile
+    container_name: baidaohui-profile-api
+    # 移除外部端口映射，通过nginx代理访问
+    # ports:
+    #   - "5002:5002"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5002
+      - MONGO_URL=${MONGO_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # SSO API服务
+  sso-api:
+    build:
+      context: ../../apps/api/sso
+      dockerfile: Dockerfile
+    container_name: baidaohui-sso-api
+    # 移除外部端口映射，通过nginx代理访问
+    # ports:
+    #   - "5004:5004"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5004
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PRESTASHOP_API_URL=http://prestashop/api
+      - PRESTASHOP_API_KEY=${PRESTASHOP_API_KEY}
+    depends_on:
+      - redis
+      - prestashop
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # Shop Webhooks API服务
+  shop-api:
+    build:
+      context: ../../apps/api/shop
+      dockerfile: Dockerfile
+    container_name: baidaohui-shop-api
+    # 移除外部端口映射，通过nginx代理访问
+    # ports:
+    #   - "5005:5005"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5005
+      - MONGO_URL=${MONGO_URL}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - prestashop
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # Prosody XMPP服务器
+  prosody:
+    image: prosody/prosody:latest
+    container_name: baidaohui-prosody
+    ports:
+      - "5222:5222"  # XMPP客户端连接
+      - "5269:5269"  # XMPP服务器间连接
+      - "5280:5280"  # HTTP模块
+    volumes:
+      - ./prosody/prosody.cfg.lua:/etc/prosody/prosody.cfg.lua
+      - prosody_data:/var/lib/prosody
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 30M
+
+  # PrestaShop 电商平台
+  prestashop:
+    image: prestashop/prestashop:latest
+    container_name: baidaohui-prestashop
+    environment:
+      - DB_SERVER=prestashop-db
+      - DB_NAME=prestashop
+      - DB_USER=prestashop
+      - DB_PASSWD=prestashop_password
+      - PS_DOMAIN=buyer.shop.baidaohui.com
+      - PS_FOLDER_ADMIN=admin
+      - PS_FOLDER_INSTALL=install
+      - PS_LANGUAGE=zh
+      - PS_COUNTRY=CN
+      - PS_ALL_LANGUAGES=1
+      - PS_INSTALL_AUTO=1
+      - PS_ERASE_DB=0
+      - PS_INSTALL_DB=1
+      - PS_DEV_MODE=0
+      - PS_HOST_MODE=0
+      - PS_DEMO_MODE=0
+      - PS_ENABLE_SSL=1
+    volumes:
+      - prestashop_data:/var/www/html
+      - ../../apps/ecommerce/modules:/var/www/html/modules/custom
+      - ../../apps/ecommerce/webhooks:/var/www/html/webhooks
+    depends_on:
+      - prestashop-db
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  # PrestaShop 数据库
+  prestashop-db:
+    image: mysql:8.0
+    container_name: baidaohui-prestashop-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=prestashop
+      - MYSQL_USER=prestashop
+      - MYSQL_PASSWORD=prestashop_password
+    volumes:
+      - prestashop_db_data:/var/lib/mysql
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+  # Celery Worker (用于处理异步任务)
+  celery-worker:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile.celery
+    container_name: baidaohui-celery-worker
+    command: celery -A tasks worker --loglevel=info --concurrency=2
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - MONGO_URL=${MONGO_URL}
+      - KW_API_BASE=${KW_API_BASE}
+      - KW_API_KEY=${KW_API_KEY}
+    depends_on:
+      - redis
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+  # Celery Beat (定时任务调度器)
+  celery-beat:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile.celery
+    container_name: baidaohui-celery-beat
+    command: celery -A tasks beat --loglevel=info
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - redis
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+
+  # Supervisor 进程管理
+  supervisor:
+    image: python:3.11-slim
+    container_name: baidaohui-supervisor
+    volumes:
+      - ./supervisor/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: supervisord -c /etc/supervisor/conf.d/supervisord.conf
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 13M
+
+  # Fortune API服务
+  fortune-api:
+    build:
+      context: ../../apps/api/fortune
+      dockerfile: Dockerfile
+    container_name: baidaohui-fortune-api
+    # 移除外部端口映射，通过nginx代理访问
+    # ports:
+    #   - "5006:5006"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5000
+      - MONGO_URL=${MONGO_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - KW_API_BASE=${KW_API_BASE}
+      - KW_API_KEY=${KW_API_KEY}
+    depends_on:
+      - redis
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+networks:
+  baidaohui-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  prosody_data:
+  prestashop_data:
+  prestashop_db_data: 

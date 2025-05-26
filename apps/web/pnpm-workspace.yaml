@@ -1,0 +1,11 @@
+packages:
+  - portal
+  - fan
+  - member
+  - master
+  - firstmate
+  - shared
+ignoredBuiltDependencies:
+  - '@sveltejs/kit'
+  - esbuild
+  - svelte-preprocess

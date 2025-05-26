@@ -1,0 +1,62 @@
+# 算命队列定时更新任务
+# 每2小时执行一次队列排序和位置更新
+# 分钟 小时 日 月 星期 用户 命令
+
+# 每2小时的第5分钟执行（避免整点高峰）
+5 */2 * * * root cd /app && python3 cron_update_queue.py >> /var/log/fortune_queue_update.log 2>&1
+
+# 每天凌晨3点清理过期数据
+0 3 * * * root cd /app && python3 -c "
+import sys
+import os
+sys.path.append('/app')
+from cron_update_queue import cleanup_expired_orders, generate_queue_report
+cleanup_expired_orders()
+generate_queue_report()
+" >> /var/log/fortune_cleanup.log 2>&1
+
+# 每小时检查死信队列并重试
+15 * * * * root cd /app && python3 -c "
+import sys
+import os
+sys.path.append('/app')
+from tasks import retry_failed_keywords
+retry_failed_keywords.delay()
+" >> /var/log/fortune_retry.log 2>&1
+
+# 每天早上8点生成队列统计报告
+0 8 * * * root cd /app && python3 -c "
+import sys
+import os
+sys.path.append('/app')
+from tasks import get_task_statistics
+import json
+stats = get_task_statistics()
+print(json.dumps(stats, indent=2))
+" >> /var/log/fortune_stats.log 2>&1
+
+# 每周日凌晨2点清理Redis过期键
+0 2 * * 0 root redis-cli --scan --pattern "ai:*" | head -1000 | xargs redis-cli del
+
+# 确保日志文件存在且有正确权限
+# 这些命令在容器启动时执行
+@reboot root touch /var/log/fortune_queue_update.log /var/log/fortune_cleanup.log /var/log/fortune_retry.log /var/log/fortune_stats.log
+@reboot root chmod 644 /var/log/fortune_*.log
+@reboot root chown root:root /var/log/fortune_*.log
+
+# 百刀会算命队列排序任务
+# 每2小时执行一次队列排序和更新
+# 文件位置: /etc/cron.d/queue_sort
+
+# 环境变量
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# 每天凌晨4点备份重要数据
+0 4 * * * root /bin/bash /opt/baidaohui/scripts/backup/daily_backup.sh >> /var/log/baidaohui/backup.log 2>&1
+
+# 每周日凌晨2点清理旧日志
+0 2 * * 0 root /usr/bin/find /var/log/baidaohui/ -name "*.log" -mtime +30 -delete
+
+# 每小时检查服务状态
+0 * * * * root /bin/bash /opt/baidaohui/scripts/monitoring/health_check.sh >> /var/log/baidaohui/health_check.log 2>&1 
