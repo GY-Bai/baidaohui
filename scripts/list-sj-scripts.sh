@@ -22,6 +22,9 @@ echo -e "${GREEN}./scripts/quick-fix-sj-supervisor.sh${NC}               - Super
 echo ""
 
 echo -e "${CYAN}🔧 专项修复脚本${NC}"
+echo -e "${YELLOW}./scripts/fix-auth-api-prestashop.sh${NC}               - Auth API和PrestaShop修复"
+echo "  修复: auth-api worker启动失败, prestashop端口无法访问"
+echo ""
 echo -e "${YELLOW}./scripts/fix-sj-supervisor-error.sh [操作]${NC}        - Supervisor容器修复"
 echo "  操作: diagnose, full-fix, disable, use-image, fix-config, verify"
 echo ""
@@ -55,6 +58,12 @@ echo -e "${BLUE}5.${NC} 验证结果:      ${GREEN}./scripts/diagnose-sj-issues.
 echo ""
 
 echo -e "${CYAN}⚡ 常见问题快速修复${NC}"
+echo -e "${RED}问题: auth-api worker启动失败${NC}"
+echo -e "修复: ${GREEN}./scripts/fix-auth-api-prestashop.sh${NC}"
+echo ""
+echo -e "${RED}问题: prestashop端口无法访问${NC}"
+echo -e "修复: ${GREEN}./scripts/fix-auth-api-prestashop.sh${NC}"
+echo ""
 echo -e "${RED}问题: supervisor容器启动失败${NC}"
 echo -e "修复: ${GREEN}./scripts/quick-fix-sj-supervisor.sh${NC}"
 echo ""
