@@ -10,6 +10,8 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/ssl/certs
+      - ./ssl:/etc/ssl/private
       - prestashop_data:/var/www/html
     depends_on:
       - chat-api
@@ -21,7 +23,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 20M
+          memory: 30M
 
   # Redis 缓存
   redis:
@@ -299,19 +301,19 @@ services:
 
   # Supervisor 进程管理
   supervisor:
-    image: python:3.11-slim
+    build:
+      context: ./supervisor
+      dockerfile: Dockerfile
     container_name: baidaohui-supervisor
     volumes:
-      - ./supervisor/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf
       - /var/run/docker.sock:/var/run/docker.sock
-    command: supervisord -c /etc/supervisor/conf.d/supervisord.conf
     networks:
       - baidaohui-network
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 13M
+          memory: 50M
 
   # Fortune API服务
   fortune-api:
