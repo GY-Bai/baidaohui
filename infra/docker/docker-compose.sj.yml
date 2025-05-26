@@ -220,6 +220,14 @@ services:
       - prestashop_data:/var/www/html
       - ../../apps/ecommerce/modules:/var/www/html/modules/custom
       - ../../apps/ecommerce/webhooks:/var/www/html/webhooks
+    command: >
+      bash -c "
+        chown -R www-data:www-data /var/www/html/modules/custom &&
+        chown -R www-data:www-data /var/www/html/webhooks &&
+        chmod -R 755 /var/www/html/modules/custom &&
+        chmod -R 755 /var/www/html/webhooks &&
+        exec docker-entrypoint.sh apache2-foreground
+      "
     depends_on:
       - prestashop-db
     networks:
