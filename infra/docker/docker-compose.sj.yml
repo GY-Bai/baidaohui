@@ -94,7 +94,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 100M
+          memory: 200M
 
   # Profile API服务
   profile-api:
@@ -119,7 +119,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 100M
+          memory: 200M
 
   # SSO API服务
   sso-api:
@@ -148,7 +148,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 100M
+          memory: 200M
 
   # Shop Webhooks API服务
   shop-api:
@@ -177,7 +177,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 100M
+          memory: 200M
 
   # Prosody XMPP服务器
   prosody:
@@ -200,7 +200,7 @@ services:
 
   # PrestaShop 电商平台
   prestashop:
-    image: prestashop/prestashop:latest
+    image: prestashop/prestashop:8.1
     container_name: baidaohui-prestashop
     ports:
       - "8080:80"
@@ -211,16 +211,10 @@ services:
       - DB_PASSWD=prestashop_password
       - PS_DOMAIN=buyer.shop.baidaohui.com
       - PS_FOLDER_ADMIN=admin
-      - PS_FOLDER_INSTALL=install
-      - PS_LANGUAGE=zh
-      - PS_COUNTRY=CN
-      - PS_ALL_LANGUAGES=1
       - PS_INSTALL_AUTO=1
-      - PS_ERASE_DB=0
+      - PS_ERASE_DB=1
       - PS_INSTALL_DB=1
       - PS_DEV_MODE=0
-      - PS_HOST_MODE=0
-      - PS_DEMO_MODE=0
       - PS_ENABLE_SSL=0
     volumes:
       - prestashop_data:/var/www/html
@@ -234,7 +228,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 300M
+          memory: 512M
 
   # PrestaShop 数据库
   prestashop-db:
@@ -255,7 +249,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 200M
+          memory: 512M
 
 
 
