@@ -29,6 +29,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: baidaohui-redis
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 50mb --maxmemory-policy allkeys-lru
@@ -46,9 +48,8 @@ services:
       context: ../../apps/api/chat
       dockerfile: Dockerfile
     container_name: baidaohui-chat-api
-    # 移除外部端口映射，通过nginx代理访问
-    # ports:
-    #   - "5003:5003"
+    ports:
+      - "5003:5003"
     environment:
       - FLASK_ENV=production
       - PORT=5003
@@ -74,9 +75,8 @@ services:
       context: ../../apps/api/auth
       dockerfile: Dockerfile
     container_name: baidaohui-auth-api
-    # 移除外部端口映射，通过nginx代理访问
-    # ports:
-    #   - "5001:5001"
+    ports:
+      - "5001:5001"
     environment:
       - FLASK_ENV=production
       - PORT=5001
@@ -102,9 +102,8 @@ services:
       context: ../../apps/api/profile
       dockerfile: Dockerfile
     container_name: baidaohui-profile-api
-    # 移除外部端口映射，通过nginx代理访问
-    # ports:
-    #   - "5002:5002"
+    ports:
+      - "5002:5002"
     environment:
       - FLASK_ENV=production
       - PORT=5002
@@ -128,9 +127,8 @@ services:
       context: ../../apps/api/sso
       dockerfile: Dockerfile
     container_name: baidaohui-sso-api
-    # 移除外部端口映射，通过nginx代理访问
-    # ports:
-    #   - "5004:5004"
+    ports:
+      - "5004:5004"
     environment:
       - FLASK_ENV=production
       - PORT=5004
@@ -158,9 +156,8 @@ services:
       context: ../../apps/api/shop
       dockerfile: Dockerfile
     container_name: baidaohui-shop-api
-    # 移除外部端口映射，通过nginx代理访问
-    # ports:
-    #   - "5005:5005"
+    ports:
+      - "5005:5005"
     environment:
       - FLASK_ENV=production
       - PORT=5005
@@ -205,6 +202,8 @@ services:
   prestashop:
     image: prestashop/prestashop:latest
     container_name: baidaohui-prestashop
+    ports:
+      - "8080:80"
     environment:
       - DB_SERVER=prestashop-db
       - DB_NAME=prestashop
@@ -241,6 +240,8 @@ services:
   prestashop-db:
     image: mysql:8.0
     container_name: baidaohui-prestashop-db
+    ports:
+      - "3306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=root_password
       - MYSQL_DATABASE=prestashop
@@ -305,6 +306,8 @@ services:
       context: ./supervisor
       dockerfile: Dockerfile
     container_name: baidaohui-supervisor
+    ports:
+      - "9001:9001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -321,9 +324,8 @@ services:
       context: ../../apps/api/fortune
       dockerfile: Dockerfile
     container_name: baidaohui-fortune-api
-    # 移除外部端口映射，通过nginx代理访问
-    # ports:
-    #   - "5006:5006"
+    ports:
+      - "5000:5000"
     environment:
       - FLASK_ENV=production
       - PORT=5000
