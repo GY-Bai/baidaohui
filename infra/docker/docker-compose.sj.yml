@@ -226,7 +226,7 @@ services:
         chown -R www-data:www-data /var/www/html/webhooks &&
         chmod -R 755 /var/www/html/modules/custom &&
         chmod -R 755 /var/www/html/webhooks &&
-        exec docker-entrypoint.sh apache2-foreground
+        exec docker-php-entrypoint apache2-foreground
       "
     depends_on:
       - prestashop-db
