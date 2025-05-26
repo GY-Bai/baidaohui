@@ -203,7 +203,7 @@ services:
     image: prestashop/prestashop:latest
     container_name: baidaohui-prestashop
     ports:
-      - "8080:80"
+      - "8080:8964"
     environment:
       - DB_SERVER=prestashop-db
       - DB_NAME=prestashop
