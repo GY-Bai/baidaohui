@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>退款确认通知</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #10b981;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .refund-info {
+            background-color: #ecfdf5;
+            padding: 25px;
+            border-radius: 12px;
+            border: 2px solid #a7f3d0;
+            margin: 25px 0;
+            position: relative;
+        }
+        .refund-info:before {
+            content: "💰";
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background-color: #ffffff;
+            padding: 0 10px;
+            font-size: 20px;
+        }
+        .refund-details {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            padding: 10px 0;
+            border-bottom: 1px solid #d1fae5;
+        }
+        .refund-details:last-child {
+            border-bottom: none;
+        }
+        .refund-details .label {
+            font-weight: bold;
+            color: #065f46;
+        }
+        .refund-details .value {
+            color: #047857;
+            font-weight: 600;
+        }
+        .amount-highlight {
+            background-color: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .reason-box {
+            background-color: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .timeline {
+            background-color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .timeline-icon {
+            width: 20px;
+            height: 20px;
+            background-color: #10b981;
+            border-radius: 50%;
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">💰 百道会</div>
+            <h1 class="title">退款确认通知</h1>
+        </div>
+        
+        <div class="content">
+            <p>亲爱的 <strong>{{ user_nickname }}</strong>，</p>
+            
+            <p>您的退款申请已经处理完成，退款金额将按照原支付方式返还。</p>
+            
+            <div class="refund-info">
+                <h3 style="margin-top: 0; color: #065f46;">💳 退款详情</h3>
+                
+                <div class="refund-details">
+                    <span class="label">订单编号：</span>
+                    <span class="value">{{ order_id }}</span>
+                </div>
+                
+                <div class="refund-details">
+                    <span class="label">退款金额：</span>
+                    <span class="amount-highlight">{{ refund_amount }} {{ currency }}</span>
+                </div>
+                
+                <div class="refund-details">
+                    <span class="label">退款时间：</span>
+                    <span class="value">{{ refund_time }}</span>
+                </div>
+                
+                <div class="refund-details">
+                    <span class="label">处理状态：</span>
+                    <span class="value" style="color: #10b981;">✅ 已完成</span>
+                </div>
+            </div>
+            
+            <div class="reason-box">
+                <h4 style="margin-top: 0; color: #374151;">📝 退款原因</h4>
+                <p style="margin-bottom: 0;">{{ refund_reason }}</p>
+            </div>
+            
+            <div class="timeline">
+                <h4 style="margin-top: 0; color: #374151;">⏱️ 退款到账时间</h4>
+                <div class="timeline-item">
+                    <div class="timeline-icon">1</div>
+                    <span><strong>信用卡/借记卡：</strong>3-5个工作日</span>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-icon">2</div>
+                    <span><strong>支付宝/微信：</strong>1-3个工作日</span>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-icon">3</div>
+                    <span><strong>银行转账：</strong>1-7个工作日</span>
+                </div>
+            </div>
+            
+            <div style="background-color: #fef3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+                <h4 style="margin-top: 0; color: #92400e;">📢 重要提醒</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #92400e;">
+                    <li>退款将原路返回至您的原支付账户</li>
+                    <li>如超过预期时间未到账，请联系您的银行或支付平台</li>
+                    <li>如有任何疑问，请及时联系我们的客服团队</li>
+                </ul>
+            </div>
+            
+            <p>感谢您对百道会的理解与支持，我们将持续改进服务质量。</p>
+        </div>
+        
+        <div class="footer">
+            <p>此邮件由系统自动发送，请勿回复。</p>
+            <p>如有疑问，请联系客服：<a href="mailto:{{ support_email }}" style="color: #10b981;">{{ support_email }}</a></p>
+            <p>&copy; {{ current_year }} 百道会. 保留所有权利。</p>
+        </div>
+    </div>
+</body>
+</html> 

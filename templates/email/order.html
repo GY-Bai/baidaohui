@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单确认通知</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #f59e0b;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .order-info {
+            background-color: #fffbeb;
+            padding: 25px;
+            border-radius: 12px;
+            border: 2px solid #fde68a;
+            margin: 25px 0;
+            position: relative;
+        }
+        .order-info:before {
+            content: "🛒";
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background-color: #ffffff;
+            padding: 0 10px;
+            font-size: 20px;
+        }
+        .order-details {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            padding: 10px 0;
+            border-bottom: 1px solid #fed7aa;
+        }
+        .order-details:last-child {
+            border-bottom: none;
+        }
+        .order-details .label {
+            font-weight: bold;
+            color: #92400e;
+        }
+        .order-details .value {
+            color: #b45309;
+            font-weight: 600;
+        }
+        .product-info {
+            background-color: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+            margin: 20px 0;
+        }
+        .price-highlight {
+            background-color: #f59e0b;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #f59e0b;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #d97706;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .status-badge {
+            background-color: #10b981;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .store-badge {
+            background-color: #6366f1;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🛒 百道会</div>
+            <h1 class="title">订单确认</h1>
+        </div>
+        
+        <div class="content">
+            <p>亲爱的 <strong>{{ user_nickname }}</strong>，</p>
+            
+            <p>感谢您的购买！您的订单已确认，我们正在为您准备商品。</p>
+            
+            <div class="order-info">
+                <h3 style="margin-top: 0; color: #92400e;">📦 订单详情</h3>
+                
+                <div class="order-details">
+                    <span class="label">订单编号：</span>
+                    <span class="value">{{ order_id }}</span>
+                </div>
+                
+                <div class="order-details">
+                    <span class="label">下单时间：</span>
+                    <span class="value">{{ order_time }}</span>
+                </div>
+                
+                <div class="order-details">
+                    <span class="label">支付方式：</span>
+                    <span class="value">{{ payment_method }}</span>
+                </div>
+                
+                <div class="order-details">
+                    <span class="label">订单状态：</span>
+                    <span class="status-badge">✅ 已确认</span>
+                </div>
+            </div>
+            
+            <div class="product-info">
+                <h4 style="margin-top: 0; color: #374151;">🎁 商品信息</h4>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0;">
+                    <div>
+                        <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px;">{{ product_name }}</div>
+                        <div style="color: #6b7280; font-size: 14px;">
+                            来自 <span class="store-badge">{{ store_name }}</span>
+                        </div>
+                    </div>
+                    <div class="price-highlight">{{ product_price }} {{ currency }}</div>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="{{ order_url }}" class="button">查看订单详情</a>
+            </div>
+            
+            <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin: 20px 0;">
+                <h4 style="margin-top: 0; color: #065f46;">🚚 配送信息</h4>
+                <div style="display: flex; justify-content: space-between; margin: 10px 0;">
+                    <span style="font-weight: bold;">预计发货时间：</span>
+                    <span style="color: #047857;">1-2个工作日</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin: 10px 0;">
+                    <span style="font-weight: bold;">预计送达时间：</span>
+                    <span style="color: #047857;">3-7个工作日</span>
+                </div>
+                <p style="margin: 15px 0 0 0; font-size: 14px; color: #065f46;">
+                    📱 我们会通过短信和邮件及时通知您物流状态更新
+                </p>
+            </div>
+            
+            <div style="background-color: #fef3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+                <h4 style="margin-top: 0; color: #92400e;">💡 温馨提示</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #92400e;">
+                    <li>请保持手机畅通，以便快递员联系您</li>
+                    <li>如需修改收货地址，请在发货前联系客服</li>
+                    <li>收到商品后请及时验收，如有问题请联系我们</li>
+                    <li>支持7天无理由退换货（特殊商品除外）</li>
+                </ul>
+            </div>
+            
+            <p>再次感谢您选择百道会，祝您购物愉快！</p>
+        </div>
+        
+        <div class="footer">
+            <p>此邮件由系统自动发送，请勿回复。</p>
+            <p>如有疑问，请联系客服：<a href="mailto:support@baidaohui.com" style="color: #f59e0b;">support@baidaohui.com</a></p>
+            <p>客服热线：400-888-8888 | 工作时间：9:00-18:00</p>
+            <p>&copy; {{ current_year }} 百道会. 保留所有权利。</p>
+        </div>
+    </div>
+</body>
+</html> 

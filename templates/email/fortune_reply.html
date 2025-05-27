@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>算命申请回复通知</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #8b5cf6;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .order-info {
+            background-color: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #8b5cf6;
+            margin: 20px 0;
+        }
+        .reply-content {
+            background-color: #fef7ff;
+            padding: 25px;
+            border-radius: 12px;
+            border: 2px solid #e9d5ff;
+            margin: 25px 0;
+            position: relative;
+        }
+        .reply-content:before {
+            content: "📿";
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background-color: #ffffff;
+            padding: 0 10px;
+            font-size: 20px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #8b5cf6;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #7c3aed;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .master-signature {
+            text-align: right;
+            margin-top: 15px;
+            font-style: italic;
+            color: #6b7280;
+        }
+        .order-details {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+        }
+        .order-details span {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">📿 百道会</div>
+            <h1 class="title">您的算命申请已有回复</h1>
+        </div>
+        
+        <div class="content">
+            <p>亲爱的 <strong>{{ user_nickname }}</strong>，</p>
+            
+            <p>您的算命申请已经得到了专业回复，请查看详细内容。</p>
+            
+            <div class="order-info">
+                <h3>📋 订单信息</h3>
+                <div class="order-details">
+                    <span>订单编号：</span>
+                    <span>{{ order_id }}</span>
+                </div>
+                <div class="order-details">
+                    <span>回复时间：</span>
+                    <span>{{ reply_time }}</span>
+                </div>
+                <div class="order-details">
+                    <span>回复大师：</span>
+                    <span>{{ master_nickname }}</span>
+                </div>
+            </div>
+            
+            <div class="reply-content">
+                <h4 style="margin-top: 0; color: #8b5cf6;">🔮 大师回复</h4>
+                <div style="white-space: pre-wrap; line-height: 1.8;">{{ reply_content }}</div>
+                <div class="master-signature">
+                    —— {{ master_nickname }} 大师
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="{{ fortune_url }}" class="button">查看完整回复</a>
+            </div>
+            
+            <div style="background-color: #fef3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+                <h4 style="margin-top: 0; color: #92400e;">💡 温馨提示</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #92400e;">
+                    <li>请仔细阅读大师的回复内容</li>
+                    <li>如有疑问，可通过私信功能与大师进一步沟通</li>
+                    <li>建议保存此回复内容以备日后参考</li>
+                </ul>
+            </div>
+            
+            <p>感谢您对百道会的信任与支持！</p>
+        </div>
+        
+        <div class="footer">
+            <p>此邮件由系统自动发送，请勿回复。</p>
+            <p>如有疑问，请联系客服：<a href="mailto:support@baidaohui.com" style="color: #8b5cf6;">support@baidaohui.com</a></p>
+            <p>&copy; {{ current_year }} 百道会. 保留所有权利。</p>
+        </div>
+    </div>
+</body>
+</html> 

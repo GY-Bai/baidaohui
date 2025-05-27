@@ -3,6 +3,4 @@
 *.zip
 *.tfvars
 .env
-infra/terraform/terraform.tfvars
-infra/terraform/main.tf
-infra/terraform
+.env.*

@@ -1,0 +1,205 @@
+name: baidaohui-pages
+compatibility_date: 2024-01-01
+
+# 主域名配置
+production:
+  name: baidaohui-main
+  project_name: baidaohui
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  
+  # 构建配置
+  build:
+    command: npm run build
+    destination: build
+    root_dir: .
+    
+  # 环境变量
+  env_vars:
+    NODE_ENV: production
+    VITE_SUPABASE_URL: ${SUPABASE_URL}
+    VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    VITE_API_BASE_URL: https://api.baidaohui.com
+    
+  # 自定义域名
+  custom_domains:
+    - baidaohui.com
+    - www.baidaohui.com
+    
+  # 路由规则
+  routes:
+    - include: "/*"
+      destination: /index.html
+
+# Fan 子域名
+fan:
+  name: baidaohui-fan
+  project_name: baidaohui-fan
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  
+  build:
+    command: npm run build:fan
+    destination: build/fan
+    root_dir: .
+    
+  env_vars:
+    NODE_ENV: production
+    VITE_SUPABASE_URL: ${SUPABASE_URL}
+    VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    VITE_API_BASE_URL: https://api.baidaohui.com
+    VITE_USER_ROLE: Fan
+    
+  custom_domains:
+    - fan.baidaohui.com
+    
+  routes:
+    - include: "/*"
+      destination: /fan/index.html
+
+# Member 子域名
+member:
+  name: baidaohui-member
+  project_name: baidaohui-member
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  
+  build:
+    command: npm run build:member
+    destination: build/member
+    root_dir: .
+    
+  env_vars:
+    NODE_ENV: production
+    VITE_SUPABASE_URL: ${SUPABASE_URL}
+    VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    VITE_API_BASE_URL: https://api.baidaohui.com
+    VITE_USER_ROLE: Member
+    
+  custom_domains:
+    - member.baidaohui.com
+    
+  routes:
+    - include: "/*"
+      destination: /member/index.html
+
+# Master 子域名
+master:
+  name: baidaohui-master
+  project_name: baidaohui-master
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  
+  build:
+    command: npm run build:master
+    destination: build/master
+    root_dir: .
+    
+  env_vars:
+    NODE_ENV: production
+    VITE_SUPABASE_URL: ${SUPABASE_URL}
+    VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    VITE_API_BASE_URL: https://api.baidaohui.com
+    VITE_USER_ROLE: Master
+    
+  custom_domains:
+    - master.baidaohui.com
+    
+  routes:
+    - include: "/*"
+      destination: /master/index.html
+
+# Firstmate 子域名
+firstmate:
+  name: baidaohui-firstmate
+  project_name: baidaohui-firstmate
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  
+  build:
+    command: npm run build:firstmate
+    destination: build/firstmate
+    root_dir: .
+    
+  env_vars:
+    NODE_ENV: production
+    VITE_SUPABASE_URL: ${SUPABASE_URL}
+    VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    VITE_API_BASE_URL: https://api.baidaohui.com
+    VITE_USER_ROLE: Firstmate
+    
+  custom_domains:
+    - firstmate.baidaohui.com
+    
+  routes:
+    - include: "/*"
+      destination: /firstmate/index.html
+
+# Seller 子域名
+seller:
+  name: baidaohui-seller
+  project_name: baidaohui-seller
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  
+  build:
+    command: npm run build:seller
+    destination: build/seller
+    root_dir: .
+    
+  env_vars:
+    NODE_ENV: production
+    VITE_SUPABASE_URL: ${SUPABASE_URL}
+    VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    VITE_API_BASE_URL: https://api.baidaohui.com
+    VITE_USER_ROLE: Seller
+    
+  custom_domains:
+    - seller.baidaohui.com
+    
+  routes:
+    - include: "/*"
+      destination: /seller/index.html
+
+# 全局设置
+settings:
+  # 缓存配置
+  cache_control:
+    - url_pattern: "*.js"
+      cache_control: "public, max-age=31536000, immutable"
+    - url_pattern: "*.css"
+      cache_control: "public, max-age=31536000, immutable"
+    - url_pattern: "*.png"
+      cache_control: "public, max-age=31536000"
+    - url_pattern: "*.jpg"
+      cache_control: "public, max-age=31536000"
+    - url_pattern: "*.svg"
+      cache_control: "public, max-age=31536000"
+    - url_pattern: "/"
+      cache_control: "public, max-age=3600"
+      
+  # 安全头
+  headers:
+    - name: "X-Frame-Options"
+      value: "DENY"
+    - name: "X-Content-Type-Options"
+      value: "nosniff"
+    - name: "Referrer-Policy"
+      value: "strict-origin-when-cross-origin"
+    - name: "Permissions-Policy"
+      value: "camera=(), microphone=(), geolocation=()"
+      
+  # 重定向规则
+  redirects:
+    - source: "https://www.baidaohui.com/*"
+      destination: "https://baidaohui.com/:splat"
+      status: 301
+    - source: "https://baidaohui.com/fan"
+      destination: "https://fan.baidaohui.com"
+      status: 302
+    - source: "https://baidaohui.com/member"
+      destination: "https://member.baidaohui.com"
+      status: 302
+    - source: "https://baidaohui.com/master"
+      destination: "https://master.baidaohui.com"
+      status: 302
+    - source: "https://baidaohui.com/firstmate"
+      destination: "https://firstmate.baidaohui.com"
+      status: 302
+    - source: "https://baidaohui.com/seller"
+      destination: "https://seller.baidaohui.com"
+      status: 302 
