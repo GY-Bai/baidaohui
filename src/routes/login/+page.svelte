@@ -286,7 +286,7 @@
   }
 
   .logo {
-    margin-bottom: 30px;
+    margin-bottom: 20px;
   }
 
   .logo-img {
@@ -319,7 +319,7 @@
   .subtitle {
     font-size: 16px;
     color: #666;
-    margin-bottom: 40px;
+    margin-bottom: 20px;
     font-style: italic;
   }
 
