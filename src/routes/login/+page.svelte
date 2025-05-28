@@ -290,8 +290,8 @@
   }
 
   .logo-img {
-    width: 80px;
-    height: 80px;
+    width: 110px;
+    height: 110px;
     border-radius: 50%;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease;
@@ -332,7 +332,7 @@
     border: 1px rgba(255, 193, 7, 0);
     border-radius: 8px;
     padding: 12px;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     color: #856404;
     font-size: 14px;
     
@@ -353,7 +353,7 @@
     border: 1px rgba(255, 193, 7, 0);
     border-radius: 8px;
     padding: 8px 12px;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     color: #155724;
     font-size: 14px;
     
@@ -457,8 +457,8 @@
     }
     
     .logo-img {
-      width: 60px;
-      height: 60px;
+      width: 80px;
+      height: 80px;
     }
   }
 </style> 
