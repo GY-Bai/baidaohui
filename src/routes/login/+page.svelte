@@ -182,14 +182,14 @@
       <div class="status-warning">
         <i class="fas fa-exclamation-triangle"></i>
         <div>
-          <strong>无法通信!!!</strong><br>
-          <small>后端服务正在抢修中...</small>
+          <strong>🔴服务器罢工!</strong><br>
+          <small>后端服务正在紧急抢修中...</small>
         </div>
       </div>
     {:else if backendStatus === 'available'}
       <div class="status-success">
         <i class="fas fa-check-circle"></i>
-        <span>通信正常!</span>
+        <span>🟢服务器正常!</span>
       </div>
     {/if}
     
@@ -203,14 +203,14 @@
         <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
       </div>
       {#if backendStatus === 'unavailable'}
-        曲率引擎抢修中...
+        曲率引擎抢修中...<br>暂时无法登录
       {:else}
-        点击启动曲率引擎!!!
+        点击启动曲率引擎!!!<br>一键直达谷歌登录
       {/if}
     </button>
     
     <div class="footer">
-      😍教主悄悄话💬｜🤑算命申请🔮｜🤩好物推荐🛍️<br><br>
+      教主悄悄话💬｜算命申请🔮｜好物推荐🛍️<br><br>
       登录即表示您同意我们的<br>服务条款和隐私政策
     </div>
   </div>
@@ -325,12 +325,11 @@
 
   .status-warning {
     display: flex;
-    width: 70%;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    background: rgba(255, 193, 7, 0.1);
-    border: 1px solid #ffc107;
+    background: rgba(255, 193, 7, 0);
+    border: 1px rgba(255, 193, 7, 0);
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 30px;
@@ -342,17 +341,16 @@
   .status-warning i {
     font-size: 18px;
     flex-shrink: 0;
-    color: #ffc107;
+    color:rgb(255, 36, 7);
   }
 
   .status-success {
     display: flex;
-    width: 70%;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: rgba(40, 167, 69, 0.1);
-    border: 1px solid #28a745;
+    background: rgba(255, 193, 7, 0);
+    border: 1px rgba(255, 193, 7, 0);
     border-radius: 8px;
     padding: 8px 12px;
     margin-bottom: 30px;
@@ -363,7 +361,7 @@
 
   .status-success i {
     font-size: 16px;
-    color: #28a745;
+    color:rgb(18, 200, 60);
   }
 
   .google-btn {
