@@ -16,21 +16,23 @@ export const nodes = [
 	() => import('./nodes/12'),
 	() => import('./nodes/13'),
 	() => import('./nodes/14'),
-	() => import('./nodes/15')
+	() => import('./nodes/15'),
+	() => import('./nodes/16')
 ];
 
 export const server_loads = [2,3,4,5,6];
 
 export const dictionary = {
-		"/auth/callback": [~7],
-		"/chat/group/general": [8],
-		"/chat/private/[memberId]": [9],
-		"/fan": [10,[2]],
-		"/firstmate": [11,[3]],
-		"/login": [~12],
-		"/master": [13,[4]],
-		"/member": [14,[5]],
-		"/seller": [15,[6]]
+		"/": [~7],
+		"/auth/callback": [~8],
+		"/chat/group/general": [9],
+		"/chat/private/[memberId]": [10],
+		"/fan": [11,[2]],
+		"/firstmate": [12,[3]],
+		"/login": [~13],
+		"/master": [14,[4]],
+		"/member": [15,[5]],
+		"/seller": [16,[6]]
 	};
 
 export const hooks = {

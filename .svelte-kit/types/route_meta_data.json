@@ -1,5 +1,7 @@
 {
-	"/": [],
+	"/": [
+		"src/routes/+page.server.ts"
+	],
 	"/api/auth/callback": [
 		"src/routes/api/auth/callback/+server.ts"
 	],
