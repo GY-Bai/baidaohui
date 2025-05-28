@@ -1,12 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import os
 import logging
 from datetime import datetime
 import requests
+from mailjet_rest import Client
 
 app = Flask(__name__)
 CORS(app)
@@ -15,16 +13,18 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 邮件配置
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USERNAME = os.getenv('SMTP_USERNAME')
-SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
-FROM_EMAIL = os.getenv('FROM_EMAIL', SMTP_USERNAME)
+# Mailjet配置
+MJ_APIKEY_PUBLIC = os.getenv('MJ_APIKEY_PUBLIC')
+MJ_APIKEY_PRIVATE = os.getenv('MJ_APIKEY_PRIVATE')
+FROM_EMAIL = os.getenv('FROM_EMAIL')
+REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', FROM_EMAIL)
 
 # 验证必要的环境变量
-if not SMTP_USERNAME or not SMTP_PASSWORD:
-    logger.error("SMTP配置不完整，请检查环境变量")
+if not MJ_APIKEY_PUBLIC or not MJ_APIKEY_PRIVATE or not FROM_EMAIL:
+    logger.error("Mailjet配置不完整，请检查环境变量: MJ_APIKEY_PUBLIC, MJ_APIKEY_PRIVATE, FROM_EMAIL")
+
+# 初始化Mailjet客户端
+mailjet = Client(auth=(MJ_APIKEY_PUBLIC, MJ_APIKEY_PRIVATE), version='v3.1')
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -32,7 +32,8 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'service': 'email-service',
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': datetime.utcnow().isoformat(),
+        'provider': 'mailjet'
     })
 
 @app.route('/send', methods=['POST'])
@@ -55,30 +56,22 @@ def send_email():
         content = data['content']
         content_type = data.get('content_type', 'text')  # 'text' 或 'html'
         
-        # 创建邮件
-        msg = MIMEMultipart()
-        msg['From'] = FROM_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        # 添加邮件内容
-        if content_type == 'html':
-            msg.attach(MIMEText(content, 'html', 'utf-8'))
-        else:
-            msg.attach(MIMEText(content, 'plain', 'utf-8'))
-        
         # 发送邮件
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
+        result = send_mailjet_email(to_email, subject, content, content_type)
         
-        logger.info(f"邮件发送成功: {to_email}")
-        
-        return jsonify({
-            'success': True,
-            'message': '邮件发送成功'
-        })
+        if result['success']:
+            logger.info(f"邮件发送成功: {to_email}")
+            return jsonify({
+                'success': True,
+                'message': '邮件发送成功',
+                'message_id': result.get('message_id')
+            })
+        else:
+            logger.error(f"邮件发送失败: {result['error']}")
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 500
         
     except Exception as e:
         logger.error(f"发送邮件失败: {str(e)}")
@@ -103,12 +96,12 @@ def send_verification_email():
             }), 400
         
         # 邮件内容
-        subject = "百道会 - 邮箱验证码"
+        subject = "百刀会 - 邮箱验证码"
         content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #2563eb; text-align: center;">百道会邮箱验证</h2>
+                <h2 style="color: #2563eb; text-align: center;">百刀会邮箱验证</h2>
                 
                 <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
                     <p>您好！</p>
@@ -125,7 +118,7 @@ def send_verification_email():
                 <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
                     <p style="color: #6b7280; font-size: 14px;">
                         此邮件由系统自动发送，请勿回复。<br>
-                        © 2024 百道会. 保留所有权利。
+                        © 2024 百刀会. 保留所有权利。
                     </p>
                 </div>
             </div>
@@ -134,7 +127,18 @@ def send_verification_email():
         """
         
         # 发送邮件
-        return send_email_internal(to_email, subject, content, 'html')
+        result = send_mailjet_email(to_email, subject, content, 'html')
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': '验证邮件发送成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 500
         
     except Exception as e:
         logger.error(f"发送验证邮件失败: {str(e)}")
@@ -169,7 +173,18 @@ def send_notification_email():
             }), 400
         
         # 发送邮件
-        return send_email_internal(to_email, subject, content, 'html')
+        result = send_mailjet_email(to_email, subject, content, 'html')
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': '通知邮件发送成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 500
         
     except Exception as e:
         logger.error(f"发送通知邮件失败: {str(e)}")
@@ -178,46 +193,58 @@ def send_notification_email():
             'error': f'发送通知邮件失败: {str(e)}'
         }), 500
 
-def send_email_internal(to_email, subject, content, content_type='text'):
-    """内部邮件发送函数"""
+def send_mailjet_email(to_email, subject, content, content_type='text'):
+    """使用Mailjet发送邮件"""
     try:
-        # 创建邮件
-        msg = MIMEMultipart()
-        msg['From'] = FROM_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
+        # 构建邮件数据
+        message_data = {
+            'From': {
+                'Email': FROM_EMAIL,
+                'Name': '百刀会通知'
+            },
+            'To': [{'Email': to_email}],
+            'Subject': subject,
+            'ReplyTo': {
+                'Email': REPLY_TO_EMAIL,
+                'Name': '百刀会客服'
+            }
+        }
         
         # 添加邮件内容
         if content_type == 'html':
-            msg.attach(MIMEText(content, 'html', 'utf-8'))
+            message_data['HTMLPart'] = content
         else:
-            msg.attach(MIMEText(content, 'plain', 'utf-8'))
+            message_data['TextPart'] = content
         
         # 发送邮件
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-        
-        logger.info(f"邮件发送成功: {to_email}")
-        
-        return jsonify({
-            'success': True,
-            'message': '邮件发送成功'
+        result = mailjet.send.create(data={
+            'Messages': [message_data]
         })
         
+        if result.status_code == 200:
+            response_data = result.json()
+            message_id = response_data.get('Messages', [{}])[0].get('MessageID')
+            return {
+                'success': True,
+                'message_id': message_id
+            }
+        else:
+            return {
+                'success': False,
+                'error': f'Mailjet API错误: {result.status_code} - {result.text}'
+            }
+        
     except Exception as e:
-        logger.error(f"发送邮件失败: {str(e)}")
-        return jsonify({
+        return {
             'success': False,
-            'error': f'发送邮件失败: {str(e)}'
-        }), 500
+            'error': f'Mailjet发送失败: {str(e)}'
+        }
 
 def generate_notification_content(notification_type, data):
     """生成通知邮件内容"""
     
     if notification_type == 'payment_success':
-        subject = "百道会 - 支付成功通知"
+        subject = "百刀会 - 支付成功通知"
         content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -233,13 +260,13 @@ def generate_notification_content(notification_type, data):
                         <li><strong>服务：</strong>{data.get('service', 'N/A')}</li>
                         <li><strong>时间：</strong>{data.get('timestamp', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}</li>
                     </ul>
-                    <p>感谢您使用百道会的服务！</p>
+                    <p>感谢您使用百刀会的服务！</p>
                 </div>
                 
                 <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
                     <p style="color: #6b7280; font-size: 14px;">
                         此邮件由系统自动发送，请勿回复。<br>
-                        © 2024 百道会. 保留所有权利。
+                        © 2024 百刀会. 保留所有权利。
                     </p>
                 </div>
             </div>
@@ -249,7 +276,7 @@ def generate_notification_content(notification_type, data):
         return subject, content
     
     elif notification_type == 'fortune_completed':
-        subject = "百道会 - 算命服务完成"
+        subject = "百刀会 - 算命服务完成"
         content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -269,7 +296,7 @@ def generate_notification_content(notification_type, data):
                 <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
                     <p style="color: #6b7280; font-size: 14px;">
                         此邮件由系统自动发送，请勿回复。<br>
-                        © 2024 百道会. 保留所有权利。
+                        © 2024 百刀会. 保留所有权利。
                     </p>
                 </div>
             </div>

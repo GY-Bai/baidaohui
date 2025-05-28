@@ -29,10 +29,7 @@ CORS(app, supports_credentials=True)
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/baidaohui')
 JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret-key')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
-VAULT_URL = os.getenv('VAULT_URL')  # HashiCorp Vault URL
-VAULT_TOKEN = os.getenv('VAULT_TOKEN')  # Vault access token
-VAULT_MOUNT_POINT = os.getenv('VAULT_MOUNT_POINT', 'secret')  # Vault mount point
-VAULT_ENCRYPTION_KEY = os.getenv('VAULT_ENCRYPTION_KEY', 'your-vault-encryption-key')
+# Vault配置已废弃 - 现直接存储在MongoDB Atlas中
 PAYMENT_SERVICE_URL = os.getenv('PAYMENT_SERVICE_URL', 'http://payment-service:5006')
 ECOMMERCE_POLLER_URL = os.getenv('ECOMMERCE_POLLER_URL', 'http://ecommerce-poller:3000')
 
@@ -110,28 +107,24 @@ def check_rate_limit(user_id, is_sensitive=False):
         rate_limit_store[user_id].append(now)
         return True, None
 
-def verify_jwt(token):
-    """验证JWT令牌（支持Supabase和传统JWT）"""
-    try:
-        # 优先尝试Supabase JWT
-        if SUPABASE_JWT_SECRET:
-            try:
-                payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=['HS256'])
-                return {
-                    'sub': payload['sub'],
-                    'email': payload.get('email'),
-                    'role': payload.get('user_metadata', {}).get('role', 'user')
-                }
-            except jwt.InvalidTokenError:
-                pass
-        
-        # 回退到传统JWT
-        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
-        return payload
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
+def get_jwt_secrets():
+    """获取所有可用的JWT密钥用于验证"""
+    secrets = []
+    if SUPABASE_JWT_SECRET:
+        secrets.append(SUPABASE_JWT_SECRET)
+    if JWT_SECRET:
+        secrets.append(JWT_SECRET)
+    return secrets
+
+def verify_jwt_token_key_service(token):
+    """验证JWT令牌，支持多种密钥"""
+    for secret in get_jwt_secrets():
+        try:
+            payload = jwt.decode(token, secret, algorithms=['HS256'])
+            return payload
+        except jwt.InvalidTokenError:
+            continue
+    raise jwt.InvalidTokenError("无法验证JWT令牌")
 
 def check_auth():
     """检查用户认证和权限"""
@@ -147,7 +140,7 @@ def check_auth():
     if not token:
         return None, {'error': '缺少认证令牌'}, 401
     
-    payload = verify_jwt(token)
+    payload = verify_jwt_token_key_service(token)
     if not payload:
         return None, {'error': '无效的认证令牌'}, 401
     
@@ -314,7 +307,7 @@ def get_user_from_request():
         return None
     
     token = auth_header.split(' ')[1]
-    return verify_jwt(token)
+    return verify_jwt_token_key_service(token)
 
 def validate_stripe_key(key_value, key_type):
     """验证Stripe密钥格式"""

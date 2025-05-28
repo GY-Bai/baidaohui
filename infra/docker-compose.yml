@@ -1,297 +1,181 @@
 version: '3.8'
 
+networks:
+  baidaohui-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  mongodb_data:
+
 services:
-  # API Gateway
-  api-gateway:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
+  # 开发环境MongoDB (可选 - 也可使用MongoDB Atlas)
+  mongodb:
+    image: mongo:5.0
+    container_name: baidaohui-mongodb-dev
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=baidaohui
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - auth-service
-      - sso-service
-      - chat-service
-      - fortune-service
-      - ecommerce-api-service
-      - payment-service
-      - invite-service
-      - key-service
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
     networks:
       - baidaohui-network
+
+  # Redis缓存服务
+  redis:
+    image: redis:alpine
+    container_name: baidaohui-redis-dev
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # 认证服务
   auth-service:
-    image: yourregistry/baidaohui-auth-service:latest
+    build: ../services/auth-service
+    container_name: auth-service-dev
     environment:
-      - NODE_ENV=production
+      # 外部API配置 - 从.env文件读取
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:password@mongodb:27017/baidaohui?authSource=admin}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # 内部配置 - 开发环境
+      - NODE_ENV=development
       - PORT=5001
-      - MONGODB_URI=${MONGODB_URI}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - REDIS_URL=${REDIS_URL}
-      - DOMAIN=${DOMAIN}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 2
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - SSO_SERVICE_URL=http://sso-service:5002
+    ports:
+      - "5001:5001"
+    depends_on:
+      - redis
+      - mongodb
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # SSO服务
+  # SSO统一认证服务
   sso-service:
-    image: yourregistry/baidaohui-sso-service:latest
+    build: ../services/sso-service
+    container_name: sso-service-dev
     environment:
-      - NODE_ENV=production
-      - PORT=5002
+      # 外部API配置
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:password@mongodb:27017/baidaohui?authSource=admin}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - REDIS_URL=${REDIS_URL}
-      - DOMAIN=${DOMAIN}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 2
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # 内部配置
+      - NODE_ENV=development
+      - PORT=5002
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - DOMAIN=localhost
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:4173
+    ports:
+      - "5002:5002"
+    depends_on:
+      - redis
+      - mongodb
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # 聊天服务
   chat-service:
-    image: yourregistry/baidaohui-chat-service:latest
+    build: ../services/chat-service
+    container_name: chat-service-dev
     environment:
-      - NODE_ENV=production
-      - PORT=3002
-      - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 外部API配置
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:password@mongodb:27017/baidaohui?authSource=admin}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == buffalo
-      replicas: 2
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 内部配置
+      - NODE_ENV=development
+      - PORT=5003
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+    ports:
+      - "5003:5003"
+    depends_on:
+      - redis
+      - mongodb
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # 算命服务
   fortune-service:
-    image: yourregistry/baidaohui-fortune-service:latest
+    build: ../services/fortune-service
+    container_name: fortune-service-dev
     environment:
-      - NODE_ENV=production
-      - PORT=3003
-      - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URL=${REDIS_URL}
-      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 外部API配置
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:password@mongodb:27017/baidaohui?authSource=admin}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
+      - R2_ENDPOINT=${R2_ENDPOINT}
       - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
-      - EMAIL_SERVICE_URL=${EMAIL_SERVICE_URL}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 2
+      # 内部配置
+      - NODE_ENV=development
+      - PORT=5007
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - FORTUNE_SERVICE_KEY=dev-fortune-key
+      - EMAIL_SERVICE_URL=http://email-service:5008
+      - PAYMENT_SERVICE_URL=http://payment-service:5005
+    ports:
+      - "5007:5007"
+    depends_on:
+      - mongodb
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # 电商轮询服务
-  ecommerce-poller:
-    image: yourregistry/baidaohui-ecommerce-poller:latest
-    environment:
-      - NODE_ENV=production
-      - MONGODB_URI=${MONGODB_URI}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
-      - R2_SECRET_KEY=${R2_SECRET_KEY}
-      - R2_BUCKET=${R2_BUCKET}
-      - STRIPE_ACCOUNTS=${STRIPE_ACCOUNTS}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == buffalo
-      replicas: 1
-    networks:
-      - baidaohui-network
-
-  # 电商API服务
-  ecommerce-api-service:
-    image: yourregistry/baidaohui-ecommerce-api-service:latest
-    environment:
-      - NODE_ENV=production
-      - PORT=3004
-      - MONGODB_URI=${MONGODB_URI}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
-      - R2_SECRET_KEY=${R2_SECRET_KEY}
-      - R2_BUCKET=${R2_BUCKET}
-      - JWT_SECRET=${JWT_SECRET}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == buffalo
-      replicas: 2
-    networks:
-      - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # 支付服务
-  payment-service:
-    image: yourregistry/baidaohui-payment-service:latest
-    environment:
-      - NODE_ENV=production
-      - PORT=3005
-      - MONGODB_URI=${MONGODB_URI}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - FORTUNE_SERVICE_URL=http://fortune-service:3003
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 2
-    networks:
-      - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # 邀请链接服务
-  invite-service:
-    image: yourregistry/baidaohui-invite-service:latest
-    environment:
-      - NODE_ENV=production
-      - PORT=3006
-      - MONGODB_URI=${MONGODB_URI}
-      - JWT_SECRET=${JWT_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 1
-    networks:
-      - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3006/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # 密钥管理服务
-  key-service:
-    image: yourregistry/baidaohui-key-service:latest
-    environment:
-      - NODE_ENV=production
-      - PORT=3007
-      - MONGODB_URI=${MONGODB_URI}
-      - VAULT_URL=${VAULT_URL}
-      - VAULT_TOKEN=${VAULT_TOKEN}
-      - JWT_SECRET=${JWT_SECRET}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 1
-    networks:
-      - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # 邮件服务
   email-service:
-    image: yourregistry/baidaohui-email-service:latest
+    build: ../services/email-service
+    container_name: email-service-dev
     environment:
-      - NODE_ENV=production
-      - PORT=5003
-      - SMTP_SERVER=${SMTP_SERVER}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
+      # 外部API配置
+      - MJ_APIKEY_PUBLIC=${MJ_APIKEY_PUBLIC}
+      - MJ_APIKEY_PRIVATE=${MJ_APIKEY_PRIVATE}
+      # 内部配置
+      - NODE_ENV=development
+      - PORT=5008
+      - FROM_EMAIL=noreply@localhost
+      - REPLY_TO_EMAIL=support@localhost
       - AUTH_SERVICE_URL=http://auth-service:5001
-      - CF_EMAIL_DOMAIN=${CF_EMAIL_DOMAIN}
-      - CF_API_TOKEN=${CF_API_TOKEN}
-      - CF_ZONE_ID=${CF_ZONE_ID}
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
-      replicas: 2
+    ports:
+      - "5008:5008"
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # Redis缓存
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-    volumes:
-      - redis-data:/data
-    deploy:
-      placement:
-        constraints:
-          - node.labels.location == san-jose
+  # 支付服务
+  payment-service:
+    build: ../services/payment-service
+    container_name: payment-service-dev
+    environment:
+      # 外部API配置
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:password@mongodb:27017/baidaohui?authSource=admin}
+      # 内部配置
+      - NODE_ENV=development
+      - PORT=5005
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - FRONTEND_URL=http://localhost:5173
+      - FORTUNE_SERVICE_URL=http://fortune-service:5007
+    ports:
+      - "5005:5005"
+    depends_on:
+      - mongodb
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-networks:
-  baidaohui-network:
-    driver: overlay
-    attachable: true
-
-volumes:
-  redis-data:
-    driver: local 
+  # 其他服务可根据需要添加... 

@@ -1,33 +1,32 @@
 version: '3.8'
 
+networks:
+  baidaohui-network:
+    driver: bridge
+
 services:
-  # 算命服务 - 核心业务逻辑
+  # 算命服务
   fortune-service:
-    image: yourregistry/baidaohui-fortune-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-fortune-service:${IMAGE_TAG:-latest}
     container_name: fortune-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5003
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URL=redis://107.172.87.113:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
+      - R2_ENDPOINT=${R2_ENDPOINT}
       - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
-      - EMAIL_SERVICE_URL=http://localhost:5007
-      - PAYMENT_SERVICE_URL=http://107.172.87.113:5006
-    ports:
-      - "5003:5003"
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5007
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - FORTUNE_SERVICE_KEY=${FORTUNE_SERVICE_KEY:-auto-generated-fortune-key}
+      - EMAIL_SERVICE_URL=http://email-service:5008
+      - PAYMENT_SERVICE_URL=http://107.172.87.113:5005
+      # 算命服务采用完全自定义金额模式，无建议价格
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -35,33 +34,22 @@ services:
         reservations:
           memory: 192M
 
-  # 邮件服务 - 通知系统
+  # 邮件服务 - 仅发送，无Email Routing
   email-service:
-    image: yourregistry/baidaohui-email-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-email-service:${IMAGE_TAG:-latest}
     container_name: email-service
-    restart: unless-stopped
     environment:
+      # 外部API配置
+      - MJ_APIKEY_PUBLIC=${MJ_APIKEY_PUBLIC}
+      - MJ_APIKEY_PRIVATE=${MJ_APIKEY_PRIVATE}
+      # 内部配置
       - NODE_ENV=production
-      - PORT=5007
-      - SMTP_SERVER=${SMTP_SERVER}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
+      - PORT=5008
+      - FROM_EMAIL=noreply@baidaohui.com
+      - REPLY_TO_EMAIL=support@baidaohui.com
       - AUTH_SERVICE_URL=http://107.172.87.113:5001
-      - CF_EMAIL_DOMAIN=${CF_EMAIL_DOMAIN}
-      - CF_API_TOKEN=${CF_API_TOKEN}
-      - CF_ZONE_ID=${CF_ZONE_ID}
-      - DOMAIN=${DOMAIN}
-    ports:
-      - "5007:5007"
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5007/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -69,20 +57,22 @@ services:
         reservations:
           memory: 96M
 
-  # 电商轮询服务 - 定时同步
+  # 电商轮询服务
   ecommerce-poller:
-    image: yourregistry/baidaohui-ecommerce-poller:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-ecommerce-poller:${IMAGE_TAG:-latest}
     container_name: ecommerce-poller
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
-      - STRIPE_ACCOUNTS=${STRIPE_ACCOUNTS}
-      - EMAIL_SERVICE_URL=http://localhost:5007
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=3000
+      - SYNC_INTERVAL=10
+      # Stripe密钥从MongoDB动态读取
     networks:
       - baidaohui-network
     deploy:
@@ -92,18 +82,17 @@ services:
         reservations:
           memory: 64M
 
-  # 汇率更新服务 - 定时任务
+  # 汇率更新服务 - 独立服务
   exchange-rate-updater:
-    image: yourregistry/baidaohui-exchange-updater:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-exchange-updater:${IMAGE_TAG:-latest}
     container_name: exchange-rate-updater
-    restart: unless-stopped
     environment:
-      - REDIS_URL=redis://107.172.87.113:6379
-      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
-      - FORTUNE_SERVICE_URL=http://localhost:5003
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
-    volumes:
-      - ./logs:/var/log
+      # 外部API配置
+      - MONGODB_URI=${MONGODB_URI}
+      - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
+      # 内部配置
+      - NODE_ENV=production
+      - UPDATE_INTERVAL=3600
     networks:
       - baidaohui-network
     deploy:
@@ -113,36 +102,29 @@ services:
         reservations:
           memory: 32M
 
-  # R2同步服务 - 数据同步到Cloudflare R2
+  # R2数据同步服务
   r2-sync-service:
-    image: yourregistry/baidaohui-r2-sync-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-r2-sync-service:${IMAGE_TAG:-latest}
     container_name: r2-sync-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5011
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
-      - SYNC_INTERVAL=*/10 * * * *
-    ports:
-      - "5011:5011"
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5011
+      - SYNC_PRODUCTS_INTERVAL=10
+      - SYNC_STATS_INTERVAL=1
+      - SYNC_INVITES_INTERVAL=5
+      - SYNC_USER_STATS_INTERVAL=60
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5011/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
           memory: 96M
         reservations:
-          memory: 48M
-
-networks:
-  baidaohui-network:
-    driver: bridge 
+          memory: 48M 

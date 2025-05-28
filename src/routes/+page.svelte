@@ -12,15 +12,15 @@
 </script>
 
 <svelte:head>
-  <title>百道会 - 专业的知识分享平台</title>
-  <meta name="description" content="百道会是一个专业的知识分享平台，连接粉丝、会员、大师和卖家。" />
+  <title>百刀会 - 专业的知识分享平台</title>
+  <meta name="description" content="百刀会是一个专业的知识分享平台，连接粉丝、会员、大师和卖家。" />
 </svelte:head>
 
 <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
   <div class="max-w-md w-full space-y-8 p-8">
     <div class="text-center">
       <h1 class="text-4xl font-bold text-gray-900 mb-4">
-        欢迎来到百道会
+        欢迎来到百刀会
       </h1>
       <p class="text-lg text-gray-600 mb-8">
         专业的知识分享平台

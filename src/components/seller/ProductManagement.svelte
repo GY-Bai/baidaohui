@@ -54,8 +54,8 @@
   const tutorialVideos = [
     {
       id: 'dQw4w9WgXcQ',
-      title: '百道会商户入门指南',
-      description: '了解如何在百道会平台开始销售您的商品',
+      title: '百刀会商户入门指南',
+      description: '了解如何在百刀会平台开始销售您的商品',
       duration: '10:30'
     },
     {

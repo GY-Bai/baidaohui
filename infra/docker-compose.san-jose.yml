@@ -1,56 +1,63 @@
 version: '3.8'
 
+networks:
+  baidaohui-network:
+    driver: bridge
+
 services:
-  # API Gateway - 主要流量入口
-  api-gateway:
+  # Redis缓存服务 - 无需密码的本地Redis
+  redis:
+    image: redis:alpine
+    container_name: baidaohui-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API网关 - Nginx反向代理
+  nginx:
     image: nginx:alpine
-    container_name: api-gateway
-    restart: unless-stopped
+    container_name: baidaohui-nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - auth-service
       - sso-service
       - chat-service
-      - ecommerce-api-service
+      - ecommerce-service
       - payment-service
-      - invite-service
-      - key-service
     networks:
       - baidaohui-network
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
 
-  # 认证服务 - 核心服务
+  # 认证服务
   auth-service:
-    image: yourregistry/baidaohui-auth-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-auth-service:${IMAGE_TAG:-latest}
     container_name: auth-service
-    restart: unless-stopped
     environment:
+      # 外部API配置 - 从.env文件读取
+      - MONGODB_URI=${MONGODB_URI}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # 内部配置 - Docker中自动配置
       - NODE_ENV=production
       - PORT=5001
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - DOMAIN=${DOMAIN}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
       - SSO_SERVICE_URL=http://sso-service:5002
-    ports:
-      - "5001:5001"
+    depends_on:
+      - redis
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -58,27 +65,26 @@ services:
         reservations:
           memory: 128M
 
-  # SSO服务 - 统一认证
+  # SSO统一认证服务
   sso-service:
-    image: yourregistry/baidaohui-sso-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-sso-service:${IMAGE_TAG:-latest}
     container_name: sso-service
-    restart: unless-stopped
     environment:
+      # 外部API配置
+      - MONGODB_URI=${MONGODB_URI}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # 内部配置
       - NODE_ENV=production
       - PORT=5002
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - DOMAIN=${DOMAIN}
-    ports:
-      - "5002:5002"
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - DOMAIN=baidaohui.com
+      - CORS_ORIGINS=https://baidaohui.com,https://fan.baidaohui.com,https://member.baidaohui.com,https://master.baidaohui.com,https://firstmate.baidaohui.com,https://seller.baidaohui.com
+    depends_on:
+      - redis
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -86,32 +92,28 @@ services:
         reservations:
           memory: 128M
 
-  # 聊天服务 - 高频交互
+  # 聊天服务
   chat-service:
-    image: yourregistry/baidaohui-chat-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-chat-service:${IMAGE_TAG:-latest}
     container_name: chat-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5004
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
-    ports:
-      - "5004:5004"
-    networks:
-      - baidaohui-network
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5003
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - CHAT_HISTORY_LIMIT=100
+      - PRIVATE_CHAT_ENABLED=true
     depends_on:
       - redis
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    networks:
+      - baidaohui-network
     deploy:
       resources:
         limits:
@@ -119,29 +121,27 @@ services:
         reservations:
           memory: 256M
 
-  # 电商API服务 - 商品展示
-  ecommerce-api-service:
-    image: yourregistry/baidaohui-ecommerce-api-service:latest
-    container_name: ecommerce-api-service
-    restart: unless-stopped
+  # 电商API服务
+  ecommerce-service:
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-ecommerce-service:${IMAGE_TAG:-latest}
+    container_name: ecommerce-service
     environment:
-      - NODE_ENV=production
-      - PORT=5005
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
-      - JWT_SECRET=${JWT_SECRET}
-    ports:
-      - "5005:5005"
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5004
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - PRODUCT_CACHE_TTL=300
+    depends_on:
+      - redis
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -149,29 +149,22 @@ services:
         reservations:
           memory: 192M
 
-  # 支付服务 - 算命支付
+  # 支付服务
   payment-service:
-    image: yourregistry/baidaohui-payment-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-payment-service:${IMAGE_TAG:-latest}
     container_name: payment-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5006
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - FORTUNE_SERVICE_URL=http://216.144.233.104:5003
-      - EMAIL_SERVICE_URL=http://216.144.233.104:5007
-    ports:
-      - "5006:5006"
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5005
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - FRONTEND_URL=https://baidaohui.com
+      - FORTUNE_SERVICE_URL=http://216.144.233.104:5007
+      # Stripe密钥从MongoDB动态读取
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5006/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -179,26 +172,19 @@ services:
         reservations:
           memory: 128M
 
-  # 邀请链接服务
+  # 邀请服务
   invite-service:
-    image: yourregistry/baidaohui-invite-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-invite-service:${IMAGE_TAG:-latest}
     container_name: invite-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5008
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - JWT_SECRET=${JWT_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
-    ports:
-      - "5008:5008"
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5006
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5008/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -208,25 +194,17 @@ services:
 
   # 密钥管理服务
   key-service:
-    image: yourregistry/baidaohui-key-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-key-service:${IMAGE_TAG:-latest}
     container_name: key-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5009
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - VAULT_URL=${VAULT_URL}
-      - VAULT_TOKEN=${VAULT_TOKEN}
-      - JWT_SECRET=${JWT_SECRET}
-    ports:
-      - "5009:5009"
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5007
+      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5009/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -234,28 +212,27 @@ services:
         reservations:
           memory: 96M
 
-  # 静态API服务 - 缓存优化
+  # 静态API缓存服务
   static-api-service:
-    image: yourregistry/baidaohui-static-api-service:latest
+    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-static-api-service:${IMAGE_TAG:-latest}
     container_name: static-api-service
-    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=5010
+      # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
-      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
+      - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      # 内部配置
+      - NODE_ENV=production
+      - PORT=5008
+      - REDIS_URL=redis://redis:6379
       - CACHE_TTL=300
-      - CORS_ORIGINS=${CORS_ORIGINS}
-    ports:
-      - "5010:5010"
+      - MEMORY_LIMIT=128
+    depends_on:
+      - redis
     networks:
       - baidaohui-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5010/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     deploy:
       resources:
         limits:
@@ -263,34 +240,5 @@ services:
         reservations:
           memory: 64M
 
-  # Redis缓存 - 本地缓存
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis-data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - baidaohui-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
-
-networks:
-  baidaohui-network:
-    driver: bridge
-
 volumes:
-  redis-data:
-    driver: local 
+  redis_data: 

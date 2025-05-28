@@ -18,12 +18,17 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
 CORS(app, origins=["http://localhost:3000"])
 
+# 环境变量配置
+JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
+
 # 初始化SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # 数据库连接
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+    client = MongoClient(MONGODB_URI)
     db = client.baidaohui_chat
     logger.info("MongoDB连接成功")
 except Exception as e:

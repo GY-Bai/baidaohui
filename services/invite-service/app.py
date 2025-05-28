@@ -29,6 +29,26 @@ FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'https://baidaohui.com')
 WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET')  # 用于验证webhook调用
 AUDIT_WEBHOOK_URL = os.getenv('AUDIT_WEBHOOK_URL')  # 审计日志webhook
 
+# JWT兼容性配置：支持两种JWT验证方式
+def get_jwt_secrets():
+    """获取所有可用的JWT密钥用于验证"""
+    secrets = []
+    if SUPABASE_JWT_SECRET:
+        secrets.append(SUPABASE_JWT_SECRET)
+    if JWT_SECRET:
+        secrets.append(JWT_SECRET)
+    return secrets
+
+def verify_jwt_token(token):
+    """验证JWT令牌，支持多种密钥"""
+    for secret in get_jwt_secrets():
+        try:
+            payload = jwt.decode(token, secret, algorithms=['HS256'])
+            return payload
+        except jwt.InvalidTokenError:
+            continue
+    raise jwt.InvalidTokenError("无法验证JWT令牌")
+
 # MongoDB 连接
 try:
     client = MongoClient(MONGODB_URI)

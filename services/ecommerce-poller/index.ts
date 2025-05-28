@@ -17,7 +17,7 @@ const R2_ENDPOINT = process.env.R2_ENDPOINT!;
 const R2_ACCESS_KEY = process.env.R2_ACCESS_KEY!;
 const R2_SECRET_KEY = process.env.R2_SECRET_KEY!;
 const R2_BUCKET = process.env.R2_BUCKET!;
-const EMAIL_SERVICE_URL = process.env.EMAIL_SERVICE_URL;
+const EMAIL_SERVICE_URL = process.env.EMAIL_SERVICE_URL; // Mailjet邮件服务
 
 // R2客户端
 const r2Client = new S3Client({
@@ -158,18 +158,26 @@ async function syncSellerProducts(sellerKey: any) {
   } catch (error) {
     console.error(`同步 seller ${sellerKey.storeId || sellerKey.userId} 失败:`, error);
     
-    // 发送错误通知邮件
+    // 发送错误通知邮件给对应的seller
     if (EMAIL_SERVICE_URL) {
       try {
-        await fetch(`${EMAIL_SERVICE_URL}/email/send-custom`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: 'admin@baidaohui.com',
-            subject: 'Seller商品同步失败',
-            content: `Seller ${sellerKey.storeId || sellerKey.userId} 的商品同步失败: ${error.message}`
-          })
-        });
+        // 获取seller的邮箱信息
+        const seller = await db.collection('users').findOne({ _id: sellerKey.userId });
+        if (seller?.email) {
+          await fetch(`${EMAIL_SERVICE_URL}/send-notification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: seller.email,
+              type: 'seller_sync_error',
+              data: {
+                storeId: sellerKey.storeId || sellerKey.userId,
+                error: error.message,
+                timestamp: new Date().toISOString()
+              }
+            })
+          });
+        }
       } catch (emailError) {
         console.error('发送错误通知邮件失败:', emailError);
       }

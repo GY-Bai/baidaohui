@@ -85,7 +85,7 @@
 </script>
 
 <svelte:head>
-  <title>百道会 - Firstmate 助理后台</title>
+  <title>百刀会 - Firstmate 助理后台</title>
 </svelte:head>
 
 {#if loading}
@@ -105,7 +105,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
-            <h1 class="text-xl font-semibold text-gray-900">百道会 - 助理后台</h1>
+            <h1 class="text-xl font-semibold text-gray-900">百刀会 - 助理后台</h1>
             <div class="ml-3 flex items-center space-x-2">
               <span class="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">Firstmate</span>
               <div class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full flex items-center">

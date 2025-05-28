@@ -45,15 +45,15 @@ def send_fortune_reply():
         回复时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}
         回复人：{master_name}
         
-        感谢您使用百道会服务！
+        感谢您使用百刀会服务！
         
-        百道会团队
+        百刀会团队
         """
         
         # 发送邮件
         success = email_service.send_email(
             to_email=user_email,
-            subject=f"【百道会】您的算命申请已回复 - 订单{order_id}",
+            subject=f"【百刀会】您的算命申请已回复 - 订单{order_id}",
             html_content=html_content,
             text_content=text_content
         )
@@ -90,19 +90,19 @@ def send_order_notification():
         # 根据订单类型和状态确定邮件内容
         if order_type == 'fortune':
             if status == 'Queued-payed':
-                subject = f"【百道会】算命订单支付成功 - {order_id}"
+                subject = f"【百刀会】算命订单支付成功 - {order_id}"
                 template_name = 'fortune_payment_success.html'
             elif status == 'Queued-upload':
-                subject = f"【百道会】算命订单凭证已提交 - {order_id}"
+                subject = f"【百刀会】算命订单凭证已提交 - {order_id}"
                 template_name = 'fortune_upload_success.html'
             elif status == 'Completed':
-                subject = f"【百道会】算命订单已完成 - {order_id}"
+                subject = f"【百刀会】算命订单已完成 - {order_id}"
                 template_name = 'fortune_completed.html'
             else:
-                subject = f"【百道会】算命订单状态更新 - {order_id}"
+                subject = f"【百刀会】算命订单状态更新 - {order_id}"
                 template_name = 'fortune_status_update.html'
         else:
-            subject = f"【百道会】订单状态更新 - {order_id}"
+            subject = f"【百刀会】订单状态更新 - {order_id}"
             template_name = 'order_status_update.html'
         
         # 渲染邮件模板
@@ -168,7 +168,7 @@ def send_role_upgrade():
         # 发送邮件
         success = email_service.send_email(
             to_email=user_email,
-            subject=f"【百道会】恭喜！您已升级为{role_names.get(new_role, new_role)}",
+            subject=f"【百刀会】恭喜！您已升级为{role_names.get(new_role, new_role)}",
             html_content=html_content
         )
         
@@ -206,7 +206,7 @@ def send_welcome():
         # 发送邮件
         success = email_service.send_email(
             to_email=user_email,
-            subject="【百道会】欢迎加入百道会！",
+            subject="【百刀会】欢迎加入百刀会！",
             html_content=html_content
         )
         
@@ -277,7 +277,7 @@ def test_email():
         
         # 发送测试邮件
         html_content = """
-        <h2>百道会邮件服务测试</h2>
+        <h2>百刀会邮件服务测试</h2>
         <p>这是一封测试邮件，用于验证邮件服务是否正常工作。</p>
         <p>发送时间：{}</p>
         <p>如果您收到这封邮件，说明邮件服务配置正确。</p>
@@ -285,7 +285,7 @@ def test_email():
         
         success = email_service.send_email(
             to_email=to_email,
-            subject="【百道会】邮件服务测试",
+            subject="【百刀会】邮件服务测试",
             html_content=html_content
         )
         

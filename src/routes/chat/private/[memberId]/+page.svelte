@@ -155,7 +155,7 @@
 </script>
 
 <svelte:head>
-  <title>私聊 - {memberInfo?.nickname || memberInfo?.email || '用户'} - 百道会</title>
+  <title>私聊 - {memberInfo?.nickname || memberInfo?.email || '用户'} - 百刀会</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-100">

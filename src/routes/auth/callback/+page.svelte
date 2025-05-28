@@ -33,7 +33,7 @@
 </script>
 
 <svelte:head>
-  <title>登录中... - 百道会</title>
+  <title>登录中... - 百刀会</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">

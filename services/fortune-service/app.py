@@ -3,7 +3,6 @@ from flask_cors import CORS
 import os
 import jwt
 import pymongo
-import redis
 import boto3
 from datetime import datetime, timedelta
 import uuid
@@ -17,87 +16,109 @@ import io
 import threading
 import time
 from bson import ObjectId
+import hmac
+import hashlib
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
 # 配置
 MONGODB_URI = os.getenv('MONGODB_URI')
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
-JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
+JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret-key')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
+
+# Webhook安全配置
+WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'your-webhook-secret-key')  # 外部webhook签名验证密钥
+AUDIT_WEBHOOK_URL = os.getenv('AUDIT_WEBHOOK_URL')  # 审计webhook回调地址，用于发送操作日志到外部系统
+
 R2_ENDPOINT = os.getenv('R2_ENDPOINT')
 R2_ACCESS_KEY = os.getenv('R2_ACCESS_KEY')
 R2_SECRET_KEY = os.getenv('R2_SECRET_KEY')
 R2_BUCKET = os.getenv('R2_BUCKET')
-EXCHANGE_API_KEY = os.getenv('EXCHANGE_API_KEY')  # 汇率API密钥
-INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY')  # 内部API密钥
+EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API_KEY')
+FORTUNE_SERVICE_KEY = os.getenv('FORTUNE_SERVICE_KEY', 'internal-api-key')
+EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_URL', 'http://email-service:5008')
+PAYMENT_SERVICE_URL = os.getenv('PAYMENT_SERVICE_URL', 'http://payment-service:5006')
+ECOMMERCE_POLLER_URL = os.getenv('ECOMMERCE_POLLER_URL', 'http://ecommerce-poller:3000')
+
+# 算命服务采用完全自定义金额模式，用户可以输入任意金额
+# 支持的币种：CNY、USD、CAD、SGD、AUD
+# 支付方式：1. Stripe在线支付  2. 外部支付+上传凭证
 
 # 初始化数据库连接
 mongo_client = pymongo.MongoClient(MONGODB_URI)
 db = mongo_client.baidaohui
-redis_client = redis.from_url(REDIS_URL)
 
 # 初始化R2客户端
-s3_client = boto3.client(
-    's3',
-    endpoint_url=R2_ENDPOINT,
-    aws_access_key_id=R2_ACCESS_KEY,
-    aws_secret_access_key=R2_SECRET_KEY,
-    region_name='auto'
-)
+if R2_ENDPOINT and R2_ACCESS_KEY and R2_SECRET_KEY:
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=R2_ENDPOINT,
+        aws_access_key_id=R2_ACCESS_KEY,
+        aws_secret_access_key=R2_SECRET_KEY,
+        region_name='auto'
+    )
+else:
+    s3_client = None
+    logging.warning("R2配置缺失，文件上传功能将不可用")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 汇率缓存键
-EXCHANGE_RATE_CACHE_KEY = "exchange_rates"
-EXCHANGE_RATE_CACHE_TTL = 7 * 24 * 60 * 60  # 7天
-
 def get_exchange_rates():
-    """获取汇率，优先从缓存读取"""
+    """从MongoDB获取最新汇率"""
     try:
-        # 从Redis缓存获取
-        cached_rates = redis_client.get(EXCHANGE_RATE_CACHE_KEY)
-        if cached_rates:
-            return json.loads(cached_rates)
+        # 从MongoDB获取最新汇率
+        latest_rates = db.exchange_rates.find_one(
+            sort=[('created_at', -1)]
+        )
         
-        # 从API获取最新汇率
-        response = requests.get(f"https://api.exchangerate-api.com/v4/latest/CAD", timeout=10)
+        if latest_rates and 'rates' in latest_rates:
+            logger.info(f"从数据库获取汇率: {latest_rates['rates']}")
+            return latest_rates['rates']
+        
+        # 如果数据库中没有汇率，尝试直接调用API
+        logger.warning("数据库中没有汇率数据，尝试直接获取")
+        response = requests.get("https://api.exchangerate-api.com/v4/latest/CAD", timeout=10)
+        
         if response.status_code == 200:
             rates_data = response.json()
             rates = {
                 'CAD': 1.0,
-                'USD': 1 / rates_data['rates']['USD'],
-                'CNY': 1 / rates_data['rates']['CNY'],
-                'SGD': 1 / rates_data['rates']['SGD'],
-                'AUD': 1 / rates_data['rates']['AUD']
+                'USD': 1 / rates_data['rates']['USD'] if rates_data['rates']['USD'] else 1.35,
+                'CNY': 1 / rates_data['rates']['CNY'] if rates_data['rates']['CNY'] else 0.18,
+                'SGD': 1 / rates_data['rates']['SGD'] if rates_data['rates']['SGD'] else 1.0,
+                'AUD': 1 / rates_data['rates']['AUD'] if rates_data['rates']['AUD'] else 0.9
             }
             
-            # 缓存汇率
-            redis_client.setex(EXCHANGE_RATE_CACHE_KEY, EXCHANGE_RATE_CACHE_TTL, json.dumps(rates))
-            logger.info(f"汇率更新成功: {rates}")
+            # 临时保存到数据库
+            db.exchange_rates.insert_one({
+                'rates': rates,
+                'last_updated': datetime.utcnow(),
+                'created_at': datetime.utcnow(),
+                'source': 'api_fallback'
+            })
+            
+            logger.info(f"API获取汇率成功: {rates}")
             return rates
         else:
             # 使用默认汇率
             logger.warning("汇率API调用失败，使用默认汇率")
-            return {'CAD': 1.0, 'USD': 1.35, 'CNY': 0.18, 'SGD': 1.0, 'AUD': 0.9}
+            return get_default_rates()
+            
     except Exception as e:
         logger.error(f"获取汇率失败: {str(e)}")
-        return {'CAD': 1.0, 'USD': 1.35, 'CNY': 0.18, 'SGD': 1.0, 'AUD': 0.9}
+        return get_default_rates()
 
-def update_exchange_rates():
-    """强制更新汇率"""
-    try:
-        # 删除缓存
-        redis_client.delete(EXCHANGE_RATE_CACHE_KEY)
-        # 重新获取
-        rates = get_exchange_rates()
-        logger.info(f"汇率强制更新完成: {rates}")
-        return rates
-    except Exception as e:
-        logger.error(f"强制更新汇率失败: {str(e)}")
-        return None
+def get_default_rates():
+    """获取默认汇率"""
+    return {
+        'CAD': 1.0,
+        'USD': 1.35,
+        'CNY': 0.18,
+        'SGD': 1.0,
+        'AUD': 0.9
+    }
 
 def convert_to_cad(amount, currency):
     """将金额转换为CAD"""
@@ -106,6 +127,9 @@ def convert_to_cad(amount, currency):
 
 def upload_image_to_r2(image_data, filename):
     """上传图片到R2并生成缩略图"""
+    if not s3_client:
+        raise ValueError("R2存储未配置")
+    
     try:
         # 解码base64图片
         if image_data.startswith('data:image'):
@@ -147,8 +171,8 @@ def upload_image_to_r2(image_data, filename):
         )
         
         return {
-            'original_url': f"{R2_ENDPOINT}/{R2_BUCKET}/{file_key}",
-            'thumbnail_url': f"{R2_ENDPOINT}/{R2_BUCKET}/{thumbnail_key}",
+            'original_url': f"{R2_ENDPOINT.rstrip('/')}/{R2_BUCKET}/{file_key}",
+            'thumbnail_url': f"{R2_ENDPOINT.rstrip('/')}/{R2_BUCKET}/{thumbnail_key}",
             'filename': filename,
             'upload_time': datetime.utcnow().isoformat()
         }
@@ -186,13 +210,53 @@ def verify_token():
     except jwt.InvalidTokenError:
         return None
 
+def send_email_notification(email_type, user_id, **kwargs):
+    """发送邮件通知"""
+    try:
+        payload = {
+            'type': email_type,
+            'user_id': user_id,
+            **kwargs
+        }
+        
+        response = requests.post(
+            f"{EMAIL_SERVICE_URL}/send",
+            json=payload,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"邮件通知发送成功: {email_type}")
+        else:
+            logger.warning(f"邮件通知发送失败: {response.status_code}")
+            
+    except Exception as e:
+        logger.error(f"发送邮件通知失败: {str(e)}")
+
 @app.route('/health')
 def health():
-    return jsonify({
-        'status': 'healthy', 
-        'service': 'fortune-service',
-        'timestamp': datetime.utcnow().isoformat()
-    })
+    """健康检查"""
+    try:
+        # 检查MongoDB连接
+        mongo_client.admin.command('ping')
+        
+        # 检查汇率数据
+        rates = get_exchange_rates()
+        
+        return jsonify({
+            'status': 'healthy',
+            'service': 'fortune-service',
+            'timestamp': datetime.utcnow().isoformat(),
+            'database': 'connected',
+            'exchange_rates': 'available' if rates else 'unavailable'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'service': 'fortune-service',
+            'timestamp': datetime.utcnow().isoformat(),
+            'error': str(e)
+        }), 500
 
 @app.route('/fortune/apply', methods=['POST'])
 def apply_fortune():
@@ -735,7 +799,7 @@ def force_update_exchange_rates():
         if internal_key != INTERNAL_API_KEY:
             return jsonify({'error': '无权限访问'}), 403
         
-        rates = update_exchange_rates()
+        rates = get_exchange_rates()
         if rates:
             return jsonify({
                 'success': True,
@@ -806,7 +870,7 @@ def weekly_exchange_rate_update():
     while True:
         try:
             time.sleep(7 * 24 * 60 * 60)  # 7天
-            update_exchange_rates()
+            get_exchange_rates()
         except Exception as e:
             logger.error(f"定时汇率更新失败: {str(e)}")
 
@@ -829,8 +893,65 @@ def start_background_tasks():
     queue_thread = threading.Thread(target=queue_update_loop, daemon=True)
     queue_thread.start()
 
+# Webhook验证和审计函数
+def verify_webhook_signature(payload, signature, secret):
+    """验证webhook签名"""
+    if not signature or not secret:
+        return False
+    
+    # 计算期望的签名
+    expected_signature = hmac.new(
+        secret.encode('utf-8'),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+    
+    # 比较签名
+    return hmac.compare_digest(signature, expected_signature)
+
+def send_audit_log(event_type, user_id, action, details=None):
+    """发送审计日志到外部系统"""
+    if not AUDIT_WEBHOOK_URL:
+        return
+    
+    try:
+        audit_data = {
+            'event_type': event_type,
+            'user_id': user_id,
+            'action': action,
+            'details': details or {},
+            'timestamp': datetime.utcnow().isoformat(),
+            'service': 'fortune-service'
+        }
+        
+        # 生成签名
+        payload = json.dumps(audit_data, separators=(',', ':'))
+        signature = hmac.new(
+            WEBHOOK_SECRET.encode('utf-8'),
+            payload.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Webhook-Signature': signature
+        }
+        
+        response = requests.post(AUDIT_WEBHOOK_URL, 
+                               data=payload, 
+                               headers=headers, 
+                               timeout=5)
+        
+        if response.status_code == 200:
+            logger.info(f"审计日志发送成功: {event_type}")
+        else:
+            logger.warning(f"审计日志发送失败: {response.status_code}")
+            
+    except Exception as e:
+        logger.error(f"发送审计日志失败: {str(e)}")
+
 if __name__ == '__main__':
     # 启动后台任务
     start_background_tasks()
     
-    app.run(host='0.0.0.0', port=5003, debug=False) 
+    app.run(host='0.0.0.0', port=5007, debug=False) 

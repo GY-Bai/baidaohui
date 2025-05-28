@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 域名验证脚本
-echo "🌐 验证百道会自定义域名配置..."
+echo "🌐 验证百刀会自定义域名配置..."
 
 domains=(
     "www.baidaohui.com"

@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-  <title>百道会 - Member</title>
+  <title>百刀会 - Member</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50">
@@ -30,7 +30,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
         <div class="flex items-center">
-          <h1 class="text-xl font-semibold text-gray-900">百道会</h1>
+          <h1 class="text-xl font-semibold text-gray-900">百刀会</h1>
           <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Member</span>
         </div>
         
