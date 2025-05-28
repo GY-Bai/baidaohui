@@ -271,7 +271,8 @@
     transform: translate(-50%, -50%);
     z-index: 100;
     max-width: 400px;
-    width: 80%;
+    width: 70%;
+    padding: 0 16px;
   }
 
   .login-card {
