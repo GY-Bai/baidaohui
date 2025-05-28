@@ -290,8 +290,8 @@
   }
 
   .logo-img {
-    width: 110px;
-    height: 110px;
+    width: 85px;
+    height: 85px;
     border-radius: 50%;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease;
@@ -457,8 +457,8 @@
     }
     
     .logo-img {
-      width: 80px;
-      height: 80px;
+      width: 65px;
+      height: 65px;
     }
   }
 </style> 
