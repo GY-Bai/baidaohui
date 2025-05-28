@@ -272,7 +272,7 @@
     z-index: 100;
     max-width: 400px;
     width: 70%;
-    padding: 0 16px;
+    padding: 0 60px;
   }
 
   .login-card {
