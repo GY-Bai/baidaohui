@@ -7,8 +7,8 @@ export const load = async ({ url, cookies, fetch }) => {
   const hostname = url.hostname;
   
   // 如果不是主域名，重定向到主域名
-  if (hostname !== 'baidaohui.com' && hostname !== 'localhost') {
-    throw redirect(302, 'https://baidaohui.com/auth/callback' + url.search);
+  if (hostname !== 'www.baidaohui.com' && hostname !== 'baidaohui.com' && hostname !== 'localhost') {
+    throw redirect(302, 'https://www.baidaohui.com/auth/callback' + url.search);
   }
 
   // 获取OAuth回调参数

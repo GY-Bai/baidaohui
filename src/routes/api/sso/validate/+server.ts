@@ -29,7 +29,7 @@ export async function POST({ request }) {
     return json({ 
       valid: false, 
       error: '服务不可用',
-      redirect_url: 'https://baidaohui.com/login'
+      redirect_url: 'https://www.baidaohui.com/login'
     }, { status: 500 });
   }
 } 

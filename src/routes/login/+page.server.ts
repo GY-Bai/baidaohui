@@ -6,9 +6,9 @@ export const load: ServerLoad = async ({ url, cookies, fetch }) => {
   // 检查是否在正确的主域名
   const hostname = url.hostname;
   
-  // 如果不是主域名，重定向到主域名登录页
-  if (hostname !== 'baidaohui.com' && hostname !== 'localhost') {
-    throw redirect(302, 'https://baidaohui.com/login');
+  // 如果不是主域名或www主域名，重定向到www主域名登录页
+  if (hostname !== 'www.baidaohui.com' && hostname !== 'baidaohui.com' && hostname !== 'localhost') {
+    throw redirect(302, 'https://www.baidaohui.com/login');
   }
 
   // 检查用户是否已认证，如果是则重定向到对应角色页面

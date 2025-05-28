@@ -169,7 +169,7 @@ export async function createRouteGuard(
   
   // 检查是否在正确的子域名（开发环境允许localhost）
   if (hostname !== expectedDomain && hostname !== 'localhost') {
-    throw redirect(302, 'https://baidaohui.com/login');
+    throw redirect(302, 'https://www.baidaohui.com/login');
   }
 
   try {
@@ -193,7 +193,7 @@ export async function createRouteGuard(
       if (result.redirect_url) {
         throw redirect(302, result.redirect_url);
       } else {
-        throw redirect(302, 'https://baidaohui.com/login');
+        throw redirect(302, 'https://www.baidaohui.com/login');
       }
     }
 
@@ -207,7 +207,7 @@ export async function createRouteGuard(
     }
     
     // 其他错误重定向到登录页
-    throw redirect(302, 'https://baidaohui.com/login');
+    throw redirect(302, 'https://www.baidaohui.com/login');
   }
 }
 
