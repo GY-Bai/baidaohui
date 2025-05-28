@@ -5,11 +5,16 @@ import { redirect } from '@sveltejs/kit';
 import type { Cookies } from '@sveltejs/kit';
 
 // 从环境变量获取Supabase配置
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder_key';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+// 只在运行时检查环境变量（不在构建时）
+function checkEnvironmentVariables() {
+  if (browser && (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY)) {
+    console.error('Missing Supabase environment variables. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+    return false;
+  }
+  return true;
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -39,6 +44,10 @@ export const roleSubdomains: Record<UserRole, string> = {
 
 // Google登录
 export async function signInWithGoogle() {
+  if (!checkEnvironmentVariables()) {
+    throw new Error('Supabase configuration is missing');
+  }
+  
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -57,6 +66,11 @@ export async function signInWithGoogle() {
 
 // 获取当前会话
 export async function getSession(): Promise<User | null> {
+  if (!checkEnvironmentVariables()) {
+    console.error('Supabase configuration is missing');
+    return null;
+  }
+  
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     
@@ -80,6 +94,11 @@ export async function getSession(): Promise<User | null> {
 
 // 获取访问令牌
 export async function getAccessToken(): Promise<string | null> {
+  if (!checkEnvironmentVariables()) {
+    console.error('Supabase configuration is missing');
+    return null;
+  }
+  
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -92,6 +111,11 @@ export async function getAccessToken(): Promise<string | null> {
 
 // 登出
 export async function signOut() {
+  if (!checkEnvironmentVariables()) {
+    console.error('Supabase configuration is missing');
+    return;
+  }
+  
   try {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;

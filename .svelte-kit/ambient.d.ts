@@ -108,12 +108,10 @@ declare module '$env/static/private' {
 	export const HOME: string;
 	export const VSCODE_GIT_ASKPASS_MAIN: string;
 	export const HOMEBREW_PREFIX: string;
-	export const VITE_SUPABASE_URL: string;
 	export const npm_config_cache: string;
 	export const CONDA_PYTHON_EXE: string;
 	export const LOGNAME: string;
 	export const npm_lifecycle_script: string;
-	export const VITE_SUPABASE_ANON_KEY: string;
 	export const VSCODE_GIT_IPC_HANDLE: string;
 	export const NVM_BIN: string;
 	export const CONDA_DEFAULT_ENV: string;
@@ -237,12 +235,10 @@ declare module '$env/dynamic/private' {
 		HOME: string;
 		VSCODE_GIT_ASKPASS_MAIN: string;
 		HOMEBREW_PREFIX: string;
-		VITE_SUPABASE_URL: string;
 		npm_config_cache: string;
 		CONDA_PYTHON_EXE: string;
 		LOGNAME: string;
 		npm_lifecycle_script: string;
-		VITE_SUPABASE_ANON_KEY: string;
 		VSCODE_GIT_IPC_HANDLE: string;
 		NVM_BIN: string;
 		CONDA_DEFAULT_ENV: string;
