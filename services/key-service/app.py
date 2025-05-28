@@ -16,13 +16,14 @@ from threading import Lock
 import hvac  # HashiCorp Vault client
 from cryptography.fernet import Fernet
 import base64
+import re
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 # 环境变量配置
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/baidaohui')
@@ -32,6 +33,8 @@ VAULT_URL = os.getenv('VAULT_URL')  # HashiCorp Vault URL
 VAULT_TOKEN = os.getenv('VAULT_TOKEN')  # Vault access token
 VAULT_MOUNT_POINT = os.getenv('VAULT_MOUNT_POINT', 'secret')  # Vault mount point
 VAULT_ENCRYPTION_KEY = os.getenv('VAULT_ENCRYPTION_KEY', 'your-vault-encryption-key')
+PAYMENT_SERVICE_URL = os.getenv('PAYMENT_SERVICE_URL', 'http://payment-service:5006')
+ECOMMERCE_POLLER_URL = os.getenv('ECOMMERCE_POLLER_URL', 'http://ecommerce-poller:3000')
 
 # 速率限制配置
 RATE_LIMIT_WINDOW = 900  # 15分钟窗口
@@ -303,6 +306,23 @@ def test_stripe_key(secret_key, publishable_key=None):
         # 确保恢复原始密钥
         if 'original_key' in locals():
             stripe.api_key = original_key
+
+def get_user_from_request():
+    """从请求中获取用户信息"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None
+    
+    token = auth_header.split(' ')[1]
+    return verify_jwt(token)
+
+def validate_stripe_key(key_value, key_type):
+    """验证Stripe密钥格式"""
+    if key_type == 'stripe_secret':
+        return key_value.startswith('sk_test_') or key_value.startswith('sk_live_')
+    elif key_type == 'stripe_publishable':
+        return key_value.startswith('pk_test_') or key_value.startswith('pk_live_')
+    return False
 
 @app.route('/health', methods=['GET'])
 def health_check():

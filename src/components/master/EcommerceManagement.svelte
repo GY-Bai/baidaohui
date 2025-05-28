@@ -47,8 +47,27 @@
   let generatingInvite = false;
   let inviteLink = '';
 
+  let sellers = [];
+  let masterKeys = [];
+  let showMasterKeyModal = false;
+  let keyForm = {
+    keyValue: '',
+    keyType: 'stripe_secret',
+    storeId: '',
+    targetUserId: ''
+  };
+  let masterKeyForm = {
+    keyValue: '',
+    keyType: 'stripe_secret'
+  };
+  let showFullKey = {};
+  let stats = {};
+
   onMount(() => {
     loadMerchants();
+    loadSellerKeys();
+    loadMasterKeys();
+    loadStats();
   });
 
   async function loadMerchants() {
@@ -61,6 +80,51 @@
       alert('加载商户列表失败，请重试');
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadSellerKeys() {
+    try {
+      const response = await fetch('/api/keys', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        sellers = result.data.filter(key => key.userRole === 'seller');
+      }
+    } catch (error) {
+      console.error('加载seller密钥失败:', error);
+    }
+  }
+
+  async function loadMasterKeys() {
+    try {
+      const response = await fetch('/api/keys', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        masterKeys = result.data.filter(key => key.userRole === 'master');
+      }
+    } catch (error) {
+      console.error('加载master密钥失败:', error);
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const response = await fetch('/api/keys/stats', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        stats = result.data;
+      }
+    } catch (error) {
+      console.error('加载统计数据失败:', error);
     }
   }
 
@@ -239,6 +303,155 @@
 
   function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleString('zh-CN');
+  }
+
+  function openKeyModal(seller = null) {
+    selectedMerchant = seller;
+    keyForm = {
+      keyValue: '',
+      keyType: 'stripe_secret',
+      storeId: seller?.storeId || '',
+      targetUserId: seller?.userId || ''
+    };
+    showKeyModal = true;
+  }
+
+  function openMasterKeyModal() {
+    masterKeyForm = {
+      keyValue: '',
+      keyType: 'stripe_secret'
+    };
+    showMasterKeyModal = true;
+  }
+
+  async function addSellerKey() {
+    try {
+      const response = await fetch('/api/keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...keyForm,
+          targetRole: 'seller'
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        showKeyModal = false;
+        await loadSellerKeys();
+        await loadStats();
+        alert('Seller密钥添加成功');
+      } else {
+        alert(result.error || '添加失败');
+      }
+    } catch (error) {
+      console.error('添加seller密钥失败:', error);
+      alert('添加失败');
+    }
+  }
+
+  async function addMasterKey() {
+    try {
+      const response = await fetch('/api/keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...masterKeyForm,
+          targetRole: 'master'
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        showMasterKeyModal = false;
+        await loadMasterKeys();
+        await loadStats();
+        alert('算命收款密钥添加成功');
+      } else {
+        alert(result.error || '添加失败');
+      }
+    } catch (error) {
+      console.error('添加master密钥失败:', error);
+      alert('添加失败');
+    }
+  }
+
+  async function deleteKey(keyId, keyType) {
+    const confirmMessage = keyType === 'master' 
+      ? '确定要删除算命收款密钥吗？删除后算命支付功能将不可用。'
+      : '确定要删除该Seller的密钥吗？删除后相关商品将无法被轮询同步。';
+    
+    if (!confirm(confirmMessage)) return;
+    
+    try {
+      const response = await fetch(`/api/keys/${keyId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        if (keyType === 'master') {
+          await loadMasterKeys();
+        } else {
+          await loadSellerKeys();
+        }
+        await loadStats();
+        alert('密钥删除成功');
+      } else {
+        alert(result.error || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除密钥失败:', error);
+      alert('删除失败');
+    }
+  }
+
+  async function toggleSellerListing(keyId, currentStatus) {
+    const action = currentStatus ? '下架' : '上架';
+    if (!confirm(`确定要${action}该Seller吗？`)) return;
+    
+    try {
+      const response = await fetch(`/api/keys/${keyId}/toggle-listing`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        await loadSellerKeys();
+        await loadStats();
+        alert(`Seller${action}成功`);
+      } else {
+        alert(result.error || `${action}失败`);
+      }
+    } catch (error) {
+      console.error(`${action}失败:`, error);
+      alert(`${action}失败`);
+    }
+  }
+
+  function toggleKeyVisibility(keyId) {
+    showFullKey[keyId] = !showFullKey[keyId];
+    showFullKey = { ...showFullKey };
+    
+    // 3秒后自动隐藏
+    if (showFullKey[keyId]) {
+      setTimeout(() => {
+        showFullKey[keyId] = false;
+        showFullKey = { ...showFullKey };
+      }, 3000);
+    }
   }
 </script>
 
@@ -512,6 +725,318 @@
         >
           下载二维码
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- 统计卡片 -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-sm text-gray-600">Master密钥</div>
+    <div class="text-2xl font-bold text-blue-600">{stats.master_keys || 0}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-sm text-gray-600">Seller密钥</div>
+    <div class="text-2xl font-bold text-green-600">{stats.seller_keys || 0}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-sm text-gray-600">上架Seller</div>
+    <div class="text-2xl font-bold text-purple-600">{stats.listed_sellers || 0}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-sm text-gray-600">展示商品</div>
+    <div class="text-2xl font-bold text-orange-600">{stats.listed_products || 0}</div>
+  </div>
+</div>
+
+<!-- 算命收款密钥管理 -->
+<div class="bg-white rounded-lg shadow mb-6">
+  <div class="px-6 py-4 border-b border-gray-200">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-medium text-gray-900">算命收款密钥管理</h3>
+      <button
+        on:click={openMasterKeyModal}
+        class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+      >
+        添加收款密钥
+      </button>
+    </div>
+  </div>
+  
+  <div class="p-6">
+    {#if masterKeys.length === 0}
+      <div class="text-center py-8 text-gray-500">
+        <p>暂无算命收款密钥</p>
+        <p class="text-sm mt-2">请添加Stripe密钥以启用算命支付功能</p>
+      </div>
+    {:else}
+      <div class="space-y-4">
+        {#each masterKeys as key}
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="font-medium">{key.keyType === 'stripe_secret' ? 'Secret Key' : 'Publishable Key'}</div>
+                <div class="text-sm text-gray-600 mt-1">
+                  {#if showFullKey[key.id]}
+                    <span class="font-mono bg-gray-100 px-2 py-1 rounded">{key.keyValue || '无法显示完整密钥'}</span>
+                  {:else}
+                    <span class="font-mono">{key.maskedKey}</span>
+                  {/if}
+                  <button
+                    on:click={() => toggleKeyVisibility(key.id)}
+                    class="ml-2 text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    {showFullKey[key.id] ? '隐藏' : '查看'}
+                  </button>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                  创建时间: {new Date(key.createdAt).toLocaleString()}
+                </div>
+              </div>
+              <div class="flex space-x-2">
+                <button
+                  on:click={() => deleteKey(key.id, 'master')}
+                  class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition-colors"
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+</div>
+
+<!-- Seller密钥管理 -->
+<div class="bg-white rounded-lg shadow">
+  <div class="px-6 py-4 border-b border-gray-200">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-medium text-gray-900">Seller密钥管理</h3>
+      <div class="flex space-x-2">
+        <button
+          on:click={exportCSV}
+          class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
+        >
+          导出CSV
+        </button>
+        <button
+          on:click={() => openKeyModal()}
+          class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+        >
+          添加Seller密钥
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="overflow-x-auto">
+    {#if loading}
+      <div class="text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p class="mt-2 text-gray-600">加载中...</p>
+      </div>
+    {:else if sellers.length === 0}
+      <div class="text-center py-8 text-gray-500">
+        <p>暂无Seller密钥</p>
+        <p class="text-sm mt-2">请添加Seller的Stripe密钥以启用电商功能</p>
+      </div>
+    {:else}
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store ID</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">密钥类型</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">密钥值</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">上架状态</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最后使用</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {#each sellers as seller}
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                {seller.storeId || seller.userId}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {seller.keyType === 'stripe_secret' ? 'Secret Key' : 'Publishable Key'}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {#if showFullKey[seller.id]}
+                  <span class="font-mono bg-gray-100 px-2 py-1 rounded text-xs">{seller.keyValue || '无法显示完整密钥'}</span>
+                {:else}
+                  <span class="font-mono">{seller.maskedKey}</span>
+                {/if}
+                <button
+                  on:click={() => toggleKeyVisibility(seller.id)}
+                  class="ml-2 text-blue-600 hover:text-blue-800 text-xs"
+                >
+                  {showFullKey[seller.id] ? '隐藏' : '查看'}
+                </button>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {seller.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                  {seller.isActive ? '已配置' : '未配置'}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {seller.isListed ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}">
+                  {seller.isListed ? '已上架' : '已下架'}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {seller.lastUsed ? new Date(seller.lastUsed).toLocaleString() : '从未使用'}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                <button
+                  on:click={() => toggleSellerListing(seller.id, seller.isListed)}
+                  class="text-blue-600 hover:text-blue-900"
+                >
+                  {seller.isListed ? '下架' : '上架'}
+                </button>
+                <button
+                  on:click={() => deleteKey(seller.id, 'seller')}
+                  class="text-red-600 hover:text-red-900"
+                >
+                  删除
+                </button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </div>
+</div>
+
+<!-- Seller密钥添加模态框 -->
+{#if showKeyModal}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">
+          {selectedMerchant ? '编辑' : '添加'}Seller密钥
+        </h3>
+        
+        <form on:submit|preventDefault={addSellerKey} class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Store ID</label>
+            <input
+              type="text"
+              bind:value={keyForm.storeId}
+              required
+              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="输入Store ID"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">User ID</label>
+            <input
+              type="text"
+              bind:value={keyForm.targetUserId}
+              required
+              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="输入User ID"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">密钥类型</label>
+            <select
+              bind:value={keyForm.keyType}
+              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="stripe_secret">Secret Key</option>
+              <option value="stripe_publishable">Publishable Key</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">密钥值</label>
+            <textarea
+              bind:value={keyForm.keyValue}
+              required
+              rows="3"
+              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="输入Stripe密钥"
+            ></textarea>
+          </div>
+          
+          <div class="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              on:click={() => showKeyModal = false}
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            >
+              保存
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Master密钥添加模态框 -->
+{#if showMasterKeyModal}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">添加算命收款密钥</h3>
+        
+        <form on:submit|preventDefault={addMasterKey} class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">密钥类型</label>
+            <select
+              bind:value={masterKeyForm.keyType}
+              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="stripe_secret">Secret Key (用于算命支付)</option>
+              <option value="stripe_publishable">Publishable Key</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">密钥值</label>
+            <textarea
+              bind:value={masterKeyForm.keyValue}
+              required
+              rows="3"
+              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="输入Stripe密钥"
+            ></textarea>
+            <p class="mt-1 text-xs text-gray-500">
+              此密钥仅用于算命服务的支付处理，不参与电商模块
+            </p>
+          </div>
+          
+          <div class="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              on:click={() => showMasterKeyModal = false}
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            >
+              保存
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
