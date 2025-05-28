@@ -325,6 +325,7 @@
 
   .status-warning {
     display: flex;
+    width: 70%;
     align-items: center;
     justify-content: center;
     gap: 10px;
@@ -335,7 +336,7 @@
     margin-bottom: 30px;
     color: #856404;
     font-size: 14px;
-    width: 80%;
+    
   }
 
   .status-warning i {
@@ -346,6 +347,7 @@
 
   .status-success {
     display: flex;
+    width: 70%;
     align-items: center;
     justify-content: center;
     gap: 8px;
@@ -356,7 +358,7 @@
     margin-bottom: 30px;
     color: #155724;
     font-size: 14px;
-    width: 80%;
+    
   }
 
   .status-success i {
