@@ -1,7 +1,7 @@
-<script lang="ts">
-  import type { UserSession } from '$lib/auth';
+<script>
   
-  export let session: UserSession;
+  
+  export let session;
 </script>
 
 <div class="bg-white rounded-lg shadow p-6">

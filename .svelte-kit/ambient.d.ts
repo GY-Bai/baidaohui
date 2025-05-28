@@ -26,8 +26,18 @@
  * ```
  */
 declare module '$env/static/private' {
-	export const NVM_INC: string;
+	export const R2_ACCOUNT_ID: string;
+	export const R2_BUCKET_NAME: string;
+	export const R2_ACCESS_KEY_ID: string;
+	export const R2_SECRET_ACCESS_KEY: string;
 	export const S3_ENDPOINT: string;
+	export const SUPABASE_URL: string;
+	export const SUPABASE_ANON_KEY: string;
+	export const SUPABASE_SERVICE_ROLE_KEY: string;
+	export const SUPABASE_DATABASE_URL: string;
+	export const MONGO_URL: string;
+	export const MONGO_OPLOG_URL: string;
+	export const NVM_INC: string;
 	export const TERM_PROGRAM: string;
 	export const NODE: string;
 	export const INIT_CWD: string;
@@ -46,7 +56,6 @@ declare module '$env/static/private' {
 	export const ORIGINAL_XDG_CURRENT_DESKTOP: string;
 	export const MallocNanoZone: string;
 	export const CURSOR_TRACE_ID: string;
-	export const npm_package_optional: string;
 	export const COLOR: string;
 	export const npm_config_noproxy: string;
 	export const npm_config_local_prefix: string;
@@ -55,15 +64,11 @@ declare module '$env/static/private' {
 	export const COMMAND_MODE: string;
 	export const npm_config_globalconfig: string;
 	export const CONDA_EXE: string;
-	export const npm_package_peer: string;
 	export const SSH_AUTH_SOCK: string;
-	export const SUPABASE_ANON_KEY: string;
 	export const __CF_USER_TEXT_ENCODING: string;
 	export const npm_execpath: string;
 	export const HOMEBREW_PIP_INDEX_URL: string;
-	export const SUPABASE_DATABASE_URL: string;
 	export const PAGER: string;
-	export const npm_package_integrity: string;
 	export const PYDEVD_DISABLE_FILE_VALIDATION: string;
 	export const _CE_CONDA: string;
 	export const CONDA_ROOT: string;
@@ -76,12 +81,10 @@ declare module '$env/static/private' {
 	export const npm_config_userconfig: string;
 	export const npm_config_init_module: string;
 	export const USER_ZDOTDIR: string;
-	export const R2_ACCOUNT_ID: string;
 	export const CONDA_PREFIX: string;
 	export const __CFBundleIdentifier: string;
 	export const npm_command: string;
 	export const PWD: string;
-	export const MONGO_URL: string;
 	export const DISABLE_AUTO_UPDATE: string;
 	export const npm_lifecycle_event: string;
 	export const EDITOR: string;
@@ -91,41 +94,32 @@ declare module '$env/static/private' {
 	export const npm_config_npm_version: string;
 	export const VSCODE_GIT_ASKPASS_EXTRA_ARGS: string;
 	export const XPC_FLAGS: string;
-	export const SUPABASE_URL: string;
-	export const npm_package_engines_node: string;
 	export const npm_config_node_gyp: string;
-	export const npm_package_dev: string;
 	export const npm_package_version: string;
 	export const _CE_M: string;
 	export const XPC_SERVICE_NAME: string;
 	export const VSCODE_INJECTION: string;
 	export const VSCODE_DEBUGPY_ADAPTER_ENDPOINTS: string;
-	export const npm_package_resolved: string;
 	export const SHLVL: string;
 	export const HOME: string;
 	export const VSCODE_GIT_ASKPASS_MAIN: string;
 	export const HOMEBREW_PREFIX: string;
-	export const npm_package_dev_optional: string;
-	export const SUPABASE_SERVICE_ROLE_KEY: string;
 	export const npm_config_cache: string;
 	export const CONDA_PYTHON_EXE: string;
 	export const LOGNAME: string;
 	export const npm_lifecycle_script: string;
-	export const R2_BUCKET_NAME: string;
 	export const VSCODE_GIT_IPC_HANDLE: string;
 	export const NVM_BIN: string;
-	export const R2_ACCESS_KEY_ID: string;
 	export const CONDA_DEFAULT_ENV: string;
 	export const npm_config_user_agent: string;
 	export const INFOPATH: string;
 	export const HOMEBREW_CELLAR: string;
 	export const VSCODE_GIT_ASKPASS_NODE: string;
 	export const GIT_ASKPASS: string;
-	export const MONGO_OPLOG_URL: string;
-	export const R2_SECRET_ACCESS_KEY: string;
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const COLORTERM: string;
+	export const NODE_ENV: string;
 }
 
 /**
@@ -155,8 +149,18 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
-		NVM_INC: string;
+		R2_ACCOUNT_ID: string;
+		R2_BUCKET_NAME: string;
+		R2_ACCESS_KEY_ID: string;
+		R2_SECRET_ACCESS_KEY: string;
 		S3_ENDPOINT: string;
+		SUPABASE_URL: string;
+		SUPABASE_ANON_KEY: string;
+		SUPABASE_SERVICE_ROLE_KEY: string;
+		SUPABASE_DATABASE_URL: string;
+		MONGO_URL: string;
+		MONGO_OPLOG_URL: string;
+		NVM_INC: string;
 		TERM_PROGRAM: string;
 		NODE: string;
 		INIT_CWD: string;
@@ -175,7 +179,6 @@ declare module '$env/dynamic/private' {
 		ORIGINAL_XDG_CURRENT_DESKTOP: string;
 		MallocNanoZone: string;
 		CURSOR_TRACE_ID: string;
-		npm_package_optional: string;
 		COLOR: string;
 		npm_config_noproxy: string;
 		npm_config_local_prefix: string;
@@ -184,15 +187,11 @@ declare module '$env/dynamic/private' {
 		COMMAND_MODE: string;
 		npm_config_globalconfig: string;
 		CONDA_EXE: string;
-		npm_package_peer: string;
 		SSH_AUTH_SOCK: string;
-		SUPABASE_ANON_KEY: string;
 		__CF_USER_TEXT_ENCODING: string;
 		npm_execpath: string;
 		HOMEBREW_PIP_INDEX_URL: string;
-		SUPABASE_DATABASE_URL: string;
 		PAGER: string;
-		npm_package_integrity: string;
 		PYDEVD_DISABLE_FILE_VALIDATION: string;
 		_CE_CONDA: string;
 		CONDA_ROOT: string;
@@ -205,12 +204,10 @@ declare module '$env/dynamic/private' {
 		npm_config_userconfig: string;
 		npm_config_init_module: string;
 		USER_ZDOTDIR: string;
-		R2_ACCOUNT_ID: string;
 		CONDA_PREFIX: string;
 		__CFBundleIdentifier: string;
 		npm_command: string;
 		PWD: string;
-		MONGO_URL: string;
 		DISABLE_AUTO_UPDATE: string;
 		npm_lifecycle_event: string;
 		EDITOR: string;
@@ -220,41 +217,32 @@ declare module '$env/dynamic/private' {
 		npm_config_npm_version: string;
 		VSCODE_GIT_ASKPASS_EXTRA_ARGS: string;
 		XPC_FLAGS: string;
-		SUPABASE_URL: string;
-		npm_package_engines_node: string;
 		npm_config_node_gyp: string;
-		npm_package_dev: string;
 		npm_package_version: string;
 		_CE_M: string;
 		XPC_SERVICE_NAME: string;
 		VSCODE_INJECTION: string;
 		VSCODE_DEBUGPY_ADAPTER_ENDPOINTS: string;
-		npm_package_resolved: string;
 		SHLVL: string;
 		HOME: string;
 		VSCODE_GIT_ASKPASS_MAIN: string;
 		HOMEBREW_PREFIX: string;
-		npm_package_dev_optional: string;
-		SUPABASE_SERVICE_ROLE_KEY: string;
 		npm_config_cache: string;
 		CONDA_PYTHON_EXE: string;
 		LOGNAME: string;
 		npm_lifecycle_script: string;
-		R2_BUCKET_NAME: string;
 		VSCODE_GIT_IPC_HANDLE: string;
 		NVM_BIN: string;
-		R2_ACCESS_KEY_ID: string;
 		CONDA_DEFAULT_ENV: string;
 		npm_config_user_agent: string;
 		INFOPATH: string;
 		HOMEBREW_CELLAR: string;
 		VSCODE_GIT_ASKPASS_NODE: string;
 		GIT_ASKPASS: string;
-		MONGO_OPLOG_URL: string;
-		R2_SECRET_ACCESS_KEY: string;
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		COLORTERM: string;
+		NODE_ENV: string;
 		[key: `PUBLIC_${string}`]: undefined;
 		[key: `${string}`]: string | undefined;
 	}

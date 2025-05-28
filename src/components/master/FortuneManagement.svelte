@@ -1,36 +1,11 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { apiCall, formatDate, formatTime, formatCurrency } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
-  export let session: UserSession;
+  export let session;
 
-  interface FortuneOrder {
-    _id: string;
-    userId: string;
-    userNickname: string;
-    images: string[];
-    message: string;
-    amount: number;
-    currency: string;
-    convertedAmountCAD: number;
-    kidsEmergency: boolean;
-    status: 'Pending' | 'Queued-payed' | 'Queued-upload' | 'Completed' | 'Refunded';
-    queueIndex: number;
-    remainingModifications: number;
-    createdAt: string;
-    updatedAt: string;
-    modifications: any[];
-    paymentScreenshots?: string[];
-    reply?: {
-      content: string;
-      images: string[];
-      repliedBy: string;
-      repliedAt: string;
-    };
-  }
-
-  let orders: FortuneOrder[] = [];
+  let orders = [];
   let loading = true;
   let currentPage = 1;
   let totalPages = 1;
@@ -54,9 +29,9 @@
 
   // 详情侧栏
   let showDetails = false;
-  let selectedOrder: FortuneOrder | null = null;
+  let selectedOrder = null;
   let replyContent = '';
-  let replyImages: File[] = [];
+  let replyImages = [];
   let isDraft = false;
   let uploadingReply = false;
 
@@ -140,12 +115,12 @@
     loadOrders();
   }
 
-  function changePage(page: number) {
+  function changePage(page) {
     currentPage = page;
     loadOrders();
   }
 
-  function changeSort(field: string) {
+  function changeSort(field) {
     if (sortBy === field) {
       sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
     } else {
@@ -155,7 +130,7 @@
     loadOrders();
   }
 
-  function openDetails(order: FortuneOrder) {
+  function openDetails(order) {
     selectedOrder = order;
     showDetails = true;
     loadDraft(order._id);
@@ -169,7 +144,7 @@
     isDraft = false;
   }
 
-  async function loadDraft(orderId: string) {
+  async function loadDraft(orderId) {
     try {
       const draft = await apiCall(`/fortune/draft/${orderId}`);
       if (draft.content) {
@@ -247,8 +222,8 @@
     }
   }
 
-  function handleImageUpload(event: Event) {
-    const target = event.target as HTMLInputElement;
+  function handleImageUpload(event) {
+    const target = event.target;
     const files = Array.from(target.files || []);
     
     for (const file of files) {
@@ -266,11 +241,11 @@
     target.value = '';
   }
 
-  function removeImage(index: number) {
+  function removeImage(index) {
     replyImages = replyImages.filter((_, i) => i !== index);
   }
 
-  function getStatusColor(status: string): string {
+  function getStatusColor(status) {
     switch (status) {
       case 'Pending': return 'text-yellow-600 bg-yellow-100';
       case 'Queued-payed': return 'text-blue-600 bg-blue-100';
@@ -281,7 +256,7 @@
     }
   }
 
-  function getStatusText(status: string): string {
+  function getStatusText(status) {
     switch (status) {
       case 'Pending': return '待付款';
       case 'Queued-payed': return '已付款';

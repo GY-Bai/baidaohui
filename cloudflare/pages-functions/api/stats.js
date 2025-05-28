@@ -1,7 +1,7 @@
 // Cloudflare Pages Functions - 统计API
 // 直接从R2获取统计数据，减轻VPS压力
 
-export async function onRequestGet(context) {
+export async function onRequest(context) {
   const { request, env } = context;
   
   try {
@@ -11,20 +11,25 @@ export async function onRequestGet(context) {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };
-    
+
     // 处理OPTIONS请求
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
-    
+
+    // 只允许GET请求
+    if (request.method !== 'GET') {
+      return new Response('Method not allowed', { 
+        status: 405,
+        headers: corsHeaders 
+      });
+    }
+
     // 从R2获取统计数据
-    const r2Object = await env.R2_BUCKET.get('stats.json');
+    const object = await env.STORAGE.get('stats.json');
     
-    if (!r2Object) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '统计数据不可用'
-      }), {
+    if (!object) {
+      return new Response(JSON.stringify({ error: '统计数据不存在' }), {
         status: 404,
         headers: {
           'Content-Type': 'application/json',
@@ -32,33 +37,28 @@ export async function onRequestGet(context) {
         }
       });
     }
+
+    const stats = await object.json();
     
-    const statsData = await r2Object.json();
-    
-    return new Response(JSON.stringify({
-      success: true,
-      data: statsData,
-      cached: true,
-      source: 'cloudflare-pages'
-    }), {
+    return new Response(JSON.stringify(stats), {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=60',
+        'Cache-Control': 'public, max-age=60', // 1分钟缓存
         ...corsHeaders
       }
     });
-    
+
   } catch (error) {
-    console.error('获取统计数据失败:', error);
+    console.error('统计API错误:', error);
     
-    return new Response(JSON.stringify({
-      success: false,
-      error: '服务暂时不可用'
+    return new Response(JSON.stringify({ 
+      error: '获取统计数据失败',
+      message: error.message 
     }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        ...corsHeaders
       }
     });
   }

@@ -1,25 +1,14 @@
-<script lang="ts">
+<script>
   import { onMount, createEventDispatcher } from 'svelte';
   import { apiCall } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
   const dispatch = createEventDispatcher();
 
-  export let session: UserSession;
+  export let session;
 
-  interface StoreSettings {
-    storeId: string;
-    storeName: string;
-    city: string;
-    notificationEmail: string;
-    secretKey: string;
-    publishableKey: string;
-    isActive: boolean;
-    createdAt: string;
-    updatedAt: string;
-  }
 
-  let settings: StoreSettings = {
+  let settings = {
     storeId: '',
     storeName: '',
     city: '',
@@ -53,7 +42,7 @@
     '东莞', '长沙', '郑州', '济南', '哈尔滨', '福州', '石家庄', '合肥', '昆明', '沈阳'
   ];
 
-  let filteredCities: string[] = [];
+  let filteredCities = [];
   let showCityDropdown = false;
 
   onMount(() => {
@@ -224,12 +213,12 @@
     }
   }
 
-  function maskSecretKey(key: string): string {
+  function maskSecretKey(key) {
     if (!key) return '';
     return `****${key.slice(-6)}`;
   }
 
-  function filterCities(query: string) {
+  function filterCities(query) {
     if (!query) {
       filteredCities = [];
       showCityDropdown = false;
@@ -242,14 +231,14 @@
     showCityDropdown = filteredCities.length > 0;
   }
 
-  function selectCity(city: string) {
+  function selectCity(city) {
     settings.city = city;
     showCityDropdown = false;
     filteredCities = [];
   }
 
-  function handleCityInput(event: Event) {
-    const target = event.target as HTMLInputElement;
+  function handleCityInput(event) {
+    const target = event.target;
     filterCities(target.value);
   }
 

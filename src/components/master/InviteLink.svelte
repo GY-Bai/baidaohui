@@ -1,9 +1,9 @@
-<script lang="ts">
+<script>
   import { apiCall } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
   import QRCode from 'qrcode';
 
-  export let session: UserSession;
+  export let session;
 
   let memberForm = {
     validHours: 24,
@@ -14,15 +14,7 @@
     maxUses: 1
   };
 
-  let generatedLinks: Array<{
-    type: 'member' | 'seller';
-    token: string;
-    url: string;
-    expiresAt?: string;
-    maxUses: number;
-    usedCount: number;
-    createdAt: string;
-  }> = [];
+  let generatedLinks = [];
 
   let loading = false;
   let showQRCode = false;
@@ -91,7 +83,7 @@
   }
 
   // 复制链接到剪贴板
-  async function copyToClipboard(url: string) {
+  async function copyToClipboard(url) {
     try {
       await navigator.clipboard.writeText(url);
       alert('链接已复制到剪贴板');
@@ -102,7 +94,7 @@
   }
 
   // 生成二维码数据URL
-  async function generateQRCodeDataURL(text: string): Promise<string> {
+  async function generateQRCodeDataURL(text) {
     try {
       return await QRCode.toDataURL(text, {
         width: 200,
@@ -120,7 +112,7 @@
   }
 
   // 显示二维码
-  async function showQRCodeModal(url: string) {
+  async function showQRCodeModal(url) {
     qrCodeUrl = url;
     qrCodeData = await generateQRCodeDataURL(url);
     showQRCode = true;
@@ -141,7 +133,7 @@
   }
 
   // 启动倒计时
-  function startCountdown(expiresAt: string) {
+  function startCountdown(expiresAt) {
     const updateCountdown = () => {
       const now = new Date().getTime();
       const expiry = new Date(expiresAt).getTime();
@@ -170,12 +162,12 @@
   }
 
   // 格式化时间
-  function formatDateTime(dateString: string): string {
+  function formatDateTime(dateString) {
     return new Date(dateString).toLocaleString('zh-CN');
   }
 
   // 获取链接状态
-  function getLinkStatus(link: any): { text: string; color: string } {
+  function getLinkStatus(link) {
     if (link.type === 'member' && link.expiresAt) {
       const now = new Date().getTime();
       const expiry = new Date(link.expiresAt).getTime();

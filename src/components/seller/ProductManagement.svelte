@@ -1,35 +1,19 @@
-<script lang="ts">
+<script>
   import { onMount, createEventDispatcher } from 'svelte';
   import { apiCall } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
   const dispatch = createEventDispatcher();
 
-  export let session: UserSession;
+  export let session;
 
-  interface Product {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    originalPrice?: number;
-    stock: number;
-    category: string;
-    images: string[];
-    isActive: boolean;
-    stripeProductId?: string;
-    stripePriceId?: string;
-    paymentLinkUrl?: string;
-    createdAt: string;
-    updatedAt: string;
-  }
 
-  let products: Product[] = [];
+  let products = [];
   let loading = true;
   let error = '';
   let showProductModal = false;
   let showVideoModal = false;
-  let editingProduct: Product | null = null;
+  let editingProduct = null;
   let activeTab = 'products';
 
   let productForm = {
@@ -108,7 +92,7 @@
     }
   }
 
-  function openProductModal(product: Product | null = null) {
+  function openProductModal(product) {
     editingProduct = product;
     if (product) {
       productForm = {
@@ -208,7 +192,7 @@
     }
   }
 
-  async function toggleProductStatus(product: Product) {
+  async function toggleProductStatus(product) {
     try {
       await apiCall(`/seller/products/${product.id}/toggle`, {
         method: 'PATCH'
@@ -220,7 +204,7 @@
     }
   }
 
-  async function deleteProduct(product: Product) {
+  async function deleteProduct(product) {
     if (!confirm(`确定要删除商品"${product.name}"吗？此操作不可撤销。`)) {
       return;
     }
@@ -237,8 +221,8 @@
     }
   }
 
-  async function handleImageUpload(event: Event) {
-    const target = event.target as HTMLInputElement;
+  async function handleImageUpload(event) {
+    const target = event.target;
     const files = Array.from(target.files || []);
     
     if (files.length === 0) return;
@@ -268,23 +252,23 @@
     }
   }
 
-  function removeImage(index: number) {
+  function removeImage(index) {
     productForm.images = productForm.images.filter((_, i) => i !== index);
   }
 
-  function formatCurrency(amount: number): string {
+  function formatCurrency(amount) {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: 'CNY'
     }).format(amount);
   }
 
-  function formatDate(dateString: string): string {
+  function formatDate(dateString) {
     return new Date(dateString).toLocaleString('zh-CN');
   }
 
   // YouTube视频相关函数
-  function playVideo(videoId: string) {
+  function playVideo(videoId) {
     currentVideoId = videoId;
     showVideoModal = true;
   }
@@ -298,7 +282,7 @@
     isFullscreen = !isFullscreen;
   }
 
-  function getYouTubeEmbedUrl(videoId: string): string {
+  function getYouTubeEmbedUrl(videoId) {
     const qualityParam = videoQuality === '1080p' ? 'hd1080' : 
                         videoQuality === '720p' ? 'hd720' : 
                         videoQuality === '480p' ? 'large' : 'medium';

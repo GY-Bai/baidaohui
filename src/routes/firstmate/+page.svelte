@@ -1,15 +1,14 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { validateRoleAndRedirect, signOut, getSession } from '$lib/auth';
   import InviteLink from '$components/firstmate/InviteLink.svelte';
   import FortuneManagement from '$components/firstmate/FortuneManagement.svelte';
   import EcommerceManagement from '$components/firstmate/EcommerceManagement.svelte';
   import ChatManagement from '$components/firstmate/ChatManagement.svelte';
-  import type { UserSession } from '$lib/auth';
 
   let activeTab = 'invite';
   let loading = true;
-  let user: UserSession | null = null;
+  let user = null;
   let onlineStatus = true;
   let operationLogs = [];
 
@@ -29,7 +28,7 @@
     { id: 'chat', name: '聊天管理', icon: '💬' }
   ];
 
-  function setActiveTab(tabId: string) {
+  function setActiveTab(tabId) {
     activeTab = tabId;
   }
 

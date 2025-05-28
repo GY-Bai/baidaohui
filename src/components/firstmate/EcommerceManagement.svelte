@@ -1,5 +1,5 @@
 <!-- Firstmate的电商管理组件，只能查看不能修改密钥 -->
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
 
   let stores = [];

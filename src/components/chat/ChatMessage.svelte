@@ -26,11 +26,13 @@
   }
   
   function getMessageBubbleClass(isOwnMessage, isMasterMessage, isPrivateChat) {
-    if (isOwnMessage) {
+    // 在私聊中，Master的消息始终显示黄色气泡（无论是在member端还是master端）
+    if (isMasterMessage && isPrivateChat) {
+      // 保持正确的对齐方式：自己的消息右对齐，别人的消息左对齐
+      const alignment = isOwnMessage ? 'ml-auto' : 'mr-auto';
+      return `bg-yellow-400 text-gray-900 ${alignment}`;
+    } else if (isOwnMessage) {
       return 'bg-blue-500 text-white ml-auto';
-    } else if (isMasterMessage && isPrivateChat) {
-      // Master在私聊中的黄色气泡样式
-      return 'bg-yellow-400 text-gray-900 mr-auto';
     } else {
       return 'bg-gray-200 text-gray-900 mr-auto';
     }

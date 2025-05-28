@@ -1,34 +1,15 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { apiCall } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
-  export let session: UserSession;
+  export let session;
 
-  interface Order {
-    id: string;
-    orderId: string;
-    productId: string;
-    productName: string;
-    productImage: string;
-    quantity: number;
-    unitPrice: number;
-    totalAmount: number;
-    currency: string;
-    status: string;
-    buyerEmail: string;
-    buyerName?: string;
-    shippingAddress?: any;
-    paymentMethod: string;
-    stripeSessionId?: string;
-    createdAt: string;
-    updatedAt: string;
-  }
 
-  let orders: Order[] = [];
+  let orders = [];
   let loading = true;
   let error = '';
-  let selectedOrder: Order | null = null;
+  let selectedOrder = null;
   let showOrderDetail = false;
   let currentPage = 1;
   let totalPages = 1;
@@ -81,7 +62,7 @@
     }
   }
 
-  async function updateOrderStatus(orderId: string, newStatus: string) {
+  async function updateOrderStatus(orderId, newStatus) {
     try {
       await apiCall(`/seller/orders/${orderId}/status`, {
         method: 'PUT',
@@ -102,8 +83,8 @@
     }
   }
 
-  function getStatusText(status: string): string {
-    const statusMap: Record<string, string> = {
+  function getStatusText(status) {
+    const statusMap = {
       'pending': '待付款',
       'queued-payed': '已付款排队中',
       'queued-processing': '处理中',
@@ -115,8 +96,8 @@
     return statusMap[status] || status;
   }
 
-  function getStatusColor(status: string): string {
-    const colorMap: Record<string, string> = {
+  function getStatusColor(status) {
+    const colorMap = {
       'pending': 'bg-yellow-100 text-yellow-800',
       'queued-payed': 'bg-blue-100 text-blue-800',
       'queued-processing': 'bg-purple-100 text-purple-800',
@@ -128,18 +109,18 @@
     return colorMap[status] || 'bg-gray-100 text-gray-800';
   }
 
-  function formatCurrency(amount: number, currency: string = 'CNY'): string {
+  function formatCurrency(amount, currency) {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: currency
     }).format(amount);
   }
 
-  function formatDate(dateString: string): string {
+  function formatDate(dateString) {
     return new Date(dateString).toLocaleString('zh-CN');
   }
 
-  function viewOrderDetail(order: Order) {
+  function viewOrderDetail(order) {
     selectedOrder = order;
     showOrderDetail = true;
   }
@@ -165,13 +146,13 @@
     loadOrders();
   }
 
-  function changePage(page: number) {
+  function changePage(page) {
     currentPage = page;
     loadOrders();
   }
 
-  function getAvailableStatusTransitions(currentStatus: string): string[] {
-    const transitions: Record<string, string[]> = {
+  function getAvailableStatusTransitions(currentStatus) {
+    const transitions = {
       'pending': [],
       'queued-payed': ['queued-processing', 'cancelled'],
       'queued-processing': ['queued-shipped', 'cancelled'],

@@ -1,11 +1,10 @@
-<script lang="ts">
-  import type { PageData } from './$types';
+<script>
   import Chat from '$components/member/Chat.svelte';
   import Fortune from '$components/member/Fortune.svelte';
   import Ecommerce from '$components/member/Ecommerce.svelte';
   import Profile from '$components/member/Profile.svelte';
 
-  export let data: PageData;
+  export let data;
   
   let activeTab = 'chat';
 
@@ -16,7 +15,7 @@
     { id: 'profile', name: '个人', icon: '👤' }
   ];
 
-  function setActiveTab(tabId: string) {
+  function setActiveTab(tabId) {
     activeTab = tabId;
   }
 </script>

@@ -1,22 +1,20 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
+<script>
+  import { onMount, onDestroy } from 'svelte';
 
-  let activeTab = 'group';
   let loading = true;
-  let members = [];
-  let groupChatInfo = {
-    name: '#general',
-    memberCount: 0,
-    lastMessage: null,
-    isActive: true
-  };
-
-  // 私聊管理
-  let privateChatMembers = [];
+  let chatList = []; // 聊天列表，包含群聊和私聊
+  let currentChat = null; // 当前选中的聊天
+  let showChatWindow = false; // 是否显示聊天窗口
+  let messages = []; // 当前聊天的消息
+  let newMessage = '';
+  let chatContainer;
+  let currentUserId = null;
+  
+  // 私聊权限设置
   let showPermissionModal = false;
   let selectedMember = null;
   let permissionForm = {
-    duration: '7', // 天数
+    duration: '7',
     customDays: ''
   };
 
@@ -29,33 +27,253 @@
     { value: 'custom', label: '自定义' }
   ];
 
-  onMount(() => {
-    loadGroupChatInfo();
-    loadPrivateChatMembers();
+  let expiredChatCheckInterval;
+
+  onMount(async () => {
+    await initializeChat();
+    loadChatList();
+    
+    // 每分钟检查一次过期的私聊
+    expiredChatCheckInterval = setInterval(checkExpiredChats, 60000);
   });
 
-  async function loadGroupChatInfo() {
+  onDestroy(() => {
+    if (expiredChatCheckInterval) {
+      clearInterval(expiredChatCheckInterval);
+    }
+  });
+
+  async function initializeChat() {
     try {
-      const response = await fetch('/api/chat/group/general');
-      if (response.ok) {
-        groupChatInfo = await response.json();
+      const sessionResponse = await fetch('/api/sso/session');
+      if (sessionResponse.ok) {
+        const session = await sessionResponse.json();
+        currentUserId = session.user.id;
       }
     } catch (error) {
-      console.error('加载群聊信息失败:', error);
+      console.error('初始化聊天失败:', error);
     }
   }
 
-  async function loadPrivateChatMembers() {
+  async function loadChatList() {
     try {
       loading = true;
-      const response = await fetch('/api/chat/private/members');
-      if (response.ok) {
-        privateChatMembers = await response.json();
+      
+      // 获取群聊信息
+      const groupResponse = await fetch('/api/chat/group/general');
+      const groupChat = groupResponse.ok ? await groupResponse.json() : {
+        id: 'general',
+        type: 'group',
+        name: '#general 群聊',
+        memberCount: 0,
+        lastMessage: null,
+        unreadCount: 0,
+        isActive: true,
+        isPinned: true
+      };
+
+      // 获取私聊列表
+      const privateResponse = await fetch('/api/chat/members');
+      let privateChats = [];
+      if (privateResponse.ok) {
+        const members = await privateResponse.json();
+        privateChats = members
+          .filter(member => member.privateChatEnabled && !isPrivateChatExpired(member.privateChatExpiresAt))
+          .map(member => ({
+            id: `private_${member.id}`,
+            type: 'private',
+            name: member.nickname || member.email,
+            memberId: member.id,
+            lastMessage: member.lastMessage,
+            unreadCount: member.unreadCount || 0,
+            expiresAt: member.privateChatExpiresAt,
+            isActive: true,
+            isPinned: false
+          }));
       }
+
+      // 合并聊天列表，群聊置顶
+      chatList = [groupChat, ...privateChats];
+      
     } catch (error) {
-      console.error('加载私聊成员失败:', error);
+      console.error('加载聊天列表失败:', error);
     } finally {
       loading = false;
+    }
+  }
+
+  function isPrivateChatExpired(expiresAt) {
+    if (!expiresAt) return false; // 永久有效
+    return new Date(expiresAt) <= new Date();
+  }
+
+  async function checkExpiredChats() {
+    const expiredChats = chatList.filter(chat => 
+      chat.type === 'private' && isPrivateChatExpired(chat.expiresAt)
+    );
+
+    if (expiredChats.length > 0) {
+      // 从前端列表中移除过期的私聊
+      chatList = chatList.filter(chat => 
+        !(chat.type === 'private' && isPrivateChatExpired(chat.expiresAt))
+      );
+
+      // 通知后端清理过期数据
+      for (const chat of expiredChats) {
+        try {
+          await fetch('/api/chat/cleanup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ memberId: chat.memberId })
+          });
+        } catch (error) {
+          console.error('清理过期聊天失败:', error);
+        }
+      }
+
+      // 如果当前正在查看过期的私聊，关闭聊天窗口并提示
+      if (currentChat && expiredChats.some(chat => chat.id === currentChat.id)) {
+        alert('私聊已过期，将返回消息列表');
+        closeChatWindow();
+      }
+    }
+  }
+
+  async function openChat(chat) {
+    currentChat = chat;
+    showChatWindow = true;
+    
+    if (chat.type === 'group') {
+      await loadAggregatedMessages();
+    } else {
+      await loadPrivateMessages(chat.memberId);
+    }
+    
+    // 标记消息为已读
+    await markChatAsRead(chat);
+  }
+
+  async function loadAggregatedMessages() {
+    try {
+      const response = await fetch('/api/messages/aggregated?limit=50');
+      if (response.ok) {
+        const data = await response.json();
+        messages = data.messages;
+        
+        // 标记群聊中的member消息为已读
+        await markGroupMessagesAsRead();
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error('加载聚合消息失败:', error);
+    }
+  }
+
+  async function loadPrivateMessages(memberId) {
+    try {
+      const response = await fetch(`/api/messages/private/${memberId}?limit=50`);
+      if (response.ok) {
+        const data = await response.json();
+        messages = data.messages;
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error('加载私聊消息失败:', error);
+    }
+  }
+
+  async function markChatAsRead(chat) {
+    try {
+      if (chat.type === 'group') {
+        // 群聊标记已读逻辑在loadAggregatedMessages中处理
+      } else {
+        await fetch('/api/chat/mark-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            chatId: chat.id,
+            memberId: chat.memberId 
+          })
+        });
+        
+        // 更新本地未读计数
+        const chatIndex = chatList.findIndex(c => c.id === chat.id);
+        if (chatIndex !== -1) {
+          chatList[chatIndex].unreadCount = 0;
+        }
+      }
+    } catch (error) {
+      console.error('标记已读失败:', error);
+    }
+  }
+
+  async function markGroupMessagesAsRead() {
+    try {
+      await fetch('/api/chat/mark-group-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: 'general' })
+      });
+      
+      // 更新群聊未读计数
+      const groupChatIndex = chatList.findIndex(c => c.id === 'general');
+      if (groupChatIndex !== -1) {
+        chatList[groupChatIndex].unreadCount = 0;
+      }
+    } catch (error) {
+      console.error('标记群聊已读失败:', error);
+    }
+  }
+
+  function closeChatWindow() {
+    showChatWindow = false;
+    currentChat = null;
+    messages = [];
+    newMessage = '';
+  }
+
+  async function sendMessage() {
+    if (!newMessage.trim() || !currentChat) return;
+
+    const messageData = {
+      chat_id: currentChat.id,
+      content: newMessage.trim(),
+      type: 'text'
+    };
+
+    try {
+      const response = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData)
+      });
+
+      if (response.ok) {
+        const sentMessage = await response.json();
+        messages = [...messages, sentMessage];
+        newMessage = '';
+        scrollToBottom();
+        
+        // 更新聊天列表中的最新消息
+        updateChatListLastMessage(currentChat.id, sentMessage);
+      }
+    } catch (error) {
+      console.error('发送消息失败:', error);
+    }
+  }
+
+  function updateChatListLastMessage(chatId, message) {
+    const chatIndex = chatList.findIndex(c => c.id === chatId);
+    if (chatIndex !== -1) {
+      chatList[chatIndex].lastMessage = message;
+    }
+  }
+
+  function scrollToBottom() {
+    if (chatContainer) {
+      setTimeout(() => {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }, 100);
     }
   }
 
@@ -63,7 +281,7 @@
     selectedMember = member;
     showPermissionModal = true;
     permissionForm = {
-      duration: member.privateChatEnabled ? '7' : '7',
+      duration: '7',
       customDays: ''
     };
   }
@@ -97,9 +315,7 @@
     try {
       const response = await fetch('/api/chat/private/permission', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memberId: selectedMember.id,
           enabled: enable,
@@ -110,7 +326,7 @@
       if (response.ok) {
         alert(enable ? '私聊权限已开启' : '私聊权限已关闭');
         closePermissionModal();
-        loadPrivateChatMembers();
+        loadChatList(); // 重新加载聊天列表
       } else {
         const error = await response.json();
         alert(error.message || '操作失败');
@@ -121,291 +337,353 @@
     }
   }
 
-  async function downloadChatHistory(memberId) {
-    try {
-      const response = await fetch(`/api/chat/private/history/${memberId}/download`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `chat-history-${memberId}-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      } else {
-        alert('下载失败');
-      }
-    } catch (error) {
-      console.error('下载聊天记录失败:', error);
-      alert('下载失败');
-    }
-  }
-
-  async function cleanupExpiredChats() {
-    if (!confirm('确定要清理所有过期的私聊记录吗？此操作不可撤销。')) {
+  async function deletePrivateChat(chat) {
+    if (!confirm('确定要删除这个私聊吗？聊天记录将被永久删除。')) {
       return;
     }
 
     try {
-      const response = await fetch('/api/chat/cleanup', {
-        method: 'POST'
+      const response = await fetch('/api/chat/private/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: chat.memberId })
       });
 
       if (response.ok) {
-        const result = await response.json();
-        alert(`清理完成，共清理了 ${result.cleanedCount} 个过期聊天`);
-        loadPrivateChatMembers();
+        // 从聊天列表中移除
+        chatList = chatList.filter(c => c.id !== chat.id);
+        
+        // 如果当前正在查看这个私聊，关闭窗口
+        if (currentChat && currentChat.id === chat.id) {
+          closeChatWindow();
+        }
+        
+        alert('私聊已删除');
       } else {
-        alert('清理失败');
+        alert('删除失败');
       }
     } catch (error) {
-      console.error('清理过期聊天失败:', error);
-      alert('清理失败');
+      console.error('删除私聊失败:', error);
+      alert('删除失败');
     }
   }
 
-  function enterGroupChat() {
-    // 这里应该打开群聊窗口或跳转到群聊页面
-    window.open('/chat/group/general', '_blank');
+  function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } else if (days === 1) {
+      return '昨天';
+    } else if (days < 7) {
+      return `${days}天前`;
+    } else {
+      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
   }
 
-  function formatDate(dateString) {
-    if (!dateString) return '永久';
-    return new Date(dateString).toLocaleString('zh-CN');
-  }
-
-  function getRemainingDays(expiresAt) {
+  function getRemainingTime(expiresAt) {
     if (!expiresAt) return '永久';
     
     const now = new Date();
     const expires = new Date(expiresAt);
     const diff = expires.getTime() - now.getTime();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     
-    if (days <= 0) return '已过期';
-    if (days === 1) return '今天到期';
-    return `${days}天`;
-  }
-
-  function getRemainingDaysColor(expiresAt) {
-    if (!expiresAt) return 'text-green-600';
+    if (diff <= 0) return '已过期';
     
-    const now = new Date();
-    const expires = new Date(expiresAt);
-    const diff = expires.getTime() - now.getTime();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     
-    if (days <= 0) return 'text-red-600';
-    if (days <= 1) return 'text-red-600';
-    if (days <= 3) return 'text-yellow-600';
-    return 'text-green-600';
-  }
-
-  function getStatusText(member) {
-    if (!member.privateChatEnabled) return '未开启';
-    if (member.privateChatExpiresAt) {
-      const now = new Date();
-      const expires = new Date(member.privateChatExpiresAt);
-      if (expires <= now) return '已过期';
+    if (days > 0) {
+      return `${days}天`;
+    } else {
+      return `${hours}小时`;
     }
-    return '已开启';
   }
 
-  function getStatusColor(member) {
-    if (!member.privateChatEnabled) return 'text-gray-600 bg-gray-100';
-    if (member.privateChatExpiresAt) {
-      const now = new Date();
-      const expires = new Date(member.privateChatExpiresAt);
-      if (expires <= now) return 'text-red-600 bg-red-100';
+  function getUserDisplayName(message) {
+    if (message.sender_role === 'Master') {
+      return '大师';
+    } else if (message.sender_role === 'Firstmate') {
+      return '大副';
+    } else if (message.sender_name) {
+      return message.sender_name;
+    } else {
+      return `用户${message.sender_id.slice(-4)}`;
     }
-    return 'text-green-600 bg-green-100';
+  }
+
+  function getMessageBubbleClass(message) {
+    const isOwnMessage = message.sender_id === currentUserId;
+    const isMasterMessage = message.sender_role === 'Master';
+    
+    if (isMasterMessage) {
+      const alignment = isOwnMessage ? 'ml-auto' : 'mr-auto';
+      return `bg-yellow-400 text-gray-900 ${alignment}`;
+    } else if (isOwnMessage) {
+      return 'bg-blue-500 text-white ml-auto';
+    } else {
+      return 'bg-gray-200 text-gray-900 mr-auto';
+    }
+  }
+
+  function handleKeyPress(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function handleMemberClick(message) {
+    // 在群聊中点击member头像，显示私聊气泡按钮
+    if (currentChat && currentChat.type === 'group' && message.sender_role === 'Member') {
+      const member = {
+        id: message.sender_id,
+        nickname: message.sender_name,
+        email: message.sender_email || `user${message.sender_id.slice(-4)}@example.com`
+      };
+      openPermissionModal(member);
+    }
   }
 </script>
 
-<div class="space-y-6">
-  <div class="bg-white rounded-lg shadow p-6">
-    <h2 class="text-2xl font-semibold text-gray-900 mb-6">聊天管理</h2>
-
-    <!-- 标签切换 -->
-    <div class="border-b border-gray-200 mb-6">
-      <nav class="-mb-px flex space-x-8">
-        <button
-          on:click={() => activeTab = 'group'}
-          class="py-2 px-1 border-b-2 font-medium text-sm {
-            activeTab === 'group'
-              ? 'border-purple-500 text-purple-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }"
-        >
-          群聊管理
-        </button>
-        <button
-          on:click={() => activeTab = 'private'}
-          class="py-2 px-1 border-b-2 font-medium text-sm {
-            activeTab === 'private'
-              ? 'border-purple-500 text-purple-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }"
-        >
-          私聊管理
-        </button>
-      </nav>
+<div class="flex h-full bg-white rounded-lg shadow overflow-hidden">
+  <!-- 左侧聊天列表 -->
+  <div class="w-1/3 border-r border-gray-200 flex flex-col">
+    <!-- 头部 -->
+    <div class="p-4 border-b border-gray-200">
+      <h2 class="text-xl font-semibold text-gray-900">消息</h2>
     </div>
 
-    <!-- 群聊管理 -->
-    {#if activeTab === 'group'}
-      <div class="space-y-6">
-        <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-2">
-                {groupChatInfo.name} 群聊
-              </h3>
-              <div class="space-y-1 text-sm text-gray-600">
-                <p>成员数量: {groupChatInfo.memberCount}</p>
-                <p>状态: {groupChatInfo.isActive ? '活跃' : '非活跃'}</p>
-                {#if groupChatInfo.lastMessage}
-                  <p>最新消息: {formatDate(groupChatInfo.lastMessage.timestamp)}</p>
+    <!-- 聊天列表 -->
+    <div class="flex-1 overflow-y-auto">
+      {#if loading}
+        <div class="p-4 text-center">
+          <svg class="animate-spin h-6 w-6 text-gray-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p class="text-sm text-gray-600 mt-2">加载中...</p>
+        </div>
+      {:else}
+        {#each chatList as chat}
+          <button
+            on:click={() => openChat(chat)}
+            class="w-full p-4 border-b border-gray-100 hover:bg-gray-50 text-left transition-colors
+              {currentChat && currentChat.id === chat.id ? 'bg-blue-50 border-blue-200' : ''}"
+          >
+            <div class="flex items-center space-x-3">
+              <!-- 聊天头像 -->
+              <div class="relative">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold
+                  {chat.type === 'group' ? 'bg-purple-500' : 'bg-green-500'}">
+                  {chat.type === 'group' ? '#' : chat.name.charAt(0).toUpperCase()}
+                </div>
+                {#if chat.unreadCount > 0}
+                  <div class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                  </div>
+                {/if}
+                {#if chat.isPinned}
+                  <div class="absolute -top-1 -left-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
+                    <svg class="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                  </div>
                 {/if}
               </div>
-            </div>
-            <button
-              on:click={enterGroupChat}
-              class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              进入群聊
-            </button>
-          </div>
-        </div>
 
-        <div class="bg-gray-50 rounded-lg p-4">
-          <h4 class="font-medium text-gray-900 mb-3">群聊功能</h4>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex items-center text-gray-700">
-              <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-              </svg>
-              所有 Member 可参与
+              <!-- 聊天信息 -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <h3 class="font-medium text-gray-900 truncate">{chat.name}</h3>
+                  <div class="flex flex-col items-end">
+                    {#if chat.lastMessage}
+                      <span class="text-xs text-gray-500">{formatTime(chat.lastMessage.timestamp)}</span>
+                    {/if}
+                    {#if chat.type === 'private'}
+                      <span class="text-xs text-yellow-600 mt-1">{getRemainingTime(chat.expiresAt)}</span>
+                    {/if}
+                  </div>
+                </div>
+                
+                <div class="flex items-center justify-between mt-1">
+                  <p class="text-sm text-gray-600 truncate">
+                    {#if chat.lastMessage}
+                      {chat.lastMessage.content}
+                    {:else if chat.type === 'group'}
+                      所有Member消息聚合显示
+                    {:else}
+                      私聊已开启
+                    {/if}
+                  </p>
+                  
+                  {#if chat.type === 'private'}
+                    <button
+                      on:click|stopPropagation={() => deletePrivateChat(chat)}
+                      class="text-red-500 hover:text-red-700 p-1"
+                      title="删除私聊"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                    </button>
+                  {/if}
+                </div>
+              </div>
             </div>
-            <div class="flex items-center text-gray-700">
-              <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-              </svg>
-              Firstmate 可协助管理
-            </div>
-            <div class="flex items-center text-gray-700">
-              <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-              </svg>
-              实时消息同步
-            </div>
-            <div class="flex items-center text-gray-700">
-              <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-              </svg>
-              消息历史记录
-            </div>
-          </div>
+          </button>
+        {/each}
+      {/if}
+    </div>
+  </div>
+
+  <!-- 右侧聊天窗口 -->
+  <div class="flex-1 flex flex-col">
+    {#if !showChatWindow}
+      <!-- 未选择聊天时的占位界面 -->
+      <div class="flex-1 flex items-center justify-center bg-gray-50">
+        <div class="text-center">
+          <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+          </svg>
+          <h3 class="text-lg font-medium text-gray-900 mb-2">选择一个聊天</h3>
+          <p class="text-gray-600">从左侧列表中选择群聊或私聊开始对话</p>
         </div>
       </div>
-    {/if}
-
-    <!-- 私聊管理 -->
-    {#if activeTab === 'private'}
-      <div class="space-y-6">
-        <div class="flex justify-between items-center">
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900">私聊权限管理</h3>
-            <p class="text-sm text-gray-600">管理 Member 用户的私聊权限和到期时间</p>
+    {:else}
+      <!-- 聊天头部 -->
+      <div class="p-4 border-b border-gray-200 bg-white">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <button
+              on:click={closeChatWindow}
+              class="text-gray-500 hover:text-gray-700"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+            <div>
+              <h3 class="font-semibold text-gray-900">{currentChat.name}</h3>
+              {#if currentChat.type === 'private'}
+                <p class="text-sm text-yellow-600">剩余时间: {getRemainingTime(currentChat.expiresAt)}</p>
+              {:else}
+                <p class="text-sm text-gray-600">群聊 · {currentChat.memberCount || 0} 人</p>
+              {/if}
+            </div>
           </div>
-          <button
-            on:click={cleanupExpiredChats}
-            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-          >
-            清理过期聊天
-          </button>
+          
+          {#if currentChat.type === 'private'}
+            <button
+              on:click={() => deletePrivateChat(currentChat)}
+              class="text-red-500 hover:text-red-700 p-2"
+              title="删除私聊"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+          {/if}
         </div>
+      </div>
 
-        {#if loading}
-          <div class="text-center py-8">
-            <svg class="animate-spin h-8 w-8 text-purple-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="text-gray-600">加载中...</p>
-          </div>
-        {:else if privateChatMembers.length === 0}
+      <!-- 消息区域 -->
+      <div bind:this={chatContainer} class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+        {#if messages.length === 0}
           <div class="text-center py-8">
             <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2v-6a2 2 0 012-2h2m5-4v2a2 2 0 01-2 2H9a2 2 0 01-2-2V4a2 2 0 012-2h4a2 2 0 012 2z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
             </svg>
-            <p class="text-gray-600">暂无 Member 用户</p>
+            <p class="text-gray-600">
+              {currentChat.type === 'group' ? '开始群聊对话' : '开始私聊对话'}
+            </p>
           </div>
         {:else}
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">成员</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">私聊开始时间</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到期时间</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">剩余天数</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                {#each privateChatMembers as member}
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="flex items-center">
-                        <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-semibold mr-3">
-                          {member.nickname ? member.nickname.charAt(0).toUpperCase() : member.email.charAt(0).toUpperCase()}
+          {#each messages as message}
+            <div class="flex items-start space-x-3">
+              <!-- 用户头像 -->
+              <button
+                on:click={() => handleMemberClick(message)}
+                class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold
+                  {message.sender_role === 'Master' ? 'bg-yellow-500' : 
+                   message.sender_role === 'Firstmate' ? 'bg-purple-500' : 'bg-green-500'}
+                  {currentChat.type === 'group' && message.sender_role === 'Member' ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}"
+                disabled={!(currentChat.type === 'group' && message.sender_role === 'Member')}
+              >
+                {getUserDisplayName(message).charAt(0)}
+              </button>
+
+              <!-- 消息内容 -->
+              <div class="flex-1 max-w-xs">
+                <div class="flex items-center space-x-2 mb-1">
+                  <span class="text-sm font-medium text-gray-900">{getUserDisplayName(message)}</span>
+                  {#if message.sender_role === 'Master'}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      大师
+                    </span>
+                  {:else if message.sender_role === 'Firstmate'}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      大副
+                    </span>
+                  {/if}
+                  <span class="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                  {#if currentChat.type === 'private' && message.sender_role === 'Master'}
+                    <span class="text-xs {message.read_status ? 'text-green-600' : 'text-gray-500'}">
+                      {message.read_status ? '已读' : '未读'}
+                    </span>
+                  {/if}
+                </div>
+                
+                <div class="rounded-lg px-3 py-2 {getMessageBubbleClass(message)}">
+                  <p class="text-sm">{message.content}</p>
+                  {#if message.attachments && message.attachments.length > 0}
+                    <div class="mt-2 space-y-1">
+                      {#each message.attachments as attachment}
+                        <div class="text-xs text-blue-600 hover:text-blue-800">
+                          📎 {attachment.name}
                         </div>
-                        <div>
-                          <div class="text-sm font-medium text-gray-900">{member.nickname || member.email}</div>
-                          <div class="text-sm text-gray-500">{member.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {member.privateChatStartedAt ? formatDate(member.privateChatStartedAt) : '-'}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(member.privateChatExpiresAt)}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <span class="text-sm {getRemainingDaysColor(member.privateChatExpiresAt)}">
-                        {getRemainingDays(member.privateChatExpiresAt)}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <span class="px-2 py-1 text-xs rounded-full {getStatusColor(member)}">
-                        {getStatusText(member)}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <button
-                        on:click={() => openPermissionModal(member)}
-                        class="text-purple-600 hover:text-purple-900"
-                      >
-                        {member.privateChatEnabled ? '修改权限' : '开启私聊'}
-                      </button>
-                      {#if member.privateChatEnabled}
-                        <button
-                          on:click={() => downloadChatHistory(member.id)}
-                          class="text-blue-600 hover:text-blue-900"
-                        >
-                          下载记录
-                        </button>
-                      {/if}
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/each}
         {/if}
+      </div>
+
+      <!-- 输入区域 -->
+      <div class="border-t border-gray-200 p-4 bg-white">
+        <div class="flex space-x-3">
+          <div class="flex-1">
+            <textarea
+              bind:value={newMessage}
+              on:keypress={handleKeyPress}
+              placeholder="输入消息..."
+              rows="2"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            ></textarea>
+          </div>
+          <button
+            on:click={sendMessage}
+            disabled={!newMessage.trim()}
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            发送
+          </button>
+        </div>
+        
+        <div class="mt-2 text-xs text-gray-500">
+          按 Enter 发送，Shift + Enter 换行
+          {#if currentChat.type === 'group'}
+            · 点击Member头像可开启私聊
+          {/if}
+        </div>
       </div>
     {/if}
   </div>
@@ -417,9 +695,7 @@
     <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
       <div class="mt-3">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">
-            设置私聊权限
-          </h3>
+          <h3 class="text-lg font-medium text-gray-900">开启私聊权限</h3>
           <button
             on:click={closePermissionModal}
             class="text-gray-400 hover:text-gray-600"
@@ -449,7 +725,7 @@
             </label>
             <select
               bind:value={permissionForm.duration}
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {#each durationOptions as option}
                 <option value={option.value}>{option.label}</option>
@@ -467,34 +743,25 @@
                 bind:value={permissionForm.customDays}
                 min="1"
                 placeholder="输入天数"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           {/if}
 
           <div class="flex space-x-3">
             <button
-              on:click={() => updatePrivateChatPermission(true)}
-              class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              on:click={closePermissionModal}
+              class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
-              开启私聊
+              取消
             </button>
-            {#if selectedMember.privateChatEnabled}
-              <button
-                on:click={() => updatePrivateChatPermission(false)}
-                class="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-              >
-                关闭私聊
-              </button>
-            {/if}
+            <button
+              on:click={() => updatePrivateChatPermission(true)}
+              class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              确定
+            </button>
           </div>
-
-          <button
-            on:click={closePermissionModal}
-            class="w-full px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            取消
-          </button>
         </div>
 
         <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -507,7 +774,7 @@
               <ul class="mt-1 list-disc list-inside">
                 <li>开启后用户可与您进行私信聊天</li>
                 <li>到期后私聊权限将自动关闭</li>
-                <li>聊天记录可随时下载备份</li>
+                <li>私聊期间消息不会出现在群聊中</li>
               </ul>
             </div>
           </div>
@@ -515,4 +782,13 @@
       </div>
     </div>
   </div>
-{/if} 
+{/if}
+
+<style>
+  /* Master的黄色气泡特殊样式 */
+  .bg-yellow-400 {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+    font-weight: 500;
+  }
+</style> 

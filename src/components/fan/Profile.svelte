@@ -1,9 +1,9 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { signOut } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
-  export let session: UserSession;
+  export let session;
 
   let loading = false;
   let editingNickname = false;
@@ -150,18 +150,20 @@
     }
   }
 
-  function formatDate(dateString: string): string {
+  function formatDate(dateString) {
     if (!dateString) return '未知';
     return new Date(dateString).toLocaleDateString('zh-CN');
   }
 
   // 实时检查昵称
+  let nicknameCheckTimeout;
   $: if (nickname !== originalNickname) {
-    const timeoutId = setTimeout(() => {
+    if (nicknameCheckTimeout) {
+      clearTimeout(nicknameCheckTimeout);
+    }
+    nicknameCheckTimeout = setTimeout(() => {
       checkNicknameUniqueness();
     }, 500);
-    
-    return () => clearTimeout(timeoutId);
   }
 </script>
 

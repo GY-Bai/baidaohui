@@ -1,12 +1,12 @@
-<script lang="ts">
-  import type { PageData } from './$types';
+<script>
   import { signOut } from '$lib/auth';
   import InviteLink from '$components/master/InviteLink.svelte';
   import FortuneManagement from '$components/master/FortuneManagement.svelte';
   import EcommerceManagement from '$components/master/EcommerceManagement.svelte';
   import ChatManagement from '$components/master/ChatManagement.svelte';
+  import Profile from '$components/master/Profile.svelte';
 
-  export let data: PageData;
+  export let data;
   
   let activeTab = 'invite';
 
@@ -14,10 +14,11 @@
     { id: 'invite', name: '邀请链接', icon: '🔗' },
     { id: 'fortune', name: '算命管理', icon: '🔮' },
     { id: 'ecommerce', name: '电商管理', icon: '🛍️' },
-    { id: 'chat', name: '聊天管理', icon: '💬' }
+    { id: 'chat', name: '聊天管理', icon: '💬' },
+    { id: 'profile', name: '个人资料', icon: '👤' }
   ];
 
-  function setActiveTab(tabId: string) {
+  function setActiveTab(tabId) {
     activeTab = tabId;
   }
 
@@ -72,36 +73,39 @@
       </div>
       
       <!-- 标签导航 -->
-      <div class="border-t border-gray-200">
-        <div class="flex space-x-8">
+      <div class="border-t">
+        <nav class="flex space-x-8 px-4 sm:px-6 lg:px-8">
           {#each tabs as tab}
             <button
               on:click={() => setActiveTab(tab.id)}
-              class="flex items-center px-3 py-4 text-sm font-medium border-b-2 transition-colors {
-                activeTab === tab.id 
-                  ? 'text-purple-600 border-purple-600' 
-                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-              }"
+              class="py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                {activeTab === tab.id 
+                  ? 'border-purple-500 text-purple-600' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
             >
               <span class="mr-2">{tab.icon}</span>
               {tab.name}
             </button>
           {/each}
-        </div>
+        </nav>
       </div>
     </div>
   </nav>
 
   <!-- 主要内容区域 -->
-  <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-    {#if activeTab === 'invite'}
-      <InviteLink session={data.session} />
-    {:else if activeTab === 'fortune'}
-      <FortuneManagement session={data.session} />
-    {:else if activeTab === 'ecommerce'}
-      <EcommerceManagement session={data.session} />
-    {:else if activeTab === 'chat'}
-      <ChatManagement session={data.session} />
-    {/if}
+  <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+    <div class="px-4 py-6 sm:px-0">
+      {#if activeTab === 'invite'}
+        <InviteLink {data} />
+      {:else if activeTab === 'fortune'}
+        <FortuneManagement {data} />
+      {:else if activeTab === 'ecommerce'}
+        <EcommerceManagement {data} />
+      {:else if activeTab === 'chat'}
+        <ChatManagement {data} />
+      {:else if activeTab === 'profile'}
+        <Profile session={data.session} />
+      {/if}
+    </div>
   </main>
 </div> 

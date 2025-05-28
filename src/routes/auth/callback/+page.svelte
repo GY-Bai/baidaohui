@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { getSession, redirectToRoleDomain } from '$lib/auth';

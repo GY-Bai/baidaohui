@@ -1,23 +1,22 @@
-<script lang="ts">
-  import type { PageData } from './$types';
+<script>
   import { signOut } from '$lib/auth';
   import StoreSettings from '$components/seller/StoreSettings.svelte';
+  import ProductManagement from '$components/seller/ProductManagement.svelte';
   import OrderManagement from '$components/seller/OrderManagement.svelte';
   import RevenueStats from '$components/seller/RevenueStats.svelte';
-  import ProductManagement from '$components/seller/ProductManagement.svelte';
 
-  export let data: PageData;
+  export let data;
   
-  let activeTab = 'settings';
+  let activeTab = 'store';
 
   const tabs = [
-    { id: 'settings', name: '店铺设置', icon: '⚙️' },
-    { id: 'orders', name: '订单管理', icon: '📦' },
-    { id: 'revenue', name: '收入统计', icon: '📊' },
-    { id: 'products', name: '商品管理', icon: '🛍️' }
+    { id: 'store', name: '店铺设置', icon: '🏪' },
+    { id: 'products', name: '商品管理', icon: '📦' },
+    { id: 'orders', name: '订单管理', icon: '📋' },
+    { id: 'revenue', name: '收益统计', icon: '💰' }
   ];
 
-  function setActiveTab(tabId: string) {
+  function setActiveTab(tabId) {
     activeTab = tabId;
   }
 
@@ -94,7 +93,7 @@
 
   <!-- 主要内容区域 -->
   <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-    {#if activeTab === 'settings'}
+    {#if activeTab === 'store'}
       <StoreSettings session={data.session} />
     {:else if activeTab === 'orders'}
       <OrderManagement session={data.session} />

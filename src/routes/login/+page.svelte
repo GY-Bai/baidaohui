@@ -1,15 +1,14 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { signInWithGoogle, getSession, redirectToRoleDomain } from '$lib/auth';
-  import type { UserRole } from '$lib/auth';
 
   export let data;
 
   let loading = false;
   let error = data?.error || '';
   let message = data?.message || '';
-  let canvas: HTMLCanvasElement;
+  let canvas;
 
   onMount(async () => {
     // 检查URL参数中的错误信息
@@ -54,11 +53,11 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let width: number, height: number, centerX: number, centerY: number;
+    let width, height, centerX, centerY;
     const numDots = 100;
     const numStreaks = 300;
-    const dots: Array<{x: number, y: number, size: number, brightness: number}> = [];
-    const streaks: Array<{angle: number, radius: number, speed: number, length: number, width: number}> = [];
+    const dots = [];
+    const streaks = [];
 
     function resize() {
       width = canvas.width = window.innerWidth;

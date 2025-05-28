@@ -18,6 +18,11 @@ export interface User {
   nickname?: string;
 }
 
+export interface UserSession {
+  user: User;
+  access_token?: string;
+}
+
 // 角色对应的子域名映射
 export const roleSubdomains: Record<UserRole, string> = {
   Fan: 'fan.baidaohui.com',
@@ -304,4 +309,37 @@ export function formatCurrency(amount: number, currency: string = 'CAD'): string
     style: 'currency',
     currency: currency
   }).format(amount);
+}
+
+// 客户端角色验证和重定向
+export async function validateRoleAndRedirect(expectedRole: UserRole): Promise<boolean> {
+  if (!browser) return true;
+  
+  try {
+    const user = await getSession();
+    
+    if (!user) {
+      // 未登录，重定向到登录页
+      goto('/login');
+      return false;
+    }
+    
+    if (user.role !== expectedRole) {
+      // 角色不匹配，重定向到对应角色页面
+      redirectToRoleDomain(user.role);
+      return false;
+    }
+    
+    // 检查是否在正确的域名
+    if (!isCorrectDomain(expectedRole)) {
+      redirectToRoleDomain(expectedRole);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('角色验证失败:', error);
+    goto('/login');
+    return false;
+  }
 } 

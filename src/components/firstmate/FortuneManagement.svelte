@@ -1,5 +1,5 @@
 <!-- Firstmate的算命管理组件，与Master相同但有助理标识和权限限制 -->
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
 
   let orders = [];

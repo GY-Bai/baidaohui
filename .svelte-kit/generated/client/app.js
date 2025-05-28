@@ -9,19 +9,28 @@ export const nodes = [
 	() => import('./nodes/5'),
 	() => import('./nodes/6'),
 	() => import('./nodes/7'),
-	() => import('./nodes/8')
+	() => import('./nodes/8'),
+	() => import('./nodes/9'),
+	() => import('./nodes/10'),
+	() => import('./nodes/11'),
+	() => import('./nodes/12'),
+	() => import('./nodes/13'),
+	() => import('./nodes/14'),
+	() => import('./nodes/15')
 ];
 
-export const server_loads = [];
+export const server_loads = [2,3,4,5,6];
 
 export const dictionary = {
-		"/auth/callback": [2],
-		"/fan": [3],
-		"/firstmate": [4],
-		"/login": [5],
-		"/master": [6],
-		"/member": [7],
-		"/seller": [8]
+		"/auth/callback": [~7],
+		"/chat/group/general": [8],
+		"/chat/private/[memberId]": [9],
+		"/fan": [10,[2]],
+		"/firstmate": [11,[3]],
+		"/login": [~12],
+		"/master": [13,[4]],
+		"/member": [14,[5]],
+		"/seller": [15,[6]]
 	};
 
 export const hooks = {

@@ -1,42 +1,19 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import type { UserSession } from '$lib/auth';
   
-  export let session: UserSession;
+  export let session;
   
-  interface Product {
-    id: string;
-    name: string;
-    description: string;
-    images: string[];
-    default_price: {
-      id: string;
-      unit_amount: number;
-      currency: string;
-    };
-    payment_link?: {
-      id: string;
-      url: string;
-      active: boolean;
-    };
-    storeId: string;
-    storeName?: string;
-    tags?: string[];
-    created: number;
-    updated: number;
-  }
-
-  let products: Product[] = [];
-  let relatedProducts: Product[] = [];
+  let products = [];
+  let relatedProducts = [];
   let loading = true;
   let error = '';
-  let selectedProduct: Product | null = null;
+  let selectedProduct = null;
   let showProductModal = false;
   let currentImageIndex = 0;
 
   // 格式化价格
-  function formatPrice(amount: number, currency: string): string {
+  function formatPrice(amount, currency) {
     const formatter = new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: currency.toUpperCase(),
@@ -66,7 +43,7 @@
   }
 
   // 获取相关推荐商品
-  function getRelatedProducts(product: Product): Product[] {
+  function getRelatedProducts(product) {
     return products
       .filter(p => p.id !== product.id)
       .filter(p => 
@@ -77,7 +54,7 @@
   }
 
   // 打开商品详情
-  function openProductDetail(product: Product) {
+  function openProductDetail(product) {
     selectedProduct = product;
     relatedProducts = getRelatedProducts(product);
     currentImageIndex = 0;
@@ -97,12 +74,12 @@
   }
 
   // 切换图片
-  function changeImage(index: number) {
+  function changeImage(index) {
     currentImageIndex = index;
   }
 
   // 立即购买
-  function buyNow(product: Product) {
+  function buyNow(product) {
     if (product.payment_link && product.payment_link.active) {
       // 直接跳转到静态Payment Link
       window.open(product.payment_link.url, '_blank');
@@ -112,7 +89,7 @@
   }
 
   // 获取商户徽章颜色
-  function getStoreBadgeColor(storeId: string): string {
+  function getStoreBadgeColor(storeId) {
     const colors = [
       'bg-blue-500',
       'bg-green-500', 
@@ -129,13 +106,13 @@
   }
 
   // 处理图片加载错误
-  function handleImageError(event: Event) {
-    const img = event.target as HTMLImageElement;
+  function handleImageError(event) {
+    const img = event.target;
     img.src = '/placeholder-product.png'; // 默认占位图
   }
 
   // 截断文本并添加tooltip
-  function truncateText(text: string, maxLength: number): string {
+  function truncateText(text, maxLength) {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   }
 

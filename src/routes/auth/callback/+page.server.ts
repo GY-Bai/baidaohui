@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
-import { validateAuth, roleSubdomains } from '../../lib/auth';
-import type { UserRole } from '../../lib/auth';
+import { validateAuth, roleSubdomains } from '$lib/auth';
+import type { UserRole } from '$lib/auth';
 
 export const load = async ({ url, cookies, fetch }) => {
   // 检查是否在正确的主域名

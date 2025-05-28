@@ -1,10 +1,9 @@
 // Cloudflare Pages Functions - 产品API
 // 直接从R2获取产品数据，减轻VPS压力
 
-export async function onRequestGet(context) {
+export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const productId = url.pathname.split('/').pop();
   
   try {
     // 设置CORS头
@@ -13,20 +12,25 @@ export async function onRequestGet(context) {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };
-    
+
     // 处理OPTIONS请求
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
-    
+
+    // 只允许GET请求
+    if (request.method !== 'GET') {
+      return new Response('Method not allowed', { 
+        status: 405,
+        headers: corsHeaders 
+      });
+    }
+
     // 从R2获取产品数据
-    const r2Object = await env.R2_BUCKET.get('products.json');
+    const object = await env.STORAGE.get('products.json');
     
-    if (!r2Object) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '产品数据不可用'
-      }), {
+    if (!object) {
+      return new Response(JSON.stringify({ error: '产品数据不存在' }), {
         status: 404,
         headers: {
           'Content-Type': 'application/json',
@@ -34,92 +38,61 @@ export async function onRequestGet(context) {
         }
       });
     }
+
+    const products = await object.json();
     
-    const productsData = await r2Object.json();
+    // 解析查询参数
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const limit = parseInt(url.searchParams.get('limit') || '20');
+    const category = url.searchParams.get('category');
+    const storeId = url.searchParams.get('storeId');
     
-    // 如果请求特定产品ID
-    if (productId && productId !== 'products') {
-      const product = productsData.products.find(p => 
-        p.id === productId || 
-        p.productId === productId || 
-        p.stripeProductId === productId
-      );
-      
-      if (!product) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '产品不存在'
-        }), {
-          status: 404,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      }
-      
-      return new Response(JSON.stringify({
-        success: true,
-        data: product,
-        cached: true,
-        source: 'cloudflare-pages'
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=300',
-          ...corsHeaders
-        }
-      });
-    }
+    // 过滤产品
+    let filteredProducts = products;
     
-    // 返回所有产品
-    const { page = 1, limit = 20, category, storeId } = Object.fromEntries(url.searchParams);
-    let products = productsData.products;
-    
-    // 过滤
     if (category) {
-      products = products.filter(p => p.category === category);
+      filteredProducts = filteredProducts.filter(p => p.category === category);
     }
+    
     if (storeId) {
-      products = products.filter(p => p.storeId === storeId);
+      filteredProducts = filteredProducts.filter(p => p.storeId === storeId);
     }
     
     // 分页
     const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedProducts = products.slice(startIndex, endIndex);
+    const endIndex = startIndex + limit;
+    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
     
-    return new Response(JSON.stringify({
-      success: true,
-      data: paginatedProducts,
+    const response = {
+      products: paginatedProducts,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: products.length,
-        totalPages: Math.ceil(products.length / limit)
+        page,
+        limit,
+        total: filteredProducts.length,
+        totalPages: Math.ceil(filteredProducts.length / limit)
       },
-      cached: true,
-      source: 'cloudflare-pages',
-      lastUpdated: productsData.lastUpdated
-    }), {
+      lastUpdated: new Date().toISOString()
+    };
+
+    return new Response(JSON.stringify(response), {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'public, max-age=300', // 5分钟缓存
         ...corsHeaders
       }
     });
-    
+
   } catch (error) {
-    console.error('获取产品数据失败:', error);
+    console.error('产品API错误:', error);
     
-    return new Response(JSON.stringify({
-      success: false,
-      error: '服务暂时不可用'
+    return new Response(JSON.stringify({ 
+      error: '获取产品数据失败',
+      message: error.message 
     }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        ...corsHeaders
       }
     });
   }

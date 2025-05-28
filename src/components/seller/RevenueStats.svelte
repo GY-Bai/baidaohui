@@ -1,23 +1,11 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { apiCall } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
-  export let session: UserSession;
+  export let session;
 
-  interface RevenueData {
-    date: string;
-    revenue: number;
-    orders: number;
-  }
 
-  interface ProductStats {
-    id: string;
-    name: string;
-    image: string;
-    soldCount: number;
-    revenue: number;
-  }
 
   let stats = {
     totalRevenue: 0,
@@ -25,10 +13,10 @@
     totalOrders: 0,
     monthlyOrders: 0,
     averageOrderValue: 0,
-    topProducts: [] as ProductStats[]
+    topProducts: []
   };
   
-  let revenueChart: RevenueData[] = [];
+  let revenueChart = [];
   let loading = true;
   let selectedPeriod = 'month';
 
@@ -104,18 +92,18 @@
     });
   }
 
-  function formatCurrency(amount: number) {
+  function formatCurrency(amount) {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: 'CNY'
     }).format(amount);
   }
 
-  function getMaxRevenue(): number {
+  function getMaxRevenue() {
     return Math.max(...revenueChart.map(d => d.revenue));
   }
 
-  function getChartHeight(revenue: number): string {
+  function getChartHeight(revenue) {
     const maxRevenue = getMaxRevenue();
     const percentage = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
     return `${Math.max(percentage, 2)}%`;

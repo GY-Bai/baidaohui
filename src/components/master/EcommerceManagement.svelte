@@ -1,38 +1,17 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { apiCall } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
-  export let session: UserSession;
+  export let session;
 
-  interface Merchant {
-    _id: string;
-    storeId: string;
-    storeName: string;
-    productCount: number;
-    keysConfigured: boolean;
-    secretKey?: string;
-    publishableKey?: string;
-    city?: string;
-    notificationEmail?: string;
-    createdAt: string;
-    lastSyncAt?: string;
-  }
 
-  interface StripeKey {
-    _id: string;
-    storeId: string;
-    secretKey: string;
-    publishableKey: string;
-    isActive: boolean;
-    createdAt: string;
-  }
 
-  let merchants: Merchant[] = [];
+  let merchants = [];
   let loading = true;
   let showKeyModal = false;
-  let selectedMerchant: Merchant | null = null;
-  let keys: StripeKey[] = [];
+  let selectedMerchant = null;
+  let keys = [];
   let showAddKeyForm = false;
   let testingConnection = false;
 
@@ -128,13 +107,13 @@
     }
   }
 
-  async function openKeyManagement(merchant: Merchant) {
+  async function openKeyManagement(merchant) {
     selectedMerchant = merchant;
     showKeyModal = true;
     await loadKeys(merchant.storeId);
   }
 
-  async function loadKeys(storeId: string) {
+  async function loadKeys(storeId) {
     try {
       const response = await apiCall(`/keys?storeId=${storeId}`);
       keys = response.keys;
@@ -203,7 +182,7 @@
     }
   }
 
-  async function deleteKey(keyId: string) {
+  async function deleteMerchantKey(keyId) {
     if (!confirm('您确定要删除该商户的 Key 吗？删除后相关商品将无法被轮询同步。')) {
       return;
     }
@@ -264,7 +243,7 @@
     link.click();
   }
 
-  function generateQRCodeDataURL(text: string): string {
+  function generateQRCodeDataURL(text) {
     // 简化版二维码生成，实际项目中应使用qrcode库
     return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="white"/><text x="100" y="100" text-anchor="middle" font-size="10" fill="black">QR Code for Seller Invite</text></svg>`;
   }
@@ -296,12 +275,12 @@
     }
   }
 
-  function maskSecretKey(key: string): string {
+  function maskSecretKey(key) {
     if (!key) return '';
     return `****${key.slice(-6)}`;
   }
 
-  function formatDate(dateString: string): string {
+  function formatDate(dateString) {
     return new Date(dateString).toLocaleString('zh-CN');
   }
 
@@ -617,7 +596,7 @@
                     </div>
                   </div>
                   <button
-                    on:click={() => deleteKey(key._id)}
+                    on:click={() => deleteMerchantKey(key._id)}
                     class="ml-4 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
                   >
                     删除

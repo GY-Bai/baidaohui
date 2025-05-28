@@ -1,8 +1,8 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
-  import type { UserSession } from '$lib/auth';
+  
 
-  export let session: UserSession;
+  export let session;
 
   let showNewApplication = false;
   let showUploadModal = false;

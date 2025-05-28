@@ -983,26 +983,264 @@ def get_session_info():
 
 @auth_bp.route('/user/<user_id>', methods=['GET'])
 def get_user_info(user_id):
-    """根据用户ID获取用户信息（供邮件服务调用）"""
+    """获取用户信息"""
     try:
-        # 验证请求来源（可以添加内部服务认证）
-        from user_sync import user_sync_service
+        # 验证JWT token
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({'error': '缺少认证token'}), 401
         
-        # 从本地数据库获取用户信息
-        user_info = user_sync_service.get_user_profile(user_id)
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        current_user_id = payload['sub']
+        current_user_role = payload['role']
         
-        if not user_info:
-            return jsonify({'error': '用户不存在'}), 404
+        # 权限检查：只能查看自己的信息，或者Master/Firstmate可以查看所有用户
+        if current_user_id != user_id and current_user_role not in ['Master', 'Firstmate']:
+            return jsonify({'error': '无权限访问'}), 403
         
-        # 返回邮件服务需要的基本信息
-        return jsonify({
-            'id': user_info['_id'],
-            'email': user_info['email'],
-            'name': user_info.get('name', ''),
-            'nickname': user_info.get('nickname', ''),
-            'role': user_info.get('role', 'Fan')
-        })
+        # 从Supabase获取用户信息
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+        
+        headers = {
+            'apikey': supabase_key,
+            'Authorization': f'Bearer {supabase_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # 获取用户基本信息
+        response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?id=eq.{user_id}&select=*',
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            profiles = response.json()
+            if profiles:
+                profile = profiles[0]
+                return jsonify({
+                    'id': profile['id'],
+                    'email': profile.get('email', ''),
+                    'role': profile.get('role', ''),
+                    'nickname': profile.get('nickname', ''),
+                    'created_at': profile.get('created_at', ''),
+                    'updated_at': profile.get('updated_at', '')
+                })
+        
+        return jsonify({'error': '用户不存在'}), 404
+        
+    except jwt.InvalidTokenError:
+        return jsonify({'error': '无效的token'}), 401
+    except Exception as e:
+        logger.error(f"获取用户信息失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+@auth_bp.route('/profile/check-nickname', methods=['GET'])
+def check_nickname_availability():
+    """检查昵称可用性"""
+    try:
+        nickname = request.args.get('nickname', '').strip()
+        
+        if not nickname:
+            return jsonify({'error': '昵称不能为空'}), 400
+        
+        if len(nickname) < 2:
+            return jsonify({'available': False, 'reason': '昵称至少需要2个字符'}), 200
+        
+        if len(nickname) > 20:
+            return jsonify({'available': False, 'reason': '昵称不能超过20个字符'}), 200
+        
+        # 检查昵称是否已被使用
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+        
+        headers = {
+            'apikey': supabase_key,
+            'Authorization': f'Bearer {supabase_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?nickname=eq.{nickname}&select=id',
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            profiles = response.json()
+            available = len(profiles) == 0
+            
+            return jsonify({
+                'available': available,
+                'reason': '昵称已被使用' if not available else None
+            })
+        
+        return jsonify({'error': '检查昵称时出错'}), 500
         
     except Exception as e:
-        logger.error(f'获取用户信息失败: {str(e)}')
-        return jsonify({'error': '获取用户信息失败'}), 500
+        logger.error(f"检查昵称可用性失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+@auth_bp.route('/profile/update-nickname', methods=['POST'])
+def update_nickname():
+    """更新用户昵称"""
+    try:
+        # 验证JWT token
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({'error': '缺少认证token'}), 401
+        
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        current_user_id = payload['sub']
+        current_user_role = payload['role']
+        
+        data = request.get_json()
+        user_id = data.get('userId')
+        nickname = data.get('nickname', '').strip()
+        
+        if not user_id or not nickname:
+            return jsonify({'error': '用户ID和昵称不能为空'}), 400
+        
+        # 权限检查：只能修改自己的昵称
+        if current_user_id != user_id:
+            return jsonify({'error': '只能修改自己的昵称'}), 403
+        
+        # 验证昵称格式
+        if len(nickname) < 2 or len(nickname) > 20:
+            return jsonify({'error': '昵称长度必须在2-20个字符之间'}), 400
+        
+        # 检查昵称是否已被其他用户使用
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+        
+        headers = {
+            'apikey': supabase_key,
+            'Authorization': f'Bearer {supabase_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # 检查昵称是否被其他用户使用
+        check_response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?nickname=eq.{nickname}&id=neq.{user_id}&select=id',
+            headers=headers
+        )
+        
+        if check_response.status_code == 200:
+            existing_profiles = check_response.json()
+            if existing_profiles:
+                return jsonify({'error': '昵称已被其他用户使用'}), 400
+        
+        # 更新昵称
+        update_response = requests.patch(
+            f'{supabase_url}/rest/v1/profiles?id=eq.{user_id}',
+            headers=headers,
+            json={
+                'nickname': nickname,
+                'updated_at': datetime.utcnow().isoformat()
+            }
+        )
+        
+        if update_response.status_code == 204:
+            return jsonify({
+                'success': True,
+                'message': '昵称更新成功',
+                'nickname': nickname
+            })
+        
+        return jsonify({'error': '更新昵称失败'}), 500
+        
+    except jwt.InvalidTokenError:
+        return jsonify({'error': '无效的token'}), 401
+    except Exception as e:
+        logger.error(f"更新昵称失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+@auth_bp.route('/profile/master-stats', methods=['GET'])
+def get_master_stats():
+    """获取Master统计数据"""
+    try:
+        # 验证JWT token
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({'error': '缺少认证token'}), 401
+        
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        current_user_id = payload['sub']
+        current_user_role = payload['role']
+        user_id = request.args.get('userId')
+        
+        # 权限检查：只有Master可以查看统计数据
+        if current_user_role != 'Master' or current_user_id != user_id:
+            return jsonify({'error': '无权限访问Master统计数据'}), 403
+        
+        # 获取统计数据
+        stats = {
+            'totalMembers': 0,
+            'totalFortuneOrders': 0,
+            'totalSellers': 0,
+            'totalRevenue': 0,
+            'joinDate': '',
+            'lastLogin': ''
+        }
+        
+        # 从Supabase获取用户数量统计
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+        
+        headers = {
+            'apikey': supabase_key,
+            'Authorization': f'Bearer {supabase_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # 获取Member数量
+        member_response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?role=eq.Member&select=id',
+            headers=headers
+        )
+        if member_response.status_code == 200:
+            stats['totalMembers'] = len(member_response.json())
+        
+        # 获取Seller数量
+        seller_response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?role=eq.Seller&select=id',
+            headers=headers
+        )
+        if seller_response.status_code == 200:
+            stats['totalSellers'] = len(seller_response.json())
+        
+        # 获取Master的注册时间
+        master_response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?id=eq.{user_id}&select=created_at',
+            headers=headers
+        )
+        if master_response.status_code == 200:
+            master_data = master_response.json()
+            if master_data:
+                stats['joinDate'] = master_data[0].get('created_at', '')
+        
+        # 从MongoDB获取算命订单统计
+        try:
+            fortune_count = db.fortune_applications.count_documents({})
+            stats['totalFortuneOrders'] = fortune_count
+            
+            # 计算总收入（这里需要根据实际的支付记录计算）
+            revenue_pipeline = [
+                {'$match': {'status': 'Completed'}},
+                {'$group': {'_id': None, 'total': {'$sum': '$convertedAmountCAD'}}}
+            ]
+            revenue_result = list(db.fortune_applications.aggregate(revenue_pipeline))
+            if revenue_result:
+                stats['totalRevenue'] = revenue_result[0]['total']
+        except Exception as e:
+            logger.warning(f"获取MongoDB统计数据失败: {str(e)}")
+        
+        # 设置最后登录时间为当前时间
+        stats['lastLogin'] = datetime.utcnow().isoformat()
+        
+        return jsonify(stats)
+        
+    except jwt.InvalidTokenError:
+        return jsonify({'error': '无效的token'}), 401
+    except Exception as e:
+        logger.error(f"获取Master统计数据失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500

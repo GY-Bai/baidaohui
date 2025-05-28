@@ -1,9 +1,12 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import { signOut, getSession } from '$lib/auth';
-  import type { UserSession } from '$lib/auth';
+  
 
-  let user: UserSession | null = null;
+  export let session;
+  
+
+  let user = null;
   let loading = true;
   let stats = {
     fortuneApplications: 0,
