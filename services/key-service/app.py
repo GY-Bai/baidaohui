@@ -4,12 +4,18 @@ import os
 import jwt
 import hashlib
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from pymongo import MongoClient
 from bson import ObjectId
 import logging
 import stripe
 import requests
+import time
+from collections import defaultdict
+from threading import Lock
+import hvac  # HashiCorp Vault client
+from cryptography.fernet import Fernet
+import base64
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +27,20 @@ CORS(app)
 # 环境变量配置
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/baidaohui')
 JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret-key')
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
+VAULT_URL = os.getenv('VAULT_URL')  # HashiCorp Vault URL
+VAULT_TOKEN = os.getenv('VAULT_TOKEN')  # Vault access token
+VAULT_MOUNT_POINT = os.getenv('VAULT_MOUNT_POINT', 'secret')  # Vault mount point
 VAULT_ENCRYPTION_KEY = os.getenv('VAULT_ENCRYPTION_KEY', 'your-vault-encryption-key')
+
+# 速率限制配置
+RATE_LIMIT_WINDOW = 900  # 15分钟窗口
+RATE_LIMIT_MAX_REQUESTS = 100  # 每15分钟最多100次请求
+RATE_LIMIT_SENSITIVE_MAX = 10  # 敏感操作每15分钟最多10次
+
+# 速率限制存储
+rate_limit_store = defaultdict(list)
+rate_limit_lock = Lock()
 
 # MongoDB 连接
 try:
@@ -34,9 +53,76 @@ except Exception as e:
     logger.error(f"MongoDB 连接失败: {e}")
     raise
 
-def verify_jwt(token):
-    """验证JWT令牌"""
+# Vault 客户端初始化
+vault_client = None
+if VAULT_URL and VAULT_TOKEN:
     try:
+        vault_client = hvac.Client(url=VAULT_URL, token=VAULT_TOKEN)
+        if vault_client.is_authenticated():
+            logger.info("Vault 连接成功")
+        else:
+            logger.warning("Vault 认证失败")
+            vault_client = None
+    except Exception as e:
+        logger.error(f"Vault 连接失败: {e}")
+        vault_client = None
+
+# 本地加密密钥（当Vault不可用时的备选方案）
+local_cipher = None
+if VAULT_ENCRYPTION_KEY:
+    try:
+        # 确保密钥是32字节的base64编码
+        key_bytes = VAULT_ENCRYPTION_KEY.encode()[:32].ljust(32, b'0')
+        encoded_key = base64.urlsafe_b64encode(key_bytes)
+        local_cipher = Fernet(encoded_key)
+        logger.info("本地加密初始化成功")
+    except Exception as e:
+        logger.error(f"本地加密初始化失败: {e}")
+
+def check_rate_limit(user_id, is_sensitive=False):
+    """检查API速率限制"""
+    with rate_limit_lock:
+        now = time.time()
+        window_start = now - RATE_LIMIT_WINDOW
+        
+        # 清理过期的请求记录
+        rate_limit_store[user_id] = [
+            timestamp for timestamp in rate_limit_store[user_id] 
+            if timestamp > window_start
+        ]
+        
+        # 检查请求数量
+        current_requests = len(rate_limit_store[user_id])
+        max_requests = RATE_LIMIT_SENSITIVE_MAX if is_sensitive else RATE_LIMIT_MAX_REQUESTS
+        
+        if current_requests >= max_requests:
+            return False, {
+                'error': '请求频率过高，请稍后再试',
+                'retry_after': int(RATE_LIMIT_WINDOW - (now - min(rate_limit_store[user_id]))),
+                'limit': max_requests,
+                'window': RATE_LIMIT_WINDOW
+            }
+        
+        # 记录当前请求
+        rate_limit_store[user_id].append(now)
+        return True, None
+
+def verify_jwt(token):
+    """验证JWT令牌（支持Supabase和传统JWT）"""
+    try:
+        # 优先尝试Supabase JWT
+        if SUPABASE_JWT_SECRET:
+            try:
+                payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=['HS256'])
+                return {
+                    'sub': payload['sub'],
+                    'email': payload.get('email'),
+                    'role': payload.get('user_metadata', {}).get('role', 'user')
+                }
+            except jwt.InvalidTokenError:
+                pass
+        
+        # 回退到传统JWT
         payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
         return payload
     except jwt.ExpiredSignatureError:
@@ -47,15 +133,110 @@ def verify_jwt(token):
 def check_auth():
     """检查用户认证和权限"""
     auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
+    token = None
+    
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+    else:
+        # 尝试从Cookie获取
+        token = request.cookies.get('access_token') or request.cookies.get('sb-access-token')
+    
+    if not token:
         return None, {'error': '缺少认证令牌'}, 401
     
-    token = auth_header.split(' ')[1]
     payload = verify_jwt(token)
     if not payload:
         return None, {'error': '无效的认证令牌'}, 401
     
     return payload, None, None
+
+def store_secret_in_vault(key_id, secret_value):
+    """在Vault中存储密钥"""
+    if not vault_client:
+        logger.warning("Vault不可用，使用本地加密存储")
+        return encrypt_key_local(secret_value)
+    
+    try:
+        secret_path = f"{VAULT_MOUNT_POINT}/data/api-keys/{key_id}"
+        secret_data = {
+            'data': {
+                'secret_key': secret_value,
+                'created_at': datetime.utcnow().isoformat(),
+                'service': 'key-service'
+            }
+        }
+        
+        response = vault_client.secrets.kv.v2.create_or_update_secret(
+            path=f"api-keys/{key_id}",
+            secret=secret_data['data'],
+            mount_point=VAULT_MOUNT_POINT
+        )
+        
+        logger.info(f"密钥 {key_id} 已存储到Vault")
+        return f"vault:{key_id}"
+        
+    except Exception as e:
+        logger.error(f"Vault存储失败: {e}")
+        # 回退到本地加密
+        return encrypt_key_local(secret_value)
+
+def retrieve_secret_from_vault(vault_reference):
+    """从Vault中检索密钥"""
+    if not vault_reference.startswith('vault:'):
+        # 本地加密的密钥
+        return decrypt_key_local(vault_reference)
+    
+    if not vault_client:
+        logger.error("Vault不可用，无法检索密钥")
+        return None
+    
+    try:
+        key_id = vault_reference.replace('vault:', '')
+        response = vault_client.secrets.kv.v2.read_secret_version(
+            path=f"api-keys/{key_id}",
+            mount_point=VAULT_MOUNT_POINT
+        )
+        
+        return response['data']['data']['secret_key']
+        
+    except Exception as e:
+        logger.error(f"Vault检索失败: {e}")
+        return None
+
+def encrypt_key_local(key_value):
+    """本地加密密钥"""
+    if not local_cipher:
+        # 简单的哈希方式（不可逆）
+        salt = secrets.token_hex(16)
+        encrypted = hashlib.pbkdf2_hmac('sha256', key_value.encode(), salt.encode(), 100000)
+        return f"hash:{salt}:{encrypted.hex()}"
+    
+    try:
+        encrypted = local_cipher.encrypt(key_value.encode())
+        return f"local:{encrypted.decode()}"
+    except Exception as e:
+        logger.error(f"本地加密失败: {e}")
+        return None
+
+def decrypt_key_local(encrypted_reference):
+    """本地解密密钥"""
+    if encrypted_reference.startswith('hash:'):
+        # 哈希方式存储的密钥无法解密
+        parts = encrypted_reference.split(':', 2)
+        if len(parts) >= 3:
+            return f"****{parts[2][-8:]}"
+        return "****encrypted"
+    
+    if encrypted_reference.startswith('local:') and local_cipher:
+        try:
+            encrypted_data = encrypted_reference.replace('local:', '')
+            decrypted = local_cipher.decrypt(encrypted_data.encode())
+            return decrypted.decode()
+        except Exception as e:
+            logger.error(f"本地解密失败: {e}")
+            return None
+    
+    return None
 
 def encrypt_key(key_value):
     """简单的密钥加密（实际生产环境应使用更安全的加密方法）"""
@@ -215,86 +396,94 @@ def create_key():
         user_role = payload.get('role')
         user_id = payload.get('sub')
         
+        # 检查速率限制（创建密钥是敏感操作）
+        rate_ok, rate_error = check_rate_limit(user_id, is_sensitive=True)
+        if not rate_ok:
+            return jsonify(rate_error), 429
+        
         # Seller、Master 和 Firstmate 都可以创建密钥
-        if user_role not in ['Seller', 'Master', 'Firstmate']:
+        if user_role not in ['Seller', 'Master', 'Firstmate', 'admin']:
             return jsonify({'error': '权限不足'}), 403
         
         data = request.get_json()
         if not data:
             return jsonify({'error': '请求数据不能为空'}), 400
         
-        # 验证必需字段
-        secret_key = data.get('secret_key', '').strip()
-        publishable_key = data.get('publishable_key', '').strip()
-        store_id = data.get('store_id', '').strip()
-        store_name = data.get('store_name', '').strip()
+        store_id = data.get('store_id')
+        secret_key = data.get('secret_key')
+        publishable_key = data.get('publishable_key', '')
+        key_type = data.get('key_type', 'stripe')
         
-        if not secret_key:
-            return jsonify({'error': '密钥不能为空'}), 400
+        if not store_id or not secret_key:
+            return jsonify({'error': '缺少必要参数: store_id 和 secret_key'}), 400
         
-        if not store_id:
-            return jsonify({'error': '商店ID不能为空'}), 400
+        # 验证商店存在且用户有权限
+        store = stores.find_one({'_id': ObjectId(store_id)})
+        if not store:
+            return jsonify({'error': '商店不存在'}), 404
         
-        # 检查是否已存在相同的密钥
-        existing_key = api_keys.find_one({
-            'store_id': store_id,
-            'is_active': True
-        })
+        # Seller 只能为自己的商店创建密钥
+        if user_role == 'Seller' and store.get('owner_id') != user_id:
+            return jsonify({'error': '只能为自己的商店创建密钥'}), 403
         
+        # 检查是否已存在该商店的密钥
+        existing_key = api_keys.find_one({'store_id': store_id, 'key_type': key_type})
         if existing_key:
-            return jsonify({'error': f'商店 {store_id} 已存在活跃的密钥'}), 409
+            return jsonify({'error': f'该商店已存在 {key_type} 类型的密钥'}), 409
         
-        # 验证密钥格式（Stripe 密钥应该以 sk_ 开头）
-        if not secret_key.startswith('sk_'):
-            return jsonify({'error': '无效的 Stripe 密钥格式，应以 sk_ 开头'}), 400
+        # 测试密钥有效性
+        if key_type == 'stripe':
+            test_result = test_stripe_key(secret_key, publishable_key)
+            if not test_result['valid']:
+                return jsonify({
+                    'error': f'密钥测试失败: {test_result["error"]}'
+                }), 400
         
         # 创建密钥记录
-        key_record = {
+        key_doc = {
             'store_id': store_id,
-            'store_name': store_name or store_id,
-            'key_type': 'stripe',
-            'secret_key_original': secret_key,  # 实际生产环境应该加密存储
-            'secret_key_encrypted': encrypt_key(secret_key),
+            'store_name': store.get('name', ''),
+            'key_type': key_type,
             'publishable_key': publishable_key,
-            'owner_id': user_id,
+            'owner_id': store.get('owner_id'),
+            'created_by': user_id,
             'created_by_role': user_role,
             'is_active': True,
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
-            'test_status': 'pending'
+            'last_tested': datetime.utcnow(),
+            'test_status': 'valid' if key_type == 'stripe' and test_result['valid'] else 'unknown'
         }
         
-        # 保存到数据库
-        result = api_keys.insert_one(key_record)
+        # 插入记录获取ID
+        result = api_keys.insert_one(key_doc)
         key_id = str(result.inserted_id)
         
-        # 同时更新或创建商店记录
-        stores.update_one(
-            {'store_id': store_id},
+        # 使用Vault存储密钥
+        vault_reference = store_secret_in_vault(key_id, secret_key)
+        if not vault_reference:
+            # 如果存储失败，删除记录
+            api_keys.delete_one({'_id': result.inserted_id})
+            return jsonify({'error': '密钥存储失败'}), 500
+        
+        # 更新记录，添加Vault引用
+        api_keys.update_one(
+            {'_id': result.inserted_id},
             {
                 '$set': {
-                    'store_name': store_name or store_id,
-                    'owner_id': user_id,
-                    'has_api_key': True,
-                    'updated_at': datetime.utcnow()
-                },
-                '$setOnInsert': {
-                    'created_at': datetime.utcnow(),
-                    'product_count': 0
+                    'vault_reference': vault_reference,
+                    'secret_key_original': secret_key  # 临时保存用于脱敏显示
                 }
-            },
-            upsert=True
+            }
         )
         
-        logger.info(f"用户 {user_id} ({user_role}) 为商店 {store_id} 创建了新密钥")
+        logger.info(f"用户 {user_id} ({user_role}) 为商店 {store_id} 创建了 {key_type} 密钥")
         
         return jsonify({
             'success': True,
             'key_id': key_id,
-            'store_id': store_id,
-            'store_name': store_name or store_id,
-            'secret_key_masked': mask_secret_key(secret_key),
-            'message': '密钥创建成功'
+            'message': '密钥创建成功',
+            'test_result': test_result if key_type == 'stripe' else None
         })
         
     except Exception as e:
@@ -529,6 +718,11 @@ def reveal_key(key_id):
         user_role = payload.get('role')
         user_id = payload.get('sub')
         
+        # 检查速率限制（查看完整密钥是高度敏感操作）
+        rate_ok, rate_error = check_rate_limit(user_id, is_sensitive=True)
+        if not rate_ok:
+            return jsonify(rate_error), 429
+        
         # 验证密钥ID
         try:
             object_id = ObjectId(key_id)
@@ -545,8 +739,21 @@ def reveal_key(key_id):
             return jsonify({'error': '权限不足，只能查看自己的密钥'}), 403
         elif user_role == 'Firstmate':
             return jsonify({'error': 'Firstmate 无权查看完整密钥'}), 403
-        elif user_role not in ['Seller', 'Master']:
+        elif user_role not in ['Seller', 'Master', 'admin']:
             return jsonify({'error': '权限不足'}), 403
+        
+        # 从Vault或本地存储获取密钥
+        vault_reference = key_record.get('vault_reference')
+        secret_key = None
+        
+        if vault_reference:
+            secret_key = retrieve_secret_from_vault(vault_reference)
+        else:
+            # 兼容旧数据
+            secret_key = key_record.get('secret_key_original')
+        
+        if not secret_key:
+            return jsonify({'error': '无法获取密钥数据'}), 500
         
         # 记录查看日志
         api_keys.update_one(
@@ -556,7 +763,8 @@ def reveal_key(key_id):
                     'view_logs': {
                         'viewed_by': user_id,
                         'viewed_at': datetime.utcnow(),
-                        'ip_address': request.remote_addr
+                        'ip_address': request.remote_addr,
+                        'user_agent': request.headers.get('User-Agent', '')
                     }
                 },
                 '$set': {'updated_at': datetime.utcnow()}
@@ -567,9 +775,10 @@ def reveal_key(key_id):
         
         return jsonify({
             'success': True,
-            'secret_key': key_record.get('secret_key_original'),
+            'secret_key': secret_key,
             'publishable_key': key_record.get('publishable_key'),
-            'warning': '密钥已显示，请妥善保管，避免泄露'
+            'warning': '密钥已显示，请妥善保管，避免泄露',
+            'expires_in': 300  # 建议5分钟内使用
         })
         
     except Exception as e:

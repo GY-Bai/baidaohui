@@ -82,20 +82,35 @@ const fortuneSchema = new mongoose.Schema({
     default: 5
   },
   modifications: [modificationSchema],
-  reply: {
-    content: String,
-    images: [String],
-    repliedBy: {
-      type: String,
-      ref: 'User'
-    },
-    repliedAt: Date,
-    draft: {
-      type: Boolean,
-      default: false
-    }
+  replyContent: {
+    type: String,
+    default: null
   },
-  paymentScreenshots: [String],
+  replyImages: [{
+    url: String,
+    originalName: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  replyBy: {
+    type: String,
+    ref: 'User',
+    default: null
+  },
+  replyAt: {
+    type: Date,
+    default: null
+  },
+  screenshots: [{
+    url: String,
+    originalName: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   createdAt: {
     type: Date,
     default: Date.now

@@ -12,6 +12,7 @@ services:
       - ./ssl:/etc/nginx/ssl
     depends_on:
       - auth-service
+      - sso-service
       - chat-service
       - fortune-service
       - ecommerce-api-service
@@ -30,12 +31,13 @@ services:
     image: yourregistry/baidaohui-auth-service:latest
     environment:
       - NODE_ENV=production
-      - PORT=3001
+      - PORT=5001
       - MONGODB_URI=${MONGODB_URI}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=${REDIS_URL}
+      - DOMAIN=${DOMAIN}
     deploy:
       placement:
         constraints:
@@ -44,7 +46,31 @@ services:
     networks:
       - baidaohui-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # SSO服务
+  sso-service:
+    image: yourregistry/baidaohui-sso-service:latest
+    environment:
+      - NODE_ENV=production
+      - PORT=5002
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=${REDIS_URL}
+      - DOMAIN=${DOMAIN}
+    deploy:
+      placement:
+        constraints:
+          - node.labels.location == san-jose
+      replicas: 2
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -211,6 +237,34 @@ services:
       - baidaohui-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 邮件服务
+  email-service:
+    image: yourregistry/baidaohui-email-service:latest
+    environment:
+      - NODE_ENV=production
+      - PORT=5003
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - CF_EMAIL_DOMAIN=${CF_EMAIL_DOMAIN}
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - CF_ZONE_ID=${CF_ZONE_ID}
+    deploy:
+      placement:
+        constraints:
+          - node.labels.location == san-jose
+      replicas: 2
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
       interval: 30s
       timeout: 10s
       retries: 3

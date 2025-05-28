@@ -84,17 +84,20 @@ async function handleCheckoutSessionCompleted(session, db, fortuneServiceUrl) {
 
     // 调用算命服务更新订单状态
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Internal-Key': process.env.INTERNAL_API_KEY || 'internal-secret-key'
+      };
+
       const response = await axios.post(`${fortuneServiceUrl}/fortune/update-status`, {
-        order_id: orderId,
+        orderId: orderId,
         status: 'Queued-payed'
       }, {
         timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: headers
       });
 
-      console.log('算命服务状态更新成功:', orderId);
+      console.log('算命服务状态更新成功:', orderId, response.data);
     } catch (fortuneError) {
       console.error('调用算命服务失败:', fortuneError.message);
       
@@ -104,8 +107,10 @@ async function handleCheckoutSessionCompleted(session, db, fortuneServiceUrl) {
         sessionId: session.id,
         targetStatus: 'Queued-payed',
         error: fortuneError.message,
+        errorDetails: fortuneError.response?.data || null,
         createdAt: new Date(),
-        retryCount: 0
+        retryCount: 0,
+        nextRetryAt: new Date(Date.now() + 5 * 60 * 1000) // 5分钟后重试
       });
     }
 

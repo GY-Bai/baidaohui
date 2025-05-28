@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
+import { redirect } from '@sveltejs/kit';
+import type { Cookies } from '@sveltejs/kit';
 
 const supabaseUrl = 'https://your-project.supabase.co';
 const supabaseAnonKey = 'your-anon-key';
@@ -9,18 +11,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type UserRole = 'Fan' | 'Member' | 'Master' | 'Firstmate' | 'Seller';
 
-export interface UserSession {
-  user: {
-    id: string;
-    email: string;
-    role: UserRole;
-  };
+export interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  nickname?: string;
 }
 
 // 角色对应的子域名映射
-const roleSubdomains: Record<UserRole, string> = {
+export const roleSubdomains: Record<UserRole, string> = {
   Fan: 'fan.baidaohui.com',
-  Member: 'member.baidaohui.com', 
+  Member: 'member.baidaohui.com',
   Master: 'master.baidaohui.com',
   Firstmate: 'firstmate.baidaohui.com',
   Seller: 'seller.baidaohui.com'
@@ -45,7 +46,7 @@ export async function signInWithGoogle() {
 }
 
 // 获取当前会话
-export async function getSession(): Promise<UserSession | null> {
+export async function getSession(): Promise<User | null> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     
@@ -56,14 +57,25 @@ export async function getSession(): Promise<UserSession | null> {
     const role = session.user.user_metadata?.role || 'Fan';
     
     return {
-      user: {
-        id: session.user.id,
-        email: session.user.email || '',
-        role: role as UserRole
-      }
+      id: session.user.id,
+      email: session.user.email || '',
+      role: role as UserRole,
+      nickname: session.user.user_metadata?.nickname
     };
   } catch (error) {
     console.error('获取会话失败:', error);
+    return null;
+  }
+}
+
+// 获取访问令牌
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('获取访问令牌失败:', error);
     return null;
   }
 }
@@ -83,27 +95,102 @@ export async function signOut() {
   }
 }
 
-// 角色校验和重定向
-export async function validateRoleAndRedirect(requiredRole: UserRole) {
-  const session = await getSession();
-  
-  if (!session) {
-    if (browser) {
-      goto('/login');
+// 验证用户认证状态
+export async function validateAuth(cookies: Cookies, fetch: typeof globalThis.fetch): Promise<User | null> {
+  try {
+    const response = await fetch('/api/sso/session', {
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      return null;
     }
-    return false;
-  }
-  
-  if (session.user.role !== requiredRole) {
-    if (browser) {
-      // 显示错误提示
-      alert('您无权访问，请使用正确账号登录');
-      goto('/login');
+
+    const { session } = await response.json();
+    if (!session) {
+      return null;
     }
-    return false;
+
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      role: session.user.role as UserRole,
+      nickname: session.user.nickname
+    };
+  } catch (error) {
+    console.error('验证失败:', error);
+    return null;
   }
+}
+
+// 通用路由守卫函数
+export async function createRouteGuard(
+  expectedRole: UserRole,
+  url: URL,
+  cookies: Cookies,
+  fetch: typeof globalThis.fetch
+) {
+  const hostname = url.hostname;
+  const expectedDomain = roleSubdomains[expectedRole];
   
-  return true;
+  // 检查是否在正确的子域名（开发环境允许localhost）
+  if (hostname !== expectedDomain && hostname !== 'localhost') {
+    throw redirect(302, 'https://baidaohui.com/login');
+  }
+
+  try {
+    // 使用SSO服务验证会话
+    const response = await fetch('/api/sso/validate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        expected_role: expectedRole,
+        current_domain: hostname
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.valid) {
+      // 根据错误类型进行重定向
+      if (result.redirect_url) {
+        throw redirect(302, result.redirect_url);
+      } else {
+        throw redirect(302, 'https://baidaohui.com/login');
+      }
+    }
+
+    return { user: result.user };
+  } catch (error) {
+    console.error('路由守卫验证失败:', error);
+    
+    // 如果是重定向错误，直接抛出
+    if (error instanceof Response) {
+      throw error;
+    }
+    
+    // 其他错误重定向到登录页
+    throw redirect(302, 'https://baidaohui.com/login');
+  }
+}
+
+// 检查用户是否已认证并重定向到对应角色页面
+export async function redirectAuthenticatedUser(
+  url: URL,
+  cookies: Cookies,
+  fetch: typeof globalThis.fetch
+) {
+  const user = await validateAuth(cookies, fetch);
+  
+  if (user) {
+    const targetDomain = roleSubdomains[user.role];
+    if (targetDomain) {
+      throw redirect(302, `https://${targetDomain}`);
+    }
+  }
 }
 
 // 根据角色重定向到对应子域
@@ -122,4 +209,99 @@ export function isCorrectDomain(role: UserRole): boolean {
   const expectedHost = roleSubdomains[role];
   
   return currentHost === expectedHost;
+}
+
+// API调用工具函数
+export async function apiCall(endpoint: string, options: RequestInit = {}) {
+  const token = await getAccessToken();
+  
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+
+  const response = await fetch(`/api${endpoint}`, {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// WebSocket连接工具
+export function createWebSocketConnection(namespace: string = '') {
+  return new Promise((resolve, reject) => {
+    getAccessToken().then(token => {
+      if (!token) {
+        reject(new Error('未找到访问令牌'));
+        return;
+      }
+
+      // 这里使用socket.io-client连接
+      // 实际项目中需要安装socket.io-client包
+      const socket = {
+        emit: (event: string, data: any) => console.log('emit:', event, data),
+        on: (event: string, callback: Function) => console.log('on:', event),
+        disconnect: () => console.log('disconnect')
+      };
+      
+      resolve(socket);
+    }).catch(reject);
+  });
+}
+
+// 文件上传工具
+export async function uploadFile(file: File, endpoint: string): Promise<string> {
+  const token = await getAccessToken();
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch(`/api${endpoint}`, {
+    method: 'POST',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    },
+    body: formData
+  });
+  
+  if (!response.ok) {
+    throw new Error('文件上传失败');
+  }
+  
+  const result = await response.json();
+  return result.url;
+}
+
+// 格式化时间
+export function formatTime(timestamp: string | Date): string {
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// 格式化日期
+export function formatDate(timestamp: string | Date): string {
+  return new Date(timestamp).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+}
+
+// 格式化货币
+export function formatCurrency(amount: number, currency: string = 'CAD'): string {
+  return new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: currency
+  }).format(amount);
 } 

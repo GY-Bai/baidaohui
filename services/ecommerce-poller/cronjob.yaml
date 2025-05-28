@@ -1,0 +1,154 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ecommerce-poller
+  namespace: baidaohui
+  labels:
+    app: ecommerce-poller
+    service: ecommerce-poller-service
+spec:
+  # 每小时执行一次
+  schedule: "0 * * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid  # 禁止并发执行
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300  # 5分钟内必须开始
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: ecommerce-poller
+            job: sync-products
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: ecommerce-poller
+            image: baidaohui/ecommerce-poller:latest
+            imagePullPolicy: Always
+            command: ["node", "dist/index.js"]
+            env:
+            - name: NODE_ENV
+              value: "production"
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: uri
+            - name: R2_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: r2-config
+                  key: endpoint
+            - name: R2_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: r2-config
+                  key: bucket
+            - name: R2_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: r2-secret
+                  key: access-key
+            - name: R2_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: r2-secret
+                  key: secret-key
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: key
+            - name: ALERT_WEBHOOK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: monitoring-config
+                  key: webhook-url
+                  optional: true
+            - name: EMAIL_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: email-config
+                  key: service-url
+                  optional: true
+            - name: ADMIN_EMAIL
+              valueFrom:
+                configMapKeyRef:
+                  name: email-config
+                  key: admin-email
+                  optional: true
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 5004
+              initialDelaySeconds: 30
+              periodSeconds: 60
+              timeoutSeconds: 10
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 5004
+              initialDelaySeconds: 10
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 2
+          nodeSelector:
+            node-type: worker
+          tolerations:
+          - key: "workload"
+            operator: "Equal"
+            value: "batch"
+            effect: "NoSchedule"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-poller-service
+  namespace: baidaohui
+  labels:
+    app: ecommerce-poller
+spec:
+  selector:
+    app: ecommerce-poller
+  ports:
+  - name: http
+    port: 5004
+    targetPort: 5004
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: r2-config
+  namespace: baidaohui
+data:
+  endpoint: "https://your-account-id.r2.cloudflarestorage.com"
+  bucket: "baidaohui-products"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+  namespace: baidaohui
+data:
+  webhook-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: email-config
+  namespace: baidaohui
+data:
+  service-url: "http://email-service:5010"
+  admin-email: "admin@baidaohui.com" 

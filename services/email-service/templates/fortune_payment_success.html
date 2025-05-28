@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>支付成功通知</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #28a745;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+        .success-icon {
+            font-size: 48px;
+            color: #28a745;
+            margin-bottom: 15px;
+        }
+        .title {
+            font-size: 20px;
+            color: #333;
+            margin: 0;
+        }
+        .payment-info {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .payment-info h3 {
+            color: #155724;
+            margin-top: 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #c3e6cb;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .queue-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">百道会</div>
+            <div class="success-icon">✅</div>
+            <h1 class="title">支付成功！</h1>
+        </div>
+        
+        <div class="payment-info">
+            <h3>💰 支付详情</h3>
+            <div class="info-row">
+                <span><strong>订单号：</strong></span>
+                <span>{{ order_id }}</span>
+            </div>
+            <div class="info-row">
+                <span><strong>支付金额：</strong></span>
+                <span>{{ amount }} {{ currency }}</span>
+            </div>
+            <div class="info-row">
+                <span><strong>支付时间：</strong></span>
+                <span>{{ update_time }}</span>
+            </div>
+            <div class="info-row">
+                <span><strong>订单状态：</strong></span>
+                <span style="color: #28a745; font-weight: bold;">已支付，排队中</span>
+            </div>
+        </div>
+        
+        <div class="queue-info">
+            <h4>📋 排队处理中</h4>
+            <p>您的算命申请已进入处理队列，大师将按照紧急程度和支付金额顺序进行回复。</p>
+            <p><strong>预计处理时间：1-3个工作日</strong></p>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="https://fan.baidaohui.com/fortune" class="button">查看订单状态</a>
+        </div>
+        
+        <div class="footer">
+            <p><strong>温馨提示：</strong></p>
+            <ul style="text-align: left; display: inline-block;">
+                <li>回复完成后我们会第一时间通知您</li>
+                <li>如需加急处理，请在下次申请时选择紧急订单</li>
+                <li>感谢您对百道会的信任</li>
+            </ul>
+            <p style="margin-top: 20px;">此邮件由系统自动发送，请勿直接回复</p>
+            <p>© 2024 百道会 - 专业的命理咨询平台</p>
+        </div>
+    </div>
+</body>
+</html> 

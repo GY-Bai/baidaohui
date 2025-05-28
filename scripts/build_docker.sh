@@ -110,6 +110,8 @@ main() {
     # 定义所有服务
     services=(
         "auth-service"
+        "sso-service"
+        "email-service"
         "chat-service" 
         "fortune-service"
         "ecommerce-poller"

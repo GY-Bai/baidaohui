@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色升级通知</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #ff6b35;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ff6b35;
+            margin-bottom: 10px;
+        }
+        .upgrade-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .title {
+            font-size: 20px;
+            color: #333;
+            margin: 0;
+        }
+        .upgrade-content {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .role-comparison {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+        .role-box {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 120px;
+        }
+        .old-role {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+        .new-role {
+            background-color: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+        .arrow {
+            font-size: 24px;
+            color: #ff6b35;
+        }
+        .benefits {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #ff6b35;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">百道会</div>
+            <div class="upgrade-icon">🎊</div>
+            <h1 class="title">恭喜您升级成功！</h1>
+        </div>
+        
+        <div class="upgrade-content">
+            <h2>🎉 角色升级成功！</h2>
+            <p>恭喜您成功升级，解锁更多专属功能！</p>
+            <p><strong>升级时间：</strong>{{ upgrade_time }}</p>
+            {% if upgrade_reason %}
+            <p><strong>升级原因：</strong>{{ upgrade_reason }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="role-comparison">
+            <div class="role-box old-role">
+                <h4>原角色</h4>
+                <div style="font-size: 18px; font-weight: bold;">{{ old_role }}</div>
+            </div>
+            <div class="arrow">➡️</div>
+            <div class="role-box new-role">
+                <h4>新角色</h4>
+                <div style="font-size: 18px; font-weight: bold;">{{ new_role }}</div>
+            </div>
+        </div>
+        
+        <div class="benefits">
+            <h3 style="color: #856404; margin-top: 0;">🌟 新角色权益</h3>
+            {% if new_role == '会员' %}
+            <ul>
+                <li><strong>私聊功能：</strong>可与大师进行一对一私密交流</li>
+                <li><strong>优先回复：</strong>算命申请享受会员优先处理</li>
+                <li><strong>专属客服：</strong>享受会员专属客服支持</li>
+                <li><strong>特殊标识：</strong>在平台上显示会员身份标识</li>
+            </ul>
+            {% elif new_role == '商户' %}
+            <ul>
+                <li><strong>商品管理：</strong>可以上传和管理自己的商品</li>
+                <li><strong>销售分析：</strong>查看详细的销售数据和分析</li>
+                <li><strong>收益管理：</strong>管理和提现销售收益</li>
+                <li><strong>推广工具：</strong>获得专业的商品推广工具</li>
+            </ul>
+            {% elif new_role == '助理' %}
+            <ul>
+                <li><strong>协助管理：</strong>协助大师处理算命申请和回复</li>
+                <li><strong>用户管理：</strong>管理用户邀请和角色升级</li>
+                <li><strong>数据查看：</strong>查看平台运营数据和统计</li>
+                <li><strong>客服权限：</strong>处理用户咨询和问题反馈</li>
+            </ul>
+            {% elif new_role == '大师' %}
+            <ul>
+                <li><strong>全平台管理：</strong>拥有平台最高管理权限</li>
+                <li><strong>算命回复：</strong>处理和回复所有算命申请</li>
+                <li><strong>用户管理：</strong>管理所有用户和角色权限</li>
+                <li><strong>收益分配：</strong>管理平台收益和分配机制</li>
+            </ul>
+            {% else %}
+            <ul>
+                <li><strong>基础功能：</strong>享受平台基础服务</li>
+                <li><strong>算命申请：</strong>可以提交算命申请</li>
+                <li><strong>商品浏览：</strong>浏览和购买平台商品</li>
+                <li><strong>社区参与：</strong>参与平台社区活动</li>
+            </ul>
+            {% endif %}
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="https://{{ new_role.lower() }}.baidaohui.com" class="button">立即体验新功能</a>
+        </div>
+        
+        <div class="footer">
+            <p><strong>温馨提示：</strong></p>
+            <ul style="text-align: left; display: inline-block;">
+                <li>请使用新角色对应的子域名访问平台</li>
+                <li>如有任何问题，请联系客服支持</li>
+                <li>感谢您对百道会的支持与信任</li>
+            </ul>
+            <p style="margin-top: 20px;">此邮件由系统自动发送，请勿直接回复</p>
+            <p>© 2024 百道会 - 专业的命理咨询平台</p>
+        </div>
+    </div>
+</body>
+</html> 

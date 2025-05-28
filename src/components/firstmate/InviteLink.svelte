@@ -1,22 +1,37 @@
 <!-- Firstmate的邀请链接组件，与Master相同但有助理标识 -->
 <script lang="ts">
+  import { apiCall } from '$lib/auth';
+  import type { UserSession } from '$lib/auth';
   import QRCode from 'qrcode';
+
+  export let session: UserSession;
 
   let memberForm = {
     validHours: 24,
-    maxUses: 1
+    maxUses: 10
   };
 
   let sellerForm = {
     maxUses: 1
   };
 
-  let generatedLinks = [];
-  let loading = false;
-  let showQRModal = false;
-  let qrCodeUrl = '';
-  let selectedLink = null;
+  let generatedLinks: Array<{
+    type: 'member' | 'seller';
+    token: string;
+    url: string;
+    expiresAt?: string;
+    maxUses: number;
+    usedCount: number;
+    createdAt: string;
+  }> = [];
 
+  let loading = false;
+  let showQRCode = false;
+  let qrCodeUrl = '';
+  let qrCodeData = '';
+  let countdown = '';
+
+  // 生成Member邀请链接
   async function generateMemberLink() {
     if (memberForm.validHours < 1 || memberForm.validHours > 48) {
       alert('有效期必须在1-48小时之间');
@@ -24,337 +39,362 @@
     }
 
     if (memberForm.maxUses < 1 || memberForm.maxUses > 100) {
-      alert('使用次数必须在1-100次之间');
+      alert('使用次数必须在1-100之间');
       return;
     }
 
     try {
       loading = true;
-      const response = await fetch('/api/invite/generate', {
+      const result = await apiCall('/invite/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           type: 'member',
           validHours: memberForm.validHours,
-          maxUses: memberForm.maxUses,
-          generatedBy: 'firstmate' // 标记为助理生成
+          maxUses: memberForm.maxUses
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        generatedLinks = [{
-          ...data,
-          type: 'Member',
-          createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + memberForm.validHours * 60 * 60 * 1000).toISOString(),
-          generatedBy: 'Firstmate'
-        }, ...generatedLinks];
-        
-        // 重置表单
-        memberForm = { validHours: 24, maxUses: 1 };
-        alert('Member 邀请链接生成成功！');
-        
-        // 记录操作日志
-        logOperation('invite_link', `生成 Member 邀请链接`);
-      } else {
-        const error = await response.json();
-        alert(error.message || '生成失败，请重试');
-      }
+      generatedLinks = [result, ...generatedLinks];
+      
+      // 重置表单
+      memberForm = { validHours: 24, maxUses: 10 };
+      
+      alert('Member邀请链接生成成功！');
     } catch (error) {
-      console.error('生成Member邀请链接失败:', error);
-      alert('生成失败，请重试');
+      console.error('生成邀请链接失败:', error);
+      alert('生成邀请链接失败，请重试');
     } finally {
       loading = false;
     }
   }
 
+  // 生成Seller邀请链接
   async function generateSellerLink() {
     try {
       loading = true;
-      const response = await fetch('/api/invite/generate', {
+      const result = await apiCall('/invite/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           type: 'seller',
-          maxUses: 1,
-          generatedBy: 'firstmate' // 标记为助理生成
+          maxUses: 1
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        generatedLinks = [{
-          ...data,
-          type: 'Seller',
-          createdAt: new Date().toISOString(),
-          expiresAt: null,
-          generatedBy: 'Firstmate'
-        }, ...generatedLinks];
-        
-        alert('Seller 邀请链接生成成功！');
-        
-        // 记录操作日志
-        logOperation('invite_link', `生成 Seller 邀请链接`);
-      } else {
-        const error = await response.json();
-        alert(error.message || '生成失败，请重试');
-      }
+      generatedLinks = [result, ...generatedLinks];
+      
+      alert('Seller邀请链接生成成功！');
     } catch (error) {
-      console.error('生成Seller邀请链接失败:', error);
-      alert('生成失败，请重试');
+      console.error('生成邀请链接失败:', error);
+      alert('生成邀请链接失败，请重试');
     } finally {
       loading = false;
     }
   }
 
-  async function logOperation(type, description) {
+  // 复制链接到剪贴板
+  async function copyToClipboard(url: string) {
     try {
-      await fetch('/api/firstmate/operation-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type,
-          description,
-          timestamp: new Date().toISOString()
-        })
-      });
+      await navigator.clipboard.writeText(url);
+      alert('链接已复制到剪贴板');
     } catch (error) {
-      console.error('记录操作日志失败:', error);
+      console.error('复制失败:', error);
+      alert('复制失败，请手动复制');
     }
   }
 
-  function copyLink(url) {
-    navigator.clipboard.writeText(url).then(() => {
-      alert('链接已复制到剪贴板');
-    });
-  }
-
-  async function showQRCode(link) {
+  // 生成二维码数据URL
+  async function generateQRCodeDataURL(text: string): Promise<string> {
     try {
-      selectedLink = link;
-      qrCodeUrl = await QRCode.toDataURL(link.url, {
-        width: 256,
-        margin: 2
+      return await QRCode.toDataURL(text, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
       });
-      showQRModal = true;
     } catch (error) {
       console.error('生成二维码失败:', error);
-      alert('生成二维码失败');
+      // 返回一个错误占位符
+      return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="white"/><text x="100" y="100" text-anchor="middle" font-size="12" fill="red">二维码生成失败</text></svg>`;
     }
   }
 
+  // 显示二维码
+  async function showQRCodeModal(url: string) {
+    qrCodeUrl = url;
+    qrCodeData = await generateQRCodeDataURL(url);
+    showQRCode = true;
+    
+    // 如果是Member链接，启动倒计时
+    const link = generatedLinks.find(l => l.url === url);
+    if (link && link.type === 'member' && link.expiresAt) {
+      startCountdown(link.expiresAt);
+    }
+  }
+
+  // 下载二维码
   function downloadQRCode() {
     const link = document.createElement('a');
-    link.download = `invite-qr-${selectedLink.type.toLowerCase()}.png`;
-    link.href = qrCodeUrl;
+    link.download = 'invite-qrcode.png';
+    link.href = qrCodeData;
     link.click();
   }
 
-  function closeQRModal() {
-    showQRModal = false;
-    qrCodeUrl = '';
-    selectedLink = null;
+  // 启动倒计时
+  function startCountdown(expiresAt: string) {
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const expiry = new Date(expiresAt).getTime();
+      const distance = expiry - now;
+
+      if (distance < 0) {
+        countdown = '已过期';
+        return;
+      }
+
+      const hours = Math.floor(distance / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hours < 1) {
+        countdown = `即将过期：${minutes}分钟`;
+      } else {
+        countdown = `剩余：${hours}小时${minutes}分钟`;
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000); // 每分钟更新
+
+    // 清理定时器
+    setTimeout(() => clearInterval(interval), 24 * 60 * 60 * 1000);
   }
 
-  function formatTimeRemaining(expiresAt) {
-    if (!expiresAt) return '永久有效';
-    
-    const now = new Date();
-    const expires = new Date(expiresAt);
-    const diff = expires.getTime() - now.getTime();
-    
-    if (diff <= 0) return '已过期';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours < 1) {
-      return `${minutes}分钟`;
+  // 格式化时间
+  function formatDateTime(dateString: string): string {
+    return new Date(dateString).toLocaleString('zh-CN');
+  }
+
+  // 获取链接状态
+  function getLinkStatus(link: any): { text: string; color: string } {
+    if (link.type === 'member' && link.expiresAt) {
+      const now = new Date().getTime();
+      const expiry = new Date(link.expiresAt).getTime();
+      if (now > expiry) {
+        return { text: '已过期', color: 'text-red-600' };
+      }
+      if (expiry - now < 60 * 60 * 1000) { // 小于1小时
+        return { text: '即将过期', color: 'text-orange-600' };
+      }
     }
     
-    return `${hours}小时${minutes}分钟`;
-  }
-
-  function getTimeRemainingColor(expiresAt) {
-    if (!expiresAt) return 'text-green-600';
+    if (link.usedCount >= link.maxUses) {
+      return { text: '已用完', color: 'text-gray-600' };
+    }
     
-    const now = new Date();
-    const expires = new Date(expiresAt);
-    const diff = expires.getTime() - now.getTime();
-    const hours = diff / (1000 * 60 * 60);
-    
-    if (hours <= 0) return 'text-red-600';
-    if (hours < 1) return 'text-red-600';
-    if (hours < 6) return 'text-yellow-600';
-    return 'text-green-600';
+    return { text: '有效', color: 'text-green-600' };
   }
 </script>
 
 <div class="space-y-6">
-  <div class="bg-white rounded-lg shadow p-6">
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-2xl font-semibold text-gray-900">邀请链接管理</h2>
-      <div class="flex items-center space-x-2">
-        <span class="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">助理操作</span>
+  <!-- 助理模式提示 -->
+  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <div class="flex items-center">
+      <div class="flex-shrink-0">
+        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+        </svg>
+      </div>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-blue-800">助理模式</h3>
+        <div class="mt-1 text-sm text-blue-700">
+          <p>您以助理身份协助处理，所有操作将被记录在操作日志中</p>
+        </div>
       </div>
     </div>
+  </div>
 
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-6">邀请链接管理</h2>
+    
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Member 邀请链接生成 -->
+      <!-- Member邀请链接生成 -->
       <div class="border rounded-lg p-4">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">助理生成 Member 邀请链接</h3>
+        <h3 class="text-md font-medium text-gray-900 mb-4">助理生成 Member 邀请链接</h3>
         
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              有效期 (1-48小时)
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              有效期（小时）
             </label>
             <input
               type="number"
               bind:value={memberForm.validHours}
               min="1"
               max="48"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="1-48小时"
             />
-            <p class="text-xs text-gray-500 mt-1">链接将在指定时间后自动失效</p>
+            <p class="text-xs text-gray-500 mt-1">链接有效期，1-48小时</p>
           </div>
-
+          
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              可使用次数 (1-100)
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              可使用次数
             </label>
             <input
               type="number"
               bind:value={memberForm.maxUses}
               min="1"
               max="100"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="1-100次"
             />
-            <p class="text-xs text-gray-500 mt-1">达到使用次数后链接自动失效</p>
+            <p class="text-xs text-gray-500 mt-1">链接可使用次数，1-100次</p>
           </div>
-
+          
           <button
             on:click={generateMemberLink}
             disabled={loading}
-            class="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? '生成中...' : '助理生成链接'}
+            {loading ? '生成中...' : '助理生成 Member 链接'}
           </button>
         </div>
       </div>
-
-      <!-- Seller 邀请链接生成 -->
+      
+      <!-- Seller邀请链接生成 -->
       <div class="border rounded-lg p-4">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">助理生成 Seller 邀请链接</h3>
+        <h3 class="text-md font-medium text-gray-900 mb-4">助理生成 Seller 邀请链接</h3>
         
         <div class="space-y-4">
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p class="text-sm text-blue-800">
+          <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+            <p class="text-sm text-yellow-800">
               <strong>注意：</strong>该链接一旦生成，仅限1人使用且永久有效
             </p>
           </div>
-
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              可使用人数
+            </label>
+            <input
+              type="number"
+              value={sellerForm.maxUses}
+              disabled
+              class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+            />
+            <p class="text-xs text-gray-500 mt-1">固定为1人使用</p>
+          </div>
+          
           <button
             on:click={generateSellerLink}
             disabled={loading}
-            class="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? '生成中...' : '助理生成链接'}
+            {loading ? '生成中...' : '助理生成 Seller 链接'}
           </button>
         </div>
       </div>
     </div>
-
-    <!-- 生成的链接列表 -->
-    {#if generatedLinks.length > 0}
-      <div class="mt-8">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">已生成的链接</h3>
-        
-        <div class="space-y-4">
-          {#each generatedLinks as link}
-            <div class="border rounded-lg p-4 bg-gray-50">
-              <div class="flex items-center justify-between mb-3">
-                <div class="flex items-center space-x-2">
-                  <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                    {link.type}
-                  </span>
-                  <span class="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
-                    {link.generatedBy}
-                  </span>
-                  <span class="text-sm {getTimeRemainingColor(link.expiresAt)}">
-                    {formatTimeRemaining(link.expiresAt)}
-                  </span>
-                </div>
-                <div class="text-xs text-gray-500">
-                  {new Date(link.createdAt).toLocaleString('zh-CN')}
-                </div>
-              </div>
-
-              <div class="bg-white rounded border p-3 mb-3">
-                <code class="text-sm text-gray-800 break-all">{link.url}</code>
-              </div>
-
-              <div class="flex space-x-2">
-                <button
-                  on:click={() => copyLink(link.url)}
-                  class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  复制链接
-                </button>
-                <button
-                  on:click={() => showQRCode(link)}
-                  class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  生成二维码
-                </button>
-              </div>
-            </div>
-          {/each}
-        </div>
-      </div>
-    {/if}
   </div>
+
+  <!-- 已生成的链接列表 -->
+  {#if generatedLinks.length > 0}
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">已生成的邀请链接</h3>
+      
+      <div class="space-y-4">
+        {#each generatedLinks as link}
+          {@const status = getLinkStatus(link)}
+          <div class="border rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-1 text-xs rounded-full {
+                  link.type === 'member' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                }">
+                  {link.type === 'member' ? 'Member' : 'Seller'}
+                </span>
+                <span class="text-sm {status.color} font-medium">
+                  {status.text}
+                </span>
+                <span class="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
+                  助理操作
+                </span>
+              </div>
+              <span class="text-xs text-gray-500">
+                {formatDateTime(link.createdAt)}
+              </span>
+            </div>
+            
+            <div class="bg-gray-50 rounded p-2 mb-3">
+              <code class="text-sm text-gray-800 break-all">{link.url}</code>
+            </div>
+            
+            <div class="flex items-center justify-between text-sm text-gray-600 mb-3">
+              <span>使用情况：{link.usedCount}/{link.maxUses}</span>
+              {#if link.expiresAt}
+                <span>过期时间：{formatDateTime(link.expiresAt)}</span>
+              {:else}
+                <span>永久有效</span>
+              {/if}
+            </div>
+            
+            <div class="flex space-x-2">
+              <button
+                on:click={() => copyToClipboard(link.url)}
+                class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+              >
+                复制链接
+              </button>
+              <button
+                on:click={() => showQRCodeModal(link.url)}
+                class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+              >
+                预览二维码
+              </button>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </div>
 
-<!-- 二维码模态框 -->
-{#if showQRModal && selectedLink}
-  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" on:click={closeQRModal}>
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white" on:click|stopPropagation>
-      <div class="mt-3 text-center">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-medium text-gray-900">{selectedLink.type} 邀请二维码</h3>
-          {#if selectedLink.expiresAt}
-            <span class="text-sm {getTimeRemainingColor(selectedLink.expiresAt)}">
-              {formatTimeRemaining(selectedLink.expiresAt)}
-            </span>
-          {/if}
-        </div>
-        
-        <div class="mb-4">
-          <img src={qrCodeUrl} alt="邀请二维码" class="mx-auto" />
-        </div>
-        
-        <div class="flex space-x-3">
-          <button
-            on:click={downloadQRCode}
-            class="flex-1 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
-          >
-            下载二维码
-          </button>
-          <button
-            on:click={closeQRModal}
-            class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400"
-          >
-            关闭
-          </button>
-        </div>
+<!-- 二维码预览弹窗 -->
+{#if showQRCode}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">邀请链接二维码</h3>
+        {#if countdown}
+          <span class="text-sm {countdown.includes('即将过期') ? 'text-red-600' : 'text-gray-600'}">
+            {countdown}
+          </span>
+        {/if}
+      </div>
+      
+      <div class="text-center mb-4">
+        <img src={qrCodeData} alt="邀请链接二维码" class="mx-auto border rounded" />
+      </div>
+      
+      <div class="bg-gray-50 rounded p-2 mb-4">
+        <code class="text-sm text-gray-800 break-all">{qrCodeUrl}</code>
+      </div>
+      
+      <div class="flex space-x-3">
+        <button
+          on:click={downloadQRCode}
+          class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          下载二维码
+        </button>
+        <button
+          on:click={() => showQRCode = false}
+          class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+        >
+          关闭
+        </button>
       </div>
     </div>
   </div>

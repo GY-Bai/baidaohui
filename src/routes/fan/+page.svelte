@@ -1,20 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { validateRoleAndRedirect } from '$lib/auth';
+  import type { PageData } from './$types';
   import Chat from '$components/fan/Chat.svelte';
   import Fortune from '$components/fan/Fortune.svelte';
   import Ecommerce from '$components/fan/Ecommerce.svelte';
   import Profile from '$components/fan/Profile.svelte';
 
+  export let data: PageData;
+  
   let activeTab = 'chat';
-  let loading = true;
-
-  onMount(async () => {
-    const isValid = await validateRoleAndRedirect('Fan');
-    if (isValid) {
-      loading = false;
-    }
-  });
 
   const tabs = [
     { id: 'chat', name: '私信', icon: '💬' },
@@ -32,26 +25,19 @@
   <title>百道会 - Fan</title>
 </svelte:head>
 
-{#if loading}
-  <div class="min-h-screen flex items-center justify-center">
-    <div class="text-center">
-      <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      <p class="text-gray-600">加载中...</p>
-    </div>
-  </div>
-{:else}
-  <div class="min-h-screen bg-gray-50">
-    <!-- 顶部导航栏 -->
-    <nav class="bg-white shadow-sm border-b">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center">
-            <h1 class="text-xl font-semibold text-gray-900">百道会</h1>
-            <span class="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Fan</span>
-          </div>
+<div class="min-h-screen bg-gray-50">
+  <!-- 顶部导航栏 -->
+  <nav class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <h1 class="text-xl font-semibold text-gray-900">百道会</h1>
+          <span class="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Fan</span>
+        </div>
+        
+        <!-- 用户信息 -->
+        <div class="flex items-center space-x-4">
+          <span class="text-sm text-gray-600">欢迎，{data.session.user.email}</span>
           
           <!-- 标签导航 -->
           <div class="flex space-x-8">
@@ -71,19 +57,19 @@
           </div>
         </div>
       </div>
-    </nav>
+    </div>
+  </nav>
 
-    <!-- 主要内容区域 -->
-    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      {#if activeTab === 'chat'}
-        <Chat />
-      {:else if activeTab === 'fortune'}
-        <Fortune />
-      {:else if activeTab === 'ecommerce'}
-        <Ecommerce />
-      {:else if activeTab === 'profile'}
-        <Profile />
-      {/if}
-    </main>
-  </div>
-{/if} 
+  <!-- 主要内容区域 -->
+  <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    {#if activeTab === 'chat'}
+      <Chat session={data.session} />
+    {:else if activeTab === 'fortune'}
+      <Fortune session={data.session} />
+    {:else if activeTab === 'ecommerce'}
+      <Ecommerce session={data.session} />
+    {:else if activeTab === 'profile'}
+      <Profile session={data.session} />
+    {/if}
+  </main>
+</div> 

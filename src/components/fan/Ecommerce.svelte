@@ -1,134 +1,259 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import type { UserSession } from '$lib/auth';
+  
+  export let session: UserSession;
+  
+  interface Product {
+    id: string;
+    name: string;
+    description: string;
+    images: string[];
+    default_price: {
+      id: string;
+      unit_amount: number;
+      currency: string;
+    };
+    payment_link?: {
+      id: string;
+      url: string;
+      active: boolean;
+    };
+    storeId: string;
+    storeName?: string;
+    tags?: string[];
+    created: number;
+    updated: number;
+  }
 
-  let products = [];
+  let products: Product[] = [];
+  let relatedProducts: Product[] = [];
   let loading = true;
-  let selectedProduct = null;
+  let error = '';
+  let selectedProduct: Product | null = null;
   let showProductModal = false;
+  let currentImageIndex = 0;
 
-  onMount(() => {
-    loadProducts();
-  });
+  // 格式化价格
+  function formatPrice(amount: number, currency: string): string {
+    const formatter = new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+      minimumFractionDigits: 2
+    });
+    return formatter.format(amount / 100);
+  }
 
-  async function loadProducts() {
+  // 获取商品列表
+  async function fetchProducts() {
     try {
       loading = true;
       const response = await fetch('/api/products');
-      if (response.ok) {
-        products = await response.json();
+      
+      if (!response.ok) {
+        throw new Error('获取商品列表失败');
       }
-    } catch (error) {
-      console.error('加载商品失败:', error);
+      
+      const data = await response.json();
+      products = data.products || [];
+    } catch (err) {
+      error = err instanceof Error ? err.message : '获取商品失败';
+      console.error('获取商品失败:', err);
     } finally {
       loading = false;
     }
   }
 
-  function openProductDetail(product) {
+  // 获取相关推荐商品
+  function getRelatedProducts(product: Product): Product[] {
+    return products
+      .filter(p => p.id !== product.id)
+      .filter(p => 
+        p.storeId === product.storeId || 
+        (product.tags && p.tags && product.tags.some(tag => p.tags?.includes(tag)))
+      )
+      .slice(0, 4);
+  }
+
+  // 打开商品详情
+  function openProductDetail(product: Product) {
     selectedProduct = product;
+    relatedProducts = getRelatedProducts(product);
+    currentImageIndex = 0;
     showProductModal = true;
+    // 防止背景滚动
+    document.body.style.overflow = 'hidden';
   }
 
-  function closeProductModal() {
-    showProductModal = false;
+  // 关闭商品详情
+  function closeProductDetail() {
     selectedProduct = null;
+    relatedProducts = [];
+    showProductModal = false;
+    currentImageIndex = 0;
+    // 恢复背景滚动
+    document.body.style.overflow = 'auto';
   }
 
-  function formatPrice(price, currency = 'CNY') {
-    const formatter = new Intl.NumberFormat('zh-CN', {
-      style: 'currency',
-      currency: currency
-    });
-    return formatter.format(price / 100); // 假设价格以分为单位
+  // 切换图片
+  function changeImage(index: number) {
+    currentImageIndex = index;
   }
 
-  function truncateText(text, maxLength = 50) {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+  // 立即购买
+  function buyNow(product: Product) {
+    if (product.payment_link && product.payment_link.active) {
+      // 直接跳转到静态Payment Link
+      window.open(product.payment_link.url, '_blank');
+    } else {
+      alert('该商品暂时无法购买，请稍后再试');
+    }
   }
 
-  function handleImageError(event) {
-    event.target.src = '/placeholder-image.jpg'; // 占位图片
+  // 获取商户徽章颜色
+  function getStoreBadgeColor(storeId: string): string {
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500', 
+      'bg-purple-500',
+      'bg-red-500',
+      'bg-yellow-500',
+      'bg-indigo-500'
+    ];
+    const hash = storeId.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    return colors[Math.abs(hash) % colors.length];
   }
+
+  // 处理图片加载错误
+  function handleImageError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.src = '/placeholder-product.png'; // 默认占位图
+  }
+
+  // 截断文本并添加tooltip
+  function truncateText(text: string, maxLength: number): string {
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  }
+
+  onMount(() => {
+    fetchProducts();
+    
+    // 清理函数
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  });
 </script>
 
-<div class="bg-white rounded-lg shadow p-6">
-  <h2 class="text-2xl font-semibold text-gray-900 mb-6">带货</h2>
+<div class="ecommerce-container p-4">
+  <div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-2">精选好物</h2>
+    <p class="text-gray-600">发现优质商品，享受便捷购物体验</p>
+  </div>
 
   {#if loading}
-    <div class="text-center py-8">
-      <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      <p class="text-gray-600">加载商品中...</p>
+    <div class="flex justify-center items-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <span class="ml-3 text-gray-600">加载中...</span>
+    </div>
+  {:else if error}
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+      <p class="text-red-600">{error}</p>
+      <button 
+        on:click={fetchProducts}
+        class="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+      >
+        重试
+      </button>
     </div>
   {:else if products.length === 0}
-    <div class="text-center py-8">
-      <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-      </svg>
+    <div class="text-center py-12">
+      <div class="text-gray-400 text-6xl mb-4">🛍️</div>
       <p class="text-gray-600">暂无商品</p>
     </div>
   {:else}
-    <!-- 移动端两列瀑布流，桌面端四列网格 -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {#each products as product}
+    <!-- 商品瀑布流网格 -->
+    <div class="columns-2 md:columns-4 gap-4 space-y-4">
+      {#each products as product (product.id)}
         <div 
-          class="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
+          class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer break-inside-avoid mb-4"
           on:click={() => openProductDetail(product)}
           role="button"
           tabindex="0"
-          aria-label="购买 {product.name}"
+          aria-label="查看 {product.name} 详情"
           on:keydown={(e) => e.key === 'Enter' && openProductDetail(product)}
         >
           <!-- 商品图片 -->
-          <div class="relative aspect-square">
-            <img 
-              src={product.imageUrls[0]} 
-              alt={product.name}
-              class="w-full h-full object-cover"
-              loading="lazy"
-              on:error={handleImageError}
-            />
+          <div class="relative">
+            {#if product.images && product.images.length > 0}
+              <img 
+                src={product.images[0]} 
+                alt={product.name}
+                class="w-full h-auto object-cover"
+                loading="lazy"
+                on:error={handleImageError}
+                style="aspect-ratio: auto;"
+              />
+            {:else}
+              <div class="w-full aspect-square bg-gray-200 flex items-center justify-center">
+                <span class="text-gray-400 text-4xl">📦</span>
+              </div>
+            {/if}
             
             <!-- 商户徽章 -->
-            <div class="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-              {product.storeId}
+            <div class="absolute top-2 right-2">
+              <span 
+                class="px-2 py-1 text-xs text-white rounded-full {getStoreBadgeColor(product.storeId)}"
+                title={product.storeName || product.storeId}
+              >
+                {product.storeName || product.storeId}
+              </span>
             </div>
           </div>
 
           <!-- 商品信息 -->
           <div class="p-4">
-            <!-- 商品名称 -->
             <h3 
-              class="font-medium text-gray-900 mb-2 line-clamp-2 leading-tight"
+              class="font-medium text-gray-800 mb-2 leading-tight"
               title={product.name}
             >
-              {truncateText(product.name, 40)}
+              {truncateText(product.name, 50)}
             </h3>
-
-            <!-- 价格 -->
-            <div class="flex items-center justify-between">
-              {#if product.originalPrice && product.originalPrice > product.price}
-                <div class="flex items-center space-x-2">
-                  <span class="text-lg font-bold text-red-600">
-                    {formatPrice(product.price)}
-                  </span>
-                  <span class="text-sm text-gray-500 line-through">
-                    {formatPrice(product.originalPrice)}
-                  </span>
-                </div>
+            
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-lg font-bold text-red-500">
+                {formatPrice(product.default_price.unit_amount, product.default_price.currency)}
+              </span>
+              
+              {#if product.payment_link && product.payment_link.active}
+                <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                  可购买
+                </span>
               {:else}
-                <span class="text-lg font-bold text-gray-900">
-                  {formatPrice(product.price)}
+                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                  暂不可购买
                 </span>
               {/if}
             </div>
 
+            <!-- 商品标签 -->
+            {#if product.tags && product.tags.length > 0}
+              <div class="flex flex-wrap gap-1">
+                {#each product.tags.slice(0, 3) as tag}
+                  <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                    {tag}
+                  </span>
+                {/each}
+              </div>
+            {/if}
+
             <!-- 查看详情按钮 -->
             <button 
-              class="w-full mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              class="w-full mt-3 py-2 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
               on:click|stopPropagation={() => openProductDetail(product)}
             >
               查看详情
@@ -142,122 +267,161 @@
 
 <!-- 商品详情模态框 -->
 {#if showProductModal && selectedProduct}
-  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" on:click={closeProductModal}>
-    <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white" on:click|stopPropagation>
-      <div class="flex justify-between items-start mb-4">
-        <h3 class="text-xl font-semibold text-gray-900">{selectedProduct.name}</h3>
+  <div 
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    on:click={closeProductDetail}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="product-modal-title"
+  >
+    <div 
+      class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+      on:click|stopPropagation
+    >
+      <!-- 模态框头部 -->
+      <div class="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+        <h2 id="product-modal-title" class="text-xl font-bold text-gray-800">
+          {selectedProduct.name}
+        </h2>
         <button 
-          on:click={closeProductModal}
-          class="text-gray-400 hover:text-gray-600 text-2xl"
+          on:click={closeProductDetail}
+          class="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center"
+          aria-label="关闭"
         >
           ×
         </button>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- 图片轮播 -->
-        <div class="space-y-4">
-          <div class="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-            <img 
-              src={selectedProduct.imageUrls[0]} 
-              alt={selectedProduct.name}
-              class="w-full h-full object-cover"
-              on:error={handleImageError}
-            />
-          </div>
-          
-          {#if selectedProduct.imageUrls.length > 1}
-            <div class="flex space-x-2 overflow-x-auto">
-              {#each selectedProduct.imageUrls as imageUrl, index}
-                <img 
-                  src={imageUrl} 
-                  alt="{selectedProduct.name} - 图片 {index + 1}"
-                  class="w-16 h-16 object-cover rounded cursor-pointer border-2 border-transparent hover:border-blue-500"
-                  on:error={handleImageError}
-                />
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <!-- 商品信息 -->
-        <div class="space-y-4">
-          <!-- 价格 -->
+      <!-- 模态框内容 -->
+      <div class="p-4">
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- 左侧：商品图片 -->
           <div>
-            {#if selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.price}
-              <div class="flex items-center space-x-3">
-                <span class="text-2xl font-bold text-red-600">
-                  {formatPrice(selectedProduct.price)}
-                </span>
-                <span class="text-lg text-gray-500 line-through">
-                  {formatPrice(selectedProduct.originalPrice)}
-                </span>
-                <span class="bg-red-100 text-red-800 text-sm px-2 py-1 rounded">
-                  折扣
-                </span>
+            {#if selectedProduct.images && selectedProduct.images.length > 0}
+              <div class="mb-4">
+                <div class="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                  <img 
+                    src={selectedProduct.images[currentImageIndex]} 
+                    alt={selectedProduct.name}
+                    class="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {#if selectedProduct.images.length > 1}
+                  <div class="flex gap-2 mt-2 overflow-x-auto">
+                    {#each selectedProduct.images as image, index}
+                      <button
+                        on:click={() => changeImage(index)}
+                        class="w-16 h-16 flex-shrink-0"
+                      >
+                        <img 
+                          src={image} 
+                          alt="{selectedProduct.name} 图片 {index + 1}"
+                          class="w-full h-full object-cover rounded border-2 {currentImageIndex === index ? 'border-blue-500' : 'border-transparent hover:border-blue-300'} transition-colors"
+                        />
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
               </div>
-            {:else}
-              <span class="text-2xl font-bold text-gray-900">
-                {formatPrice(selectedProduct.price)}
-              </span>
             {/if}
           </div>
 
-          <!-- 商户信息 -->
-          <div class="flex items-center space-x-2">
-            <span class="text-sm text-gray-600">商户:</span>
-            <span class="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded">
-              {selectedProduct.storeId}
-            </span>
-          </div>
-
-          <!-- 商品描述 -->
-          {#if selectedProduct.description}
-            <div>
-              <h4 class="font-medium text-gray-900 mb-2">商品描述</h4>
-              <p class="text-gray-700 text-sm leading-relaxed">
-                {selectedProduct.description}
-              </p>
-            </div>
-          {/if}
-
-          <!-- 购买按钮 -->
-          <div class="space-y-3">
-            <button 
-              class="w-full px-6 py-3 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
-              on:click={() => window.open(selectedProduct.paymentLink, '_blank')}
-            >
-              立即购买
-            </button>
-            
-            <p class="text-xs text-gray-500 text-center">
-              点击购买将跳转到安全支付页面
-            </p>
-          </div>
-
-          <!-- 相关推荐 -->
+          <!-- 右侧：商品信息 -->
           <div>
-            <h4 class="font-medium text-gray-900 mb-2">相关推荐</h4>
-            <div class="grid grid-cols-2 gap-2">
-              {#each products.filter(p => p.storeId === selectedProduct.storeId && p.id !== selectedProduct.id).slice(0, 4) as relatedProduct}
-                <div 
-                  class="border rounded-lg p-2 cursor-pointer hover:bg-gray-50"
-                  on:click={() => openProductDetail(relatedProduct)}
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-3xl font-bold text-red-500">
+                  {formatPrice(selectedProduct.default_price.unit_amount, selectedProduct.default_price.currency)}
+                </span>
+                <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                  {selectedProduct.storeName || selectedProduct.storeId}
+                </span>
+              </div>
+              
+              {#if selectedProduct.description}
+                <div class="text-gray-600 whitespace-pre-wrap leading-relaxed">
+                  {selectedProduct.description}
+                </div>
+              {/if}
+
+              <!-- 商品标签 -->
+              {#if selectedProduct.tags && selectedProduct.tags.length > 0}
+                <div class="flex flex-wrap gap-2 mt-4">
+                  {#each selectedProduct.tags as tag}
+                    <span class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+                      {tag}
+                    </span>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
+            <!-- 购买按钮 -->
+            <div class="flex gap-3 mb-6">
+              {#if selectedProduct.payment_link && selectedProduct.payment_link.active}
+                <button 
+                  on:click={() => buyNow(selectedProduct)}
+                  class="flex-1 bg-red-500 text-white py-3 px-6 rounded-lg font-medium hover:bg-red-600 transition-colors"
                 >
-                  <img 
-                    src={relatedProduct.imageUrls[0]} 
-                    alt={relatedProduct.name}
-                    class="w-full aspect-square object-cover rounded mb-1"
-                    loading="lazy"
-                    on:error={handleImageError}
-                  />
-                  <p class="text-xs text-gray-700 truncate">{relatedProduct.name}</p>
-                  <p class="text-xs font-medium text-gray-900">{formatPrice(relatedProduct.price)}</p>
+                  立即购买
+                </button>
+              {:else}
+                <button 
+                  disabled
+                  class="flex-1 bg-gray-300 text-gray-500 py-3 px-6 rounded-lg font-medium cursor-not-allowed"
+                >
+                  暂不可购买
+                </button>
+              {/if}
+              
+              <button 
+                on:click={closeProductDetail}
+                class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 相关推荐 -->
+        {#if relatedProducts.length > 0}
+          <div class="border-t pt-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">相关推荐</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {#each relatedProducts as product}
+                <div 
+                  class="bg-gray-50 rounded-lg overflow-hidden hover:bg-gray-100 transition-colors cursor-pointer"
+                  on:click={() => openProductDetail(product)}
+                >
+                  <div class="aspect-square">
+                    {#if product.images && product.images.length > 0}
+                      <img 
+                        src={product.images[0]} 
+                        alt={product.name}
+                        class="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    {:else}
+                      <div class="w-full h-full bg-gray-200 flex items-center justify-center">
+                        <span class="text-gray-400 text-2xl">📦</span>
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="p-3">
+                    <h4 class="text-sm font-medium text-gray-800 mb-1" title={product.name}>
+                      {truncateText(product.name, 30)}
+                    </h4>
+                    <span class="text-sm font-bold text-red-500">
+                      {formatPrice(product.default_price.unit_amount, product.default_price.currency)}
+                    </span>
+                  </div>
                 </div>
               {/each}
             </div>
           </div>
-        </div>
+        {/if}
       </div>
     </div>
   </div>
@@ -269,5 +433,30 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  
+  .aspect-square {
+    aspect-ratio: 1 / 1;
+  }
+  
+  .aspect-video {
+    aspect-ratio: 16 / 9;
+  }
+
+  /* 瀑布流优化 */
+  .columns-2 {
+    column-count: 2;
+    column-gap: 1rem;
+  }
+  
+  @media (min-width: 768px) {
+    .columns-4 {
+      column-count: 4;
+    }
+  }
+  
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 </style> 

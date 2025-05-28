@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>算命申请回复通知</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 20px;
+            color: #333;
+            margin: 0;
+        }
+        .order-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .reply-content {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .reply-content h3 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .reply-text {
+            color: #333;
+            font-size: 16px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .meta-info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">百道会</div>
+            <h1 class="title">您的算命申请已收到回复</h1>
+        </div>
+        
+        <div class="order-info">
+            <strong>订单信息：</strong><br>
+            订单号：{{ order_id }}<br>
+            回复时间：{{ reply_time }}<br>
+            回复人：{{ master_name }}
+        </div>
+        
+        <div class="reply-content">
+            <h3>🔮 大师回复</h3>
+            <div class="reply-text">{{ reply_content }}</div>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="https://fan.baidaohui.com/fortune" class="button">查看完整回复</a>
+        </div>
+        
+        <div class="meta-info">
+            <p><strong>温馨提示：</strong></p>
+            <ul>
+                <li>此回复仅供参考，请理性对待</li>
+                <li>如有疑问，可通过会员私信功能联系大师</li>
+                <li>感谢您对百道会的信任与支持</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>此邮件由系统自动发送，请勿直接回复</p>
+            <p>© 2024 百道会 - 专业的命理咨询平台</p>
+            <p>如需帮助，请访问 <a href="https://baidaohui.com">baidaohui.com</a></p>
+        </div>
+    </div>
+</body>
+</html> 

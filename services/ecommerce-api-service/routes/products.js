@@ -1,73 +1,26 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
+const { ObjectId } = require('mongodb');
 
 const R2_ENDPOINT = process.env.R2_ENDPOINT;
 const R2_BUCKET = process.env.R2_BUCKET;
 
-// 获取产品列表
-router.get('/products', async (req, res) => {
+// 获取商品列表
+router.get('/', async (req, res) => {
   try {
-    const { db } = require('../app');
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const storeId = req.query.storeId;
-    const category = req.query.category;
-    const search = req.query.search;
-
-    // 优先从R2获取静态JSON
-    try {
-      const r2Url = `${R2_ENDPOINT}/${R2_BUCKET}/products.json`;
-      const response = await axios.get(r2Url, { timeout: 5000 });
-      
-      if (response.data && response.data.products) {
-        let products = response.data.products;
-        
-        // 应用过滤条件
-        if (storeId) {
-          products = products.filter(p => p.storeId === storeId);
-        }
-        
-        if (search) {
-          const searchLower = search.toLowerCase();
-          products = products.filter(p => 
-            p.name.toLowerCase().includes(searchLower) ||
-            p.description.toLowerCase().includes(searchLower)
-          );
-        }
-        
-        // 分页
-        const total = products.length;
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
-        const paginatedProducts = products.slice(startIndex, endIndex);
-        
-        return res.json({
-          products: paginatedProducts,
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit)
-          },
-          source: 'r2_cache',
-          lastUpdated: response.data.lastUpdated
-        });
-      }
-    } catch (r2Error) {
-      console.warn('从R2获取产品失败，回退到MongoDB:', r2Error.message);
-    }
-
-    // 回退到MongoDB查询
-    const database = db();
-    if (!database) {
-      return res.status(500).json({ error: '数据库连接未就绪' });
-    }
+    const { page = 1, limit = 20, storeId, category, search } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // 构建查询条件
-    const query = {};
+    const query = { active: true };
+    
     if (storeId) {
       query.storeId = storeId;
+    }
+    
+    if (category) {
+      query.category = category;
     }
     
     if (search) {
@@ -77,76 +30,136 @@ router.get('/products', async (req, res) => {
       ];
     }
 
-    // 分页查询
-    const skip = (page - 1) * limit;
-    const products = await database.collection('products')
-      .find(query)
-      .sort({ created: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
+    // 优先从R2获取静态JSON
+    let products = [];
+    let total = 0;
+    
+    try {
+      // 尝试从R2获取缓存的商品数据
+      const r2Response = await axios.get(`${process.env.R2_ENDPOINT}/${process.env.R2_BUCKET}/products.json`, {
+        timeout: 5000
+      });
+      
+      if (r2Response.data && r2Response.data.products) {
+        let allProducts = r2Response.data.products;
+        
+        // 应用过滤条件
+        if (storeId) {
+          allProducts = allProducts.filter(p => p.storeId === storeId);
+        }
+        
+        if (category) {
+          allProducts = allProducts.filter(p => p.category === category);
+        }
+        
+        if (search) {
+          const searchLower = search.toLowerCase();
+          allProducts = allProducts.filter(p => 
+            p.name.toLowerCase().includes(searchLower) || 
+            (p.description && p.description.toLowerCase().includes(searchLower))
+          );
+        }
+        
+        total = allProducts.length;
+        products = allProducts.slice(skip, skip + parseInt(limit));
+        
+        console.log(`从R2获取商品数据成功: ${products.length}/${total}`);
+      }
+    } catch (r2Error) {
+      console.warn('从R2获取商品数据失败，回退到MongoDB:', r2Error.message);
+      
+      // 回退到MongoDB查询
+      const db = req.app.locals.db;
+      
+      const [productsResult, totalResult] = await Promise.all([
+        db.collection('products')
+          .find(query)
+          .sort({ created: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .toArray(),
+        db.collection('products').countDocuments(query)
+      ]);
+      
+      products = productsResult;
+      total = totalResult;
+      
+      console.log(`从MongoDB获取商品数据: ${products.length}/${total}`);
+    }
 
-    const total = await database.collection('products').countDocuments(query);
-
-    // 转换为前端格式
+    // 格式化商品数据
     const formattedProducts = products.map(product => ({
       id: product.id,
       name: product.name,
       description: product.description,
       images: product.images || [],
-      price: {
-        amount: product.default_price?.unit_amount || 0,
-        currency: product.default_price?.currency || 'usd',
-        formatted: formatPrice(product.default_price?.unit_amount || 0, product.default_price?.currency || 'usd')
+      default_price: {
+        id: product.default_price.id,
+        unit_amount: product.default_price.unit_amount,
+        currency: product.default_price.currency.toUpperCase()
       },
+      payment_link: product.payment_link ? {
+        id: product.payment_link.id,
+        url: product.payment_link.url,
+        active: product.payment_link.active
+      } : null,
       storeId: product.storeId,
-      createdAt: new Date(product.created * 1000).toISOString(),
-      updatedAt: new Date(product.updated * 1000).toISOString(),
+      category: product.category || 'general',
+      created: product.created,
+      updated: product.updated
     }));
 
     res.json({
+      success: true,
       products: formattedProducts,
       pagination: {
-        page,
-        limit,
+        page: parseInt(page),
+        limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / parseInt(limit))
       },
-      source: 'mongodb'
+      source: products.length > 0 ? (r2Error ? 'mongodb' : 'r2') : 'empty'
     });
 
   } catch (error) {
-    console.error('获取产品列表失败:', error);
-    res.status(500).json({ error: '获取产品列表失败' });
+    console.error('获取商品列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取商品列表失败',
+      message: process.env.NODE_ENV === 'development' ? error.message : '服务器内部错误'
+    });
   }
 });
 
-// 获取单个产品详情
-router.get('/products/:productId', async (req, res) => {
+// 获取单个商品详情
+router.get('/:productId', async (req, res) => {
   try {
-    const { db } = require('../app');
     const { productId } = req.params;
+    const db = req.app.locals.db;
 
-    const database = db();
-    if (!database) {
-      return res.status(500).json({ error: '数据库连接未就绪' });
-    }
-
-    const product = await database.collection('products').findOne({ id: productId });
+    // 从MongoDB查询商品详情
+    const product = await db.collection('products').findOne({
+      id: productId,
+      active: true
+    });
 
     if (!product) {
-      return res.status(404).json({ error: '产品不存在' });
+      return res.status(404).json({
+        success: false,
+        error: '商品不存在'
+      });
     }
 
-    // 获取相关推荐（同店铺或相似产品）
-    const relatedProducts = await database.collection('products')
+    // 获取相关推荐商品（同店铺或同类别）
+    const relatedProducts = await db.collection('products')
       .find({
         $and: [
           { id: { $ne: productId } },
+          { active: true },
           {
             $or: [
               { storeId: product.storeId },
-              { name: { $regex: product.name.split(' ')[0], $options: 'i' } }
+              { category: product.category }
             ]
           }
         ]
@@ -154,75 +167,151 @@ router.get('/products/:productId', async (req, res) => {
       .limit(6)
       .toArray();
 
+    // 格式化商品数据
     const formattedProduct = {
       id: product.id,
       name: product.name,
       description: product.description,
       images: product.images || [],
-      price: {
-        amount: product.default_price?.unit_amount || 0,
-        currency: product.default_price?.currency || 'usd',
-        formatted: formatPrice(product.default_price?.unit_amount || 0, product.default_price?.currency || 'usd')
+      default_price: {
+        id: product.default_price.id,
+        unit_amount: product.default_price.unit_amount,
+        currency: product.default_price.currency.toUpperCase()
       },
+      payment_link: product.payment_link ? {
+        id: product.payment_link.id,
+        url: product.payment_link.url,
+        active: product.payment_link.active
+      } : null,
       storeId: product.storeId,
-      createdAt: new Date(product.created * 1000).toISOString(),
-      updatedAt: new Date(product.updated * 1000).toISOString(),
-      relatedProducts: relatedProducts.map(p => ({
+      category: product.category || 'general',
+      created: product.created,
+      updated: product.updated,
+      related_products: relatedProducts.map(p => ({
         id: p.id,
         name: p.name,
-        images: p.images?.slice(0, 1) || [],
-        price: {
-          amount: p.default_price?.unit_amount || 0,
-          currency: p.default_price?.currency || 'usd',
-          formatted: formatPrice(p.default_price?.unit_amount || 0, p.default_price?.currency || 'usd')
-        },
-        storeId: p.storeId
+        images: p.images || [],
+        default_price: p.default_price,
+        payment_link: p.payment_link
       }))
     };
 
-    res.json({ product: formattedProduct });
+    res.json({
+      success: true,
+      product: formattedProduct
+    });
 
   } catch (error) {
-    console.error('获取产品详情失败:', error);
-    res.status(500).json({ error: '获取产品详情失败' });
+    console.error('获取商品详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取商品详情失败',
+      message: process.env.NODE_ENV === 'development' ? error.message : '服务器内部错误'
+    });
   }
 });
 
 // 获取商店列表
-router.get('/stores', async (req, res) => {
+router.get('/stores/list', async (req, res) => {
   try {
-    const { db } = require('../app');
-    const database = db();
-    
-    if (!database) {
-      return res.status(500).json({ error: '数据库连接未就绪' });
-    }
+    const db = req.app.locals.db;
 
-    // 聚合查询获取每个商店的产品数量
-    const stores = await database.collection('products').aggregate([
+    // 聚合查询获取每个商店的商品统计
+    const stores = await db.collection('products').aggregate([
+      { $match: { active: true } },
       {
         $group: {
           _id: '$storeId',
           productCount: { $sum: 1 },
-          latestProduct: { $max: '$updated' }
+          totalValue: { $sum: '$default_price.unit_amount' },
+          categories: { $addToSet: '$category' },
+          lastUpdated: { $max: '$updated' }
         }
       },
       {
         $project: {
           storeId: '$_id',
           productCount: 1,
-          latestUpdate: { $toDate: { $multiply: ['$latestProduct', 1000] } },
+          totalValue: 1,
+          categories: 1,
+          lastUpdated: 1,
           _id: 0
         }
       },
       { $sort: { productCount: -1 } }
     ]).toArray();
 
-    res.json({ stores });
+    res.json({
+      success: true,
+      stores
+    });
 
   } catch (error) {
     console.error('获取商店列表失败:', error);
-    res.status(500).json({ error: '获取商店列表失败' });
+    res.status(500).json({
+      success: false,
+      error: '获取商店列表失败'
+    });
+  }
+});
+
+// 搜索商品
+router.get('/search/:keyword', async (req, res) => {
+  try {
+    const { keyword } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const db = req.app.locals.db;
+
+    // 构建搜索查询
+    const searchQuery = {
+      active: true,
+      $or: [
+        { name: { $regex: keyword, $options: 'i' } },
+        { description: { $regex: keyword, $options: 'i' } },
+        { storeId: { $regex: keyword, $options: 'i' } }
+      ]
+    };
+
+    const [products, total] = await Promise.all([
+      db.collection('products')
+        .find(searchQuery)
+        .sort({ created: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .toArray(),
+      db.collection('products').countDocuments(searchQuery)
+    ]);
+
+    const formattedProducts = products.map(product => ({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      images: product.images || [],
+      default_price: product.default_price,
+      payment_link: product.payment_link,
+      storeId: product.storeId
+    }));
+
+    res.json({
+      success: true,
+      keyword,
+      products: formattedProducts,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    });
+
+  } catch (error) {
+    console.error('搜索商品失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '搜索失败'
+    });
   }
 });
 

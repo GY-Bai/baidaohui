@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const Stripe = require('stripe');
@@ -61,7 +61,7 @@ function authenticateUser(req, res, next) {
 // 引入webhook处理
 const webhookHandler = require('./webhook');
 
-// 创建支付会话
+// 创建支付会话（仅用于算命服务）
 app.post('/payment/session', authenticateUser, async (req, res) => {
   try {
     const { orderId, amount, currency, description } = req.body;
@@ -73,7 +73,7 @@ app.post('/payment/session', authenticateUser, async (req, res) => {
 
     // 验证订单存在且状态为Pending
     const application = await db.collection('fortune_applications').findOne({
-      _id: new MongoClient.ObjectId(orderId),
+      _id: new ObjectId(orderId),
       status: 'Pending'
     });
 
@@ -81,7 +81,7 @@ app.post('/payment/session', authenticateUser, async (req, res) => {
       return res.status(404).json({ error: '订单不存在或状态不正确' });
     }
 
-    // 创建Stripe Checkout Session
+    // 创建Stripe Checkout Session（算命服务使用单一Stripe账号）
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],

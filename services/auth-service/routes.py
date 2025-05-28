@@ -1,20 +1,572 @@
-from flask import Blueprint, request, jsonify, make_response, redirect
+from flask_socketio import emit, join_room, leave_room, disconnect
 import jwt
-import os
-import requests
+import json
 from datetime import datetime, timedelta
+import uuid
+import boto3
+from botocore.exceptions import ClientError
+import base64
+import os
+from bson import ObjectId
+from flask import Blueprint, request, jsonify, make_response, redirect
+import requests
 import logging
 
-auth_bp = Blueprint('auth', __name__)
-logger = logging.getLogger(__name__)
+def register_websocket_handlers(socketio, db, redis_client, logger):
+    JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
+    R2_ENDPOINT = os.getenv('R2_ENDPOINT')
+    R2_ACCESS_KEY = os.getenv('R2_ACCESS_KEY')
+    R2_SECRET_KEY = os.getenv('R2_SECRET_KEY')
+    R2_BUCKET = os.getenv('R2_BUCKET')
+    
+    # 初始化R2客户端
+    s3_client = None
+    if R2_ENDPOINT and R2_ACCESS_KEY and R2_SECRET_KEY:
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=R2_ENDPOINT,
+            aws_access_key_id=R2_ACCESS_KEY,
+            aws_secret_access_key=R2_SECRET_KEY,
+            region_name='auto'
+        )
 
+    @socketio.on('connect')
+    def handle_connect(auth):
+        """处理WebSocket连接"""
+        try:
+            # 从认证数据中获取token
+            token = None
+            if auth and 'token' in auth:
+                token = auth['token']
+            
+            if not token:
+                logger.warning("WebSocket连接缺少token")
+                disconnect()
+                return False
+            
+            # 验证JWT
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            user_id = payload['sub']
+            user_role = payload['role']
+            user_email = payload['email']
+            
+            # 存储用户信息到session
+            socketio.session['user_id'] = user_id
+            socketio.session['user_role'] = user_role
+            socketio.session['user_email'] = user_email
+            
+            # 更新在线状态
+            redis_client.setex(f"online:{user_id}", 300, json.dumps({
+                'user_id': user_id,
+                'role': user_role,
+                'email': user_email,
+                'status': 'online',
+                'connected_at': datetime.utcnow().isoformat(),
+                'last_seen': datetime.utcnow().isoformat()
+            }))
+            
+            logger.info(f"用户 {user_email} ({user_role}) WebSocket连接成功")
+            
+            # 根据角色自动加入相应房间
+            if user_role in ['Member', 'Master', 'Firstmate']:
+                join_room('general')
+                emit('joined_room', {'room': 'general'})
+            
+            # 如果是Member，检查是否有活跃的私聊
+            if user_role == 'Member':
+                private_chat = db.private_chats.find_one({
+                    'member_id': user_id,
+                    'status': 'active',
+                    'expires_at': {'$gt': datetime.utcnow()}
+                })
+                if private_chat:
+                    private_room = f"private_{private_chat['chat_id']}"
+                    join_room(private_room)
+                    emit('joined_room', {'room': private_room})
+            
+            # Master和Firstmate可以加入所有活跃的私聊房间
+            elif user_role in ['Master', 'Firstmate']:
+                active_private_chats = db.private_chats.find({
+                    'status': 'active',
+                    'expires_at': {'$gt': datetime.utcnow()}
+                })
+                for chat in active_private_chats:
+                    private_room = f"private_{chat['chat_id']}"
+                    join_room(private_room)
+            
+            # 广播用户上线事件
+            socketio.emit('user_online', {
+                'user_id': user_id,
+                'email': user_email,
+                'role': user_role,
+                'timestamp': datetime.utcnow().isoformat()
+            }, broadcast=True)
+            
+            emit('connection_success', {
+                'user_id': user_id,
+                'role': user_role,
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            
+        except jwt.InvalidTokenError:
+            logger.warning("WebSocket连接token无效")
+            disconnect()
+            return False
+        except Exception as e:
+            logger.error(f"WebSocket连接处理失败: {str(e)}")
+            disconnect()
+            return False
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        """处理WebSocket断开连接"""
+        try:
+            user_id = socketio.session.get('user_id')
+            user_email = socketio.session.get('user_email')
+            user_role = socketio.session.get('user_role')
+            
+            if user_id:
+                # 更新离线状态
+                redis_client.setex(f"offline:{user_id}", 300, json.dumps({
+                    'user_id': user_id,
+                    'role': user_role,
+                    'email': user_email,
+                    'status': 'offline',
+                    'last_seen': datetime.utcnow().isoformat()
+                }))
+                
+                # 移除在线状态
+                redis_client.delete(f"online:{user_id}")
+                
+                # 广播用户离线事件
+                socketio.emit('user_offline', {
+                    'user_id': user_id,
+                    'timestamp': datetime.utcnow().isoformat()
+                }, broadcast=True)
+                
+                logger.info(f"用户 {user_email} WebSocket断开连接")
+        except Exception as e:
+            logger.error(f"处理断开连接失败: {str(e)}")
+
+    @socketio.on('heartbeat')
+    def handle_heartbeat():
+        """处理心跳包，更新在线状态"""
+        try:
+            user_id = socketio.session.get('user_id')
+            if user_id:
+                # 更新在线状态的过期时间
+                online_data = redis_client.get(f"online:{user_id}")
+                if online_data:
+                    user_info = json.loads(online_data)
+                    user_info['last_seen'] = datetime.utcnow().isoformat()
+                    redis_client.setex(f"online:{user_id}", 300, json.dumps(user_info))
+                
+                emit('heartbeat_ack')
+        except Exception as e:
+            logger.error(f"处理心跳包失败: {str(e)}")
+
+    @socketio.on('send_message')
+    def handle_send_message(data):
+        """处理发送消息"""
+        try:
+            user_id = socketio.session.get('user_id')
+            user_role = socketio.session.get('user_role')
+            user_email = socketio.session.get('user_email')
+            
+            if not user_id:
+                emit('error', {'message': '未认证的连接'})
+                return
+            
+            chat_id = data.get('chat_id')
+            content = data.get('content', '').strip()
+            message_type = data.get('type', 'text')
+            attachments = data.get('attachments', [])
+            reply_to = data.get('reply_to')  # 回复的消息ID
+            
+            if not chat_id or not content:
+                emit('error', {'message': '消息内容不能为空'})
+                return
+            
+            # 权限检查
+            if chat_id == 'general':
+                if user_role not in ['Member', 'Master', 'Firstmate']:
+                    emit('error', {'message': '无权限发送群聊消息'})
+                    return
+            else:
+                # 私聊权限检查
+                if user_role == 'Member':
+                    private_chat = db.private_chats.find_one({
+                        'member_id': user_id,
+                        'chat_id': chat_id,
+                        'status': 'active',
+                        'expires_at': {'$gt': datetime.utcnow()}
+                    })
+                    if not private_chat:
+                        emit('error', {'message': '私聊未开启或已过期'})
+                        return
+                elif user_role not in ['Master', 'Firstmate']:
+                    emit('error', {'message': '无权限发送私聊消息'})
+                    return
+            
+            # 处理附件上传
+            processed_attachments = []
+            if attachments and s3_client:
+                for attachment in attachments:
+                    try:
+                        # 假设附件是base64编码的图片
+                        file_data = base64.b64decode(attachment['data'])
+                        file_name = f"chat/{chat_id}/{uuid.uuid4()}.{attachment.get('type', 'jpg')}"
+                        
+                        # 上传到R2
+                        s3_client.put_object(
+                            Bucket=R2_BUCKET,
+                            Key=file_name,
+                            Body=file_data,
+                            ContentType=f"image/{attachment.get('type', 'jpeg')}"
+                        )
+                        
+                        processed_attachments.append({
+                            'url': f"{R2_ENDPOINT}/{R2_BUCKET}/{file_name}",
+                            'type': attachment.get('type', 'image'),
+                            'name': attachment.get('name', file_name)
+                        })
+                    except Exception as e:
+                        logger.error(f"上传附件失败: {str(e)}")
+            
+            # 保存消息到数据库
+            message_doc = {
+                'chat_id': chat_id,
+                'sender_id': user_id,
+                'sender_name': user_email.split('@')[0],  # 使用邮箱前缀作为显示名
+                'content': content,
+                'type': message_type,
+                'attachments': processed_attachments,
+                'timestamp': datetime.utcnow(),
+                'read_by': [user_id],  # 发送者自动标记为已读
+                'recalled': False,
+                'deleted': False
+            }
+            
+            # 如果是回复消息，添加回复信息
+            if reply_to:
+                try:
+                    reply_message = db.messages.find_one({'_id': ObjectId(reply_to)})
+                    if reply_message:
+                        message_doc['reply_to'] = {
+                            'message_id': reply_to,
+                            'sender_name': reply_message.get('sender_name', ''),
+                            'content': reply_message.get('content', '')[:100] + ('...' if len(reply_message.get('content', '')) > 100 else '')
+                        }
+                except Exception as e:
+                    logger.error(f"处理回复消息失败: {str(e)}")
+            
+            result = db.messages.insert_one(message_doc)
+            message_doc['_id'] = str(result.inserted_id)
+            message_doc['timestamp'] = message_doc['timestamp'].isoformat()
+            
+            # 确定房间名称
+            room_name = chat_id if chat_id == 'general' else f"private_{chat_id}"
+            
+            # 广播消息到房间
+            socketio.emit('new_message', message_doc, room=room_name)
+            
+            # 更新未读计数
+            if chat_id != 'general':
+                # 为私聊更新未读计数
+                private_chat = db.private_chats.find_one({'chat_id': chat_id})
+                if private_chat:
+                    # 为对方增加未读计数
+                    if user_role == 'Member':
+                        redis_client.incr(f"unread:{chat_id}:master")
+                    else:
+                        redis_client.incr(f"unread:{chat_id}:{private_chat['member_id']}")
+            else:
+                # 群聊中为所有其他在线用户增加未读计数
+                online_keys = redis_client.keys("online:*")
+                for key in online_keys:
+                    other_user_id = key.decode().split(':')[1]
+                    if other_user_id != user_id:
+                        redis_client.incr(f"unread:{chat_id}:{other_user_id}")
+            
+            logger.info(f"用户 {user_email} 在 {chat_id} 发送消息")
+            
+        except Exception as e:
+            logger.error(f"发送消息失败: {str(e)}")
+            emit('error', {'message': '发送消息失败'})
+
+    @socketio.on('message_read')
+    def handle_message_read(data):
+        """处理消息已读事件"""
+        try:
+            user_id = socketio.session.get('user_id')
+            if not user_id:
+                emit('error', {'message': '未认证的连接'})
+                return
+            
+            chat_id = data.get('chat_id')
+            message_id = data.get('message_id')
+            
+            if not chat_id or not message_id:
+                emit('error', {'message': '缺少必要参数'})
+                return
+            
+            # 更新消息的已读状态
+            db.messages.update_one(
+                {'_id': ObjectId(message_id)},
+                {'$addToSet': {'read_by': user_id}}
+            )
+            
+            # 广播已读回执
+            room_name = chat_id if chat_id == 'general' else f"private_{chat_id}"
+            socketio.emit('message_read_receipt', {
+                'message_id': message_id,
+                'chat_id': chat_id,
+                'reader_id': user_id,
+                'timestamp': datetime.utcnow().isoformat()
+            }, room=room_name, include_self=False)
+            
+        except Exception as e:
+            logger.error(f"处理消息已读失败: {str(e)}")
+            emit('error', {'message': '处理已读状态失败'})
+
+    @socketio.on('typing_start')
+    def handle_typing_start(data):
+        """处理开始输入事件"""
+        try:
+            user_id = socketio.session.get('user_id')
+            user_email = socketio.session.get('user_email')
+            
+            if not user_id:
+                return
+            
+            chat_id = data.get('chat_id')
+            if not chat_id:
+                return
+            
+            room_name = chat_id if chat_id == 'general' else f"private_{chat_id}"
+            
+            socketio.emit('user_typing', {
+                'user_id': user_id,
+                'user_name': user_email.split('@')[0],
+                'chat_id': chat_id,
+                'timestamp': datetime.utcnow().isoformat()
+            }, room=room_name, include_self=False)
+            
+        except Exception as e:
+            logger.error(f"处理输入状态失败: {str(e)}")
+
+    @socketio.on('typing_stop')
+    def handle_typing_stop(data):
+        """处理停止输入事件"""
+        try:
+            user_id = socketio.session.get('user_id')
+            
+            if not user_id:
+                return
+            
+            chat_id = data.get('chat_id')
+            if not chat_id:
+                return
+            
+            room_name = chat_id if chat_id == 'general' else f"private_{chat_id}"
+            
+            socketio.emit('user_stop_typing', {
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'timestamp': datetime.utcnow().isoformat()
+            }, room=room_name, include_self=False)
+            
+        except Exception as e:
+            logger.error(f"处理停止输入状态失败: {str(e)}")
+
+    @socketio.on('join_private_chat')
+    def handle_join_private_chat(data):
+        """加入私聊房间"""
+        try:
+            user_id = socketio.session.get('user_id')
+            user_role = socketio.session.get('user_role')
+            
+            if not user_id:
+                emit('error', {'message': '未认证的连接'})
+                return
+            
+            chat_id = data.get('chat_id')
+            if not chat_id:
+                emit('error', {'message': '缺少chat_id'})
+                return
+            
+            # 权限检查
+            if user_role == 'Member':
+                private_chat = db.private_chats.find_one({
+                    'member_id': user_id,
+                    'chat_id': chat_id,
+                    'status': 'active',
+                    'expires_at': {'$gt': datetime.utcnow()}
+                })
+                if not private_chat:
+                    emit('error', {'message': '私聊未开启或已过期'})
+                    return
+            elif user_role not in ['Master', 'Firstmate']:
+                emit('error', {'message': '无权限加入私聊'})
+                return
+            
+            room_name = f"private_{chat_id}"
+            join_room(room_name)
+            emit('joined_room', {'room': room_name})
+            
+            # 清除未读计数
+            if user_role == 'Member':
+                redis_client.delete(f"unread:{chat_id}:{user_id}")
+            else:
+                redis_client.delete(f"unread:{chat_id}:master")
+            
+            # 通知房间内其他用户有人加入
+            socketio.emit('user_joined_chat', {
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'timestamp': datetime.utcnow().isoformat()
+            }, room=room_name, include_self=False)
+            
+        except Exception as e:
+            logger.error(f"加入私聊房间失败: {str(e)}")
+            emit('error', {'message': '加入私聊房间失败'})
+
+    @socketio.on('leave_private_chat')
+    def handle_leave_private_chat(data):
+        """离开私聊房间"""
+        try:
+            user_id = socketio.session.get('user_id')
+            
+            chat_id = data.get('chat_id')
+            if chat_id:
+                room_name = f"private_{chat_id}"
+                leave_room(room_name)
+                emit('left_room', {'room': room_name})
+                
+                # 通知房间内其他用户有人离开
+                socketio.emit('user_left_chat', {
+                    'user_id': user_id,
+                    'chat_id': chat_id,
+                    'timestamp': datetime.utcnow().isoformat()
+                }, room=room_name)
+                
+        except Exception as e:
+            logger.error(f"离开私聊房间失败: {str(e)}")
+
+    @socketio.on('get_online_users')
+    def handle_get_online_users():
+        """获取在线用户列表"""
+        try:
+            user_role = socketio.session.get('user_role')
+            
+            if user_role not in ['Master', 'Firstmate']:
+                emit('error', {'message': '无权限查看在线用户'})
+                return
+            
+            # 从Redis获取在线用户
+            online_keys = redis_client.keys("online:*")
+            online_users = []
+            
+            for key in online_keys:
+                user_data = redis_client.get(key)
+                if user_data:
+                    try:
+                        online_users.append(json.loads(user_data))
+                    except json.JSONDecodeError:
+                        continue
+            
+            emit('online_users', {
+                'users': online_users,
+                'count': len(online_users)
+            })
+            
+        except Exception as e:
+            logger.error(f"获取在线用户失败: {str(e)}")
+            emit('error', {'message': '获取在线用户失败'})
+
+    @socketio.on('update_status')
+    def handle_update_status(data):
+        """更新用户状态"""
+        try:
+            user_id = socketio.session.get('user_id')
+            user_role = socketio.session.get('user_role')
+            user_email = socketio.session.get('user_email')
+            
+            if not user_id:
+                emit('error', {'message': '未认证的连接'})
+                return
+            
+            status = data.get('status', 'online')  # online, away, busy, dnd
+            status_message = data.get('status_message', '')
+            
+            # 更新Redis中的用户状态
+            user_info = {
+                'user_id': user_id,
+                'role': user_role,
+                'email': user_email,
+                'status': status,
+                'status_message': status_message,
+                'last_seen': datetime.utcnow().isoformat()
+            }
+            
+            redis_client.setex(f"online:{user_id}", 300, json.dumps(user_info))
+            
+            # 广播状态更新
+            socketio.emit('user_status_update', {
+                'user_id': user_id,
+                'status': status,
+                'status_message': status_message,
+                'timestamp': datetime.utcnow().isoformat()
+            }, broadcast=True)
+            
+            emit('status_updated', {'success': True})
+            
+        except Exception as e:
+            logger.error(f"更新用户状态失败: {str(e)}")
+            emit('error', {'message': '更新状态失败'})
+
+    @socketio.on('get_unread_count')
+    def handle_get_unread_count(data):
+        """获取未读消息数量"""
+        try:
+            user_id = socketio.session.get('user_id')
+            
+            if not user_id:
+                emit('error', {'message': '未认证的连接'})
+                return
+            
+            chat_id = data.get('chat_id')
+            if not chat_id:
+                emit('error', {'message': '缺少chat_id'})
+                return
+            
+            # 从Redis获取未读计数
+            unread_count = redis_client.get(f"unread:{chat_id}:{user_id}")
+            unread_count = int(unread_count) if unread_count else 0
+            
+            emit('unread_count', {
+                'chat_id': chat_id,
+                'count': unread_count
+            })
+            
+        except Exception as e:
+            logger.error(f"获取未读计数失败: {str(e)}")
+            emit('error', {'message': '获取未读计数失败'})
+
+auth_bp = Blueprint('auth', __name__)
+
+# 配置
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
 JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://baidaohui.com')
+DOMAIN = os.getenv('DOMAIN', 'baidaohui.com')
 
-# 角色到子域的映射
-ROLE_SUBDOMAIN_MAP = {
+logger = logging.getLogger(__name__)
+
+# 角色对应的子域名映射
+ROLE_SUBDOMAINS = {
     'Fan': 'fan.baidaohui.com',
     'Member': 'member.baidaohui.com', 
     'Master': 'master.baidaohui.com',
@@ -22,17 +574,123 @@ ROLE_SUBDOMAIN_MAP = {
     'Seller': 'seller.baidaohui.com'
 }
 
+auth_bp = Blueprint('auth', __name__)
+
 @auth_bp.route('/callback', methods=['POST'])
 def oauth_callback():
-    """处理OAuth回调，验证Token并生成JWT"""
+    """处理OAuth回调"""
+    try:
+        data = request.get_json()
+        code = data.get('code')
+        state = data.get('state')
+        redirect_uri = data.get('redirect_uri')
+        
+        if not code:
+            return jsonify({'error': 'missing_code', 'message': '缺少授权码'}), 400
+        
+        # 使用授权码换取访问令牌
+        token_url = f"{SUPABASE_URL}/auth/v1/token"
+        token_data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': redirect_uri
+        }
+        
+        headers = {
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        response = requests.post(token_url, data=token_data, headers=headers)
+        
+        if not response.ok:
+            logger.error(f"获取访问令牌失败: {response.text}")
+            return jsonify({'error': 'token_exchange_failed', 'message': '获取访问令牌失败'}), 400
+        
+        token_info = response.json()
+        access_token = token_info.get('access_token')
+        
+        if not access_token:
+            return jsonify({'error': 'no_access_token', 'message': '未获取到访问令牌'}), 400
+        
+        # 使用访问令牌获取用户信息
+        user_url = f"{SUPABASE_URL}/auth/v1/user"
+        user_headers = {
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        user_response = requests.get(user_url, headers=user_headers)
+        
+        if not user_response.ok:
+            logger.error(f"获取用户信息失败: {user_response.text}")
+            return jsonify({'error': 'user_info_failed', 'message': '获取用户信息失败'}), 400
+        
+        user_data = user_response.json()
+        
+        # 同步用户信息到本地数据库
+        from user_sync import user_sync_service
+        
+        try:
+            # 同步用户信息
+            synced_user = user_sync_service.sync_user_from_oauth(user_data, 'google')
+            
+            # 使用同步后的用户信息
+            user_id = synced_user['_id']  # 使用本地用户ID
+            email = synced_user['email']
+            role = synced_user['role']
+            nickname = synced_user['nickname']
+            
+            logger.info(f"用户同步成功: {email} (角色: {role})")
+            
+        except Exception as sync_error:
+            logger.error(f"用户同步失败: {str(sync_error)}")
+            # 降级处理：使用OAuth原始数据
+            user_id = user_data.get('id')
+            email = user_data.get('email')
+            user_metadata = user_data.get('user_metadata', {})
+            role = user_metadata.get('role', 'Fan')
+            nickname = user_metadata.get('nickname', email.split('@')[0] if email else 'User')
+        
+        # 生成JWT令牌
+        jwt_payload = {
+            'sub': user_id,
+            'email': email,
+            'role': role,
+            'nickname': nickname,
+            'iat': datetime.utcnow(),
+            'exp': datetime.utcnow() + timedelta(days=7)
+        }
+        
+        jwt_token = jwt.encode(jwt_payload, JWT_SECRET, algorithm='HS256')
+        
+        # 返回用户信息和JWT令牌
+        return jsonify({
+            'user': {
+                'id': user_id,
+                'email': email,
+                'role': role,
+                'nickname': nickname
+            },
+            'access_token': jwt_token,
+            'target_domain': ROLE_SUBDOMAINS.get(role)
+        })
+        
+    except Exception as e:
+        logger.error(f"OAuth回调处理失败: {str(e)}")
+        return jsonify({'error': 'callback_failed', 'message': 'OAuth回调处理失败'}), 500
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    """处理Google OAuth登录"""
     try:
         data = request.get_json()
         access_token = data.get('access_token')
         
         if not access_token:
             return jsonify({'error': '缺少access_token'}), 400
-            
-        # 调用Supabase验证Token
+        
+        # 验证Supabase token
         headers = {
             'Authorization': f'Bearer {access_token}',
             'apikey': SUPABASE_SERVICE_KEY
@@ -41,29 +699,51 @@ def oauth_callback():
         response = requests.get(f'{SUPABASE_URL}/auth/v1/user', headers=headers)
         
         if response.status_code != 200:
-            return jsonify({'error': '无效的access_token'}), 401
-            
+            return jsonify({'error': '无效的token'}), 401
+        
         user_data = response.json()
-        user_id = user_data.get('id')
-        email = user_data.get('email')
+        user_id = user_data['id']
+        email = user_data['email']
         
-        # 从用户元数据或数据库获取角色信息
-        # 这里假设角色存储在user_metadata中，实际可能需要查询数据库
-        role = user_data.get('user_metadata', {}).get('role', 'Fan')
+        # 获取用户角色信息
+        profile_response = requests.get(
+            f'{SUPABASE_URL}/rest/v1/profiles?id=eq.{user_id}',
+            headers={
+                'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+                'apikey': SUPABASE_SERVICE_KEY
+            }
+        )
         
-        # 生成JWT
+        role = 'Fan'  # 默认角色
+        if profile_response.status_code == 200:
+            profiles = profile_response.json()
+            if profiles:
+                role = profiles[0].get('role', 'Fan')
+        
+        # 生成跨域JWT
         payload = {
             'sub': user_id,
             'email': email,
             'role': role,
-            'exp': datetime.utcnow() + timedelta(days=7),
-            'iat': datetime.utcnow()
+            'iat': datetime.utcnow(),
+            'exp': datetime.utcnow() + timedelta(days=7)
         }
         
         jwt_token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
         
-        # 创建响应并设置HttpOnly Cookie
-        redirect_url = f"https://{ROLE_SUBDOMAIN_MAP.get(role, 'baidaohui.com')}"
+        # 确定重定向URL
+        subdomain_map = {
+            'Fan': 'fan',
+            'Member': 'member', 
+            'Master': 'master',
+            'Firstmate': 'firstmate',
+            'Seller': 'seller'
+        }
+        
+        subdomain = subdomain_map.get(role, 'fan')
+        redirect_url = f'https://{subdomain}.{DOMAIN}'
+        
+        # 设置跨域Cookie
         response = make_response(jsonify({
             'success': True,
             'user': {
@@ -74,28 +754,29 @@ def oauth_callback():
             'redirect_url': redirect_url
         }))
         
+        # 设置HttpOnly Cookie，支持跨子域
         response.set_cookie(
             'access_token',
             jwt_token,
+            max_age=7*24*60*60,  # 7天
             httponly=True,
             secure=True,
             samesite='Lax',
-            domain='.baidaohui.com',
-            max_age=7*24*60*60  # 7天
+            domain=f'.{DOMAIN}'  # 跨子域
         )
         
-        logger.info(f"用户 {email} 登录成功，角色: {role}")
+        logger.info(f'用户登录成功: {email} ({role})')
         return response
         
     except Exception as e:
-        logger.error(f"OAuth回调处理失败: {str(e)}")
-        return jsonify({'error': '登录处理失败'}), 500
+        logger.error(f'登录失败: {str(e)}')
+        return jsonify({'error': '登录失败'}), 500
 
-@auth_bp.route('/validate', methods=['POST'])
+@auth_bp.route('/validate', methods=['GET'])
 def validate_token():
-    """验证JWT Token，供其他服务调用"""
+    """验证JWT Token并检查域名权限"""
     try:
-        # 从Cookie或Authorization头获取token
+        # 从Cookie或Header获取token
         token = request.cookies.get('access_token')
         if not token:
             auth_header = request.headers.get('Authorization')
@@ -103,42 +784,82 @@ def validate_token():
                 token = auth_header.split(' ')[1]
         
         if not token:
-            return jsonify({'error': '未找到token'}), 401
-            
-        # 验证JWT
-        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            return jsonify({'error': '未提供token', 'redirect_url': 'https://baidaohui.com/login'}), 401
         
-        return jsonify({
+        # 验证JWT
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token已过期', 'redirect_url': 'https://baidaohui.com/login'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': '无效的token', 'redirect_url': 'https://baidaohui.com/login'}), 401
+        
+        user_role = payload['role']
+        
+        # 检查请求来源域名（如果提供）
+        origin = request.headers.get('Origin') or request.headers.get('Referer', '')
+        current_domain = None
+        
+        if origin:
+            # 从Origin或Referer中提取域名
+            import re
+            domain_match = re.search(r'https?://([^/]+)', origin)
+            if domain_match:
+                current_domain = domain_match.group(1)
+        
+        # 验证域名权限
+        expected_domain = ROLE_SUBDOMAINS.get(user_role)
+        domain_mismatch = False
+        
+        if current_domain and expected_domain:
+            # 允许localhost用于开发环境
+            if current_domain != expected_domain and current_domain != 'localhost':
+                domain_mismatch = True
+        
+        response_data = {
             'valid': True,
             'user': {
                 'id': payload['sub'],
                 'email': payload['email'],
-                'role': payload['role']
+                'role': payload['role'],
+                'nickname': payload.get('nickname')
             }
-        })
+        }
         
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token已过期'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': '无效的Token'}), 401
+        # 如果域名不匹配，返回正确的重定向URL
+        if domain_mismatch:
+            response_data['domain_mismatch'] = True
+            response_data['redirect_url'] = f'https://{expected_domain}'
+            return jsonify(response_data), 200
+        
+        return jsonify(response_data)
+        
     except Exception as e:
-        logger.error(f"Token验证失败: {str(e)}")
-        return jsonify({'error': 'Token验证失败'}), 500
+        logger.error(f'Token验证失败: {str(e)}')
+        return jsonify({'error': '验证失败', 'redirect_url': 'https://baidaohui.com/login'}), 500
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     """用户登出"""
-    response = make_response(jsonify({'success': True, 'message': '登出成功'}))
-    response.set_cookie(
-        'access_token',
-        '',
-        httponly=True,
-        secure=True,
-        samesite='Lax',
-        domain='.baidaohui.com',
-        expires=0
-    )
-    return response
+    try:
+        response = make_response(jsonify({'success': True, 'message': '登出成功'}))
+        
+        # 清除Cookie
+        response.set_cookie(
+            'access_token',
+            '',
+            max_age=0,
+            httponly=True,
+            secure=True,
+            samesite='Lax',
+            domain=f'.{DOMAIN}'
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f'登出失败: {str(e)}')
+        return jsonify({'error': '登出失败'}), 500
 
 @auth_bp.route('/check-role', methods=['GET'])
 def check_role():
@@ -147,32 +868,141 @@ def check_role():
         token = request.cookies.get('access_token')
         if not token:
             return jsonify({'error': '未登录'}), 401
-            
-        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        except jwt.InvalidTokenError:
+            return jsonify({'error': '无效的token'}), 401
+        
+        required_role = request.args.get('role')
         user_role = payload['role']
         
-        # 从请求参数获取要访问的子域
-        requested_subdomain = request.args.get('subdomain')
-        
         # 检查角色权限
-        allowed_subdomain = ROLE_SUBDOMAIN_MAP.get(user_role)
+        role_hierarchy = {
+            'Fan': 1,
+            'Member': 2,
+            'Seller': 3,
+            'Firstmate': 4,
+            'Master': 5
+        }
         
-        if requested_subdomain and f"{requested_subdomain}.baidaohui.com" != allowed_subdomain:
-            return jsonify({
-                'error': '您无权访问，请使用正确账号登录',
-                'redirect_url': f"https://{allowed_subdomain}"
-            }), 403
-            
+        user_level = role_hierarchy.get(user_role, 0)
+        required_level = role_hierarchy.get(required_role, 0)
+        
+        has_permission = user_level >= required_level
+        
         return jsonify({
-            'valid': True,
-            'role': user_role,
-            'allowed_subdomain': allowed_subdomain
+            'has_permission': has_permission,
+            'user_role': user_role,
+            'required_role': required_role
         })
         
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token已过期'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': '无效的Token'}), 401
     except Exception as e:
-        logger.error(f"角色检查失败: {str(e)}")
-        return jsonify({'error': '角色检查失败'}), 500 
+        logger.error(f'角色检查失败: {str(e)}')
+        return jsonify({'error': '检查失败'}), 500
+
+@auth_bp.route('/refresh', methods=['POST'])
+def refresh_token():
+    """刷新Token"""
+    try:
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({'error': '未提供token'}), 401
+        
+        try:
+            # 允许过期的token进行刷新（在一定时间内）
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], options={"verify_exp": False})
+        except jwt.InvalidTokenError:
+            return jsonify({'error': '无效的token'}), 401
+        
+        # 检查token是否在可刷新时间内（7天内）
+        exp_time = datetime.fromtimestamp(payload['exp'])
+        if datetime.utcnow() - exp_time > timedelta(days=7):
+            return jsonify({'error': 'Token过期时间过长，请重新登录'}), 401
+        
+        # 生成新token
+        new_payload = {
+            'sub': payload['sub'],
+            'email': payload['email'],
+            'role': payload['role'],
+            'iat': datetime.utcnow(),
+            'exp': datetime.utcnow() + timedelta(days=7)
+        }
+        
+        new_token = jwt.encode(new_payload, JWT_SECRET, algorithm='HS256')
+        
+        response = make_response(jsonify({
+            'success': True,
+            'message': 'Token刷新成功'
+        }))
+        
+        response.set_cookie(
+            'access_token',
+            new_token,
+            max_age=7*24*60*60,
+            httponly=True,
+            secure=True,
+            samesite='Lax',
+            domain=f'.{DOMAIN}'
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f'Token刷新失败: {str(e)}')
+        return jsonify({'error': '刷新失败'}), 500
+
+@auth_bp.route('/session-info', methods=['GET'])
+def get_session_info():
+    """获取当前会话信息"""
+    try:
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({'authenticated': False})
+        
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        except jwt.ExpiredSignatureError:
+            return jsonify({'authenticated': False, 'reason': 'expired'})
+        except jwt.InvalidTokenError:
+            return jsonify({'authenticated': False, 'reason': 'invalid'})
+        
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'id': payload['sub'],
+                'email': payload['email'],
+                'role': payload['role']
+            },
+            'expires_at': payload['exp']
+        })
+        
+    except Exception as e:
+        logger.error(f'获取会话信息失败: {str(e)}')
+        return jsonify({'error': '获取失败'}), 500
+
+@auth_bp.route('/user/<user_id>', methods=['GET'])
+def get_user_info(user_id):
+    """根据用户ID获取用户信息（供邮件服务调用）"""
+    try:
+        # 验证请求来源（可以添加内部服务认证）
+        from user_sync import user_sync_service
+        
+        # 从本地数据库获取用户信息
+        user_info = user_sync_service.get_user_profile(user_id)
+        
+        if not user_info:
+            return jsonify({'error': '用户不存在'}), 404
+        
+        # 返回邮件服务需要的基本信息
+        return jsonify({
+            'id': user_info['_id'],
+            'email': user_info['email'],
+            'name': user_info.get('name', ''),
+            'nickname': user_info.get('nickname', ''),
+            'role': user_info.get('role', 'Fan')
+        })
+        
+    except Exception as e:
+        logger.error(f'获取用户信息失败: {str(e)}')
+        return jsonify({'error': '获取用户信息失败'}), 500

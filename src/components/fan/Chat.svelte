@@ -1,80 +1,22 @@
 <script lang="ts">
-  let showInviteModal = false;
-  let inviteLink = '';
-  let generating = false;
-
-  async function generateInviteLink() {
-    try {
-      generating = true;
-      // 调用后端API生成Member邀请链接
-      const response = await fetch('/api/invite/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: 'member',
-          validHours: 24,
-          maxUses: 1
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        inviteLink = data.url;
-        showInviteModal = true;
-      } else {
-        alert('生成邀请链接失败，请重试');
-      }
-    } catch (error) {
-      console.error('生成邀请链接失败:', error);
-      alert('生成邀请链接失败，请重试');
-    } finally {
-      generating = false;
-    }
-  }
-
-  function copyInviteLink() {
-    navigator.clipboard.writeText(inviteLink).then(() => {
-      alert('邀请链接已复制到剪贴板');
-    });
-  }
-
-  function closeModal() {
-    showInviteModal = false;
-    inviteLink = '';
-  }
+  import type { UserSession } from '$lib/auth';
+  
+  export let session: UserSession;
 </script>
 
 <div class="bg-white rounded-lg shadow p-6">
   <h2 class="text-2xl font-semibold text-gray-900 mb-6">私信</h2>
   
-  <!-- 升级提示卡片 -->
+  <!-- 权限提示卡片 -->
   <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 text-center">
     <div class="mb-4">
       <svg class="w-16 h-16 text-blue-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
       </svg>
     </div>
     
-    <h3 class="text-xl font-semibold text-gray-900 mb-2">解锁聊天功能</h3>
-    <p class="text-gray-600 mb-6">要使用聊天功能，请使用邀请链接升级为 Member</p>
-    
-    <button
-      on:click={generateInviteLink}
-      disabled={generating}
-      class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-    >
-      {#if generating}
-        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        生成中...
-      {:else}
-        获取邀请链接
-      {/if}
-    </button>
+    <h3 class="text-xl font-semibold text-gray-900 mb-2">您未完成百刀会会员认证，暂无此权限</h3>
+    <p class="text-gray-600 mb-6">要使用聊天功能，请联系管理员获取 Member 邀请链接</p>
   </div>
 
   <!-- 功能说明 -->
@@ -101,38 +43,4 @@
       </li>
     </ul>
   </div>
-</div>
-
-<!-- 邀请链接模态框 -->
-{#if showInviteModal}
-  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" on:click={closeModal}>
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white" on:click|stopPropagation>
-      <div class="mt-3 text-center">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Member 邀请链接</h3>
-        
-        <div class="mb-4 p-3 bg-gray-50 rounded border text-sm break-all">
-          {inviteLink}
-        </div>
-        
-        <div class="flex space-x-3">
-          <button
-            on:click={copyInviteLink}
-            class="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            复制链接
-          </button>
-          <button
-            on:click={closeModal}
-            class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            关闭
-          </button>
-        </div>
-        
-        <p class="mt-3 text-xs text-gray-500">
-          链接有效期24小时，仅限1人使用
-        </p>
-      </div>
-    </div>
-  </div>
-{/if} 
+</div> 

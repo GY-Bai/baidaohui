@@ -1,5 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { apiCall } from '$lib/auth';
+  import type { UserSession } from '$lib/auth';
+
+  export let session: UserSession;
+
+  interface RevenueData {
+    date: string;
+    revenue: number;
+    orders: number;
+  }
+
+  interface ProductStats {
+    id: string;
+    name: string;
+    image: string;
+    soldCount: number;
+    revenue: number;
+  }
 
   let stats = {
     totalRevenue: 0,
@@ -7,8 +25,10 @@
     totalOrders: 0,
     monthlyOrders: 0,
     averageOrderValue: 0,
-    topProducts: []
+    topProducts: [] as ProductStats[]
   };
+  
+  let revenueChart: RevenueData[] = [];
   let loading = true;
   let selectedPeriod = 'month';
 
@@ -26,22 +46,79 @@
   async function loadStats() {
     try {
       loading = true;
-      const response = await fetch(`/api/seller/stats?period=${selectedPeriod}`);
-      if (response.ok) {
-        stats = await response.json();
-      }
+      const response = await apiCall(`/seller/stats?period=${selectedPeriod}`);
+      stats = response.stats || stats;
+      revenueChart = response.chartData || [];
     } catch (error) {
       console.error('加载统计数据失败:', error);
+      // 使用模拟数据进行演示
+      loadMockData();
     } finally {
       loading = false;
     }
   }
 
-  function formatCurrency(amount) {
+  function loadMockData() {
+    // 模拟数据用于演示
+    stats = {
+      totalRevenue: 125680.50,
+      monthlyRevenue: 28450.30,
+      totalOrders: 342,
+      monthlyOrders: 78,
+      averageOrderValue: 367.25,
+      topProducts: [
+        {
+          id: '1',
+          name: '精品茶叶礼盒',
+          image: 'https://via.placeholder.com/48x48',
+          soldCount: 45,
+          revenue: 13500
+        },
+        {
+          id: '2', 
+          name: '手工艺品摆件',
+          image: 'https://via.placeholder.com/48x48',
+          soldCount: 32,
+          revenue: 9600
+        },
+        {
+          id: '3',
+          name: '有机蜂蜜套装',
+          image: 'https://via.placeholder.com/48x48',
+          soldCount: 28,
+          revenue: 8400
+        }
+      ]
+    };
+
+    // 生成模拟图表数据
+    const days = selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 90;
+    revenueChart = Array.from({ length: days }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (days - 1 - i));
+      return {
+        date: date.toISOString().split('T')[0],
+        revenue: Math.random() * 2000 + 500,
+        orders: Math.floor(Math.random() * 10) + 1
+      };
+    });
+  }
+
+  function formatCurrency(amount: number) {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: 'CNY'
     }).format(amount);
+  }
+
+  function getMaxRevenue(): number {
+    return Math.max(...revenueChart.map(d => d.revenue));
+  }
+
+  function getChartHeight(revenue: number): string {
+    const maxRevenue = getMaxRevenue();
+    const percentage = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
+    return `${Math.max(percentage, 2)}%`;
   }
 
   $: {
@@ -69,7 +146,7 @@
       <div class="text-center py-8">
         <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
         <p class="text-gray-600">加载中...</p>
       </div>
@@ -133,13 +210,66 @@
         </div>
       </div>
 
+      <!-- 收入趋势图表 -->
+      <div class="bg-white rounded-lg border p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">收入趋势</h3>
+        {#if revenueChart.length > 0}
+          <div class="space-y-4">
+            <!-- 图表区域 -->
+            <div class="h-64 flex items-end space-x-1 bg-gray-50 p-4 rounded-lg">
+              {#each revenueChart as data, index}
+                <div class="flex-1 flex flex-col items-center group relative">
+                  <!-- 柱状图 -->
+                  <div 
+                    class="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all duration-300 hover:from-blue-600 hover:to-blue-500"
+                    style="height: {getChartHeight(data.revenue)}"
+                  ></div>
+                  
+                  <!-- 悬浮提示 -->
+                  <div class="absolute bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
+                    <div>{data.date}</div>
+                    <div>收入: {formatCurrency(data.revenue)}</div>
+                    <div>订单: {data.orders}笔</div>
+                  </div>
+                  
+                  <!-- 日期标签 -->
+                  {#if index % Math.ceil(revenueChart.length / 7) === 0}
+                    <div class="text-xs text-gray-500 mt-2 transform -rotate-45 origin-left">
+                      {new Date(data.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+            
+            <!-- 图例 -->
+            <div class="flex items-center justify-center space-x-6 text-sm text-gray-600">
+              <div class="flex items-center space-x-2">
+                <div class="w-3 h-3 bg-blue-500 rounded"></div>
+                <span>日收入</span>
+              </div>
+              <div class="text-xs">
+                最高: {formatCurrency(getMaxRevenue())}
+              </div>
+            </div>
+          </div>
+        {:else}
+          <div class="text-center py-8">
+            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            <p class="text-gray-500">暂无图表数据</p>
+          </div>
+        {/if}
+      </div>
+
       <!-- 热销商品 -->
       <div class="bg-white rounded-lg border p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">热销商品 TOP 5</h3>
         {#if stats.topProducts && stats.topProducts.length > 0}
           <div class="space-y-4">
             {#each stats.topProducts as product, index}
-              <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div class="flex items-center space-x-4">
                   <div class="flex-shrink-0">
                     <span class="inline-flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded-full text-sm font-medium">

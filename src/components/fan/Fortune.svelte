@@ -1,11 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { UserSession } from '$lib/auth';
+
+  export let session: UserSession;
 
   let showNewApplication = false;
+  let showUploadModal = false;
+  let showModifyModal = false;
+  let showPaymentChoiceModal = false;
   let applications = [];
   let loading = false;
   let testingPosition = false;
   let testCount = 0;
+  let currentOrderId = '';
+  let currentApplication = null;
+  let uploadFiles = [];
   const maxTestsPerHour = 15;
 
   // 表单数据
@@ -47,7 +56,7 @@
   async function loadApplications() {
     try {
       loading = true;
-      const response = await fetch('/api/fortune/list');
+      const response = await fetch(`/api/fortune/list?userId=${session.user.id}`);
       if (response.ok) {
         applications = await response.json();
       }
@@ -123,7 +132,7 @@
     }
   }
 
-  async function submitApplication(paymentType) {
+  async function submitApplication() {
     try {
       loading = true;
       
@@ -132,6 +141,7 @@
       formDataToSend.append('kidsEmergency', formData.kidsEmergency.toString());
       formDataToSend.append('currency', formData.currency);
       formDataToSend.append('amount', formData.amount.toString());
+      formDataToSend.append('userId', session.user.id);
       
       imageFiles.forEach((file, index) => {
         formDataToSend.append(`image${index}`, file);
@@ -144,18 +154,10 @@
 
       if (response.ok) {
         const result = await response.json();
-        
-        if (paymentType === 'stripe') {
-          // 跳转到支付页面
-          window.location.href = `/fortune/pay?orderId=${result.orderId}`;
-        } else {
-          // 上传支付凭证
-          showUploadModal(result.orderId);
-        }
-        
-        resetForm();
+        currentOrderId = result.orderId;
         showNewApplication = false;
-        loadApplications();
+        showPaymentChoiceModal = true;
+        resetForm();
       } else {
         const error = await response.json();
         alert(error.message || '提交失败，请重试');
@@ -163,6 +165,135 @@
     } catch (error) {
       console.error('提交申请失败:', error);
       alert('提交失败，请重试');
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleOnlinePayment() {
+    try {
+      const response = await fetch('/api/payment/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          orderId: currentOrderId,
+          amount: formData.amount * 100, // 转换为分
+          currency: formData.currency,
+          description: '算命服务'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        window.location.href = data.url;
+      } else {
+        alert('创建支付会话失败');
+      }
+    } catch (error) {
+      console.error('支付失败:', error);
+      alert('支付失败，请重试');
+    }
+    showPaymentChoiceModal = false;
+  }
+
+  function handleUploadPayment() {
+    showPaymentChoiceModal = false;
+    showUploadModal = true;
+  }
+
+  async function uploadPaymentProof() {
+    if (uploadFiles.length === 0) {
+      alert('请选择支付凭证');
+      return;
+    }
+
+    try {
+      loading = true;
+      const formData = new FormData();
+      formData.append('orderId', currentOrderId);
+      
+      uploadFiles.forEach((file, index) => {
+        formData.append(`screenshot${index}`, file);
+      });
+
+      const response = await fetch('/api/fortune/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        alert('支付凭证已提交，正在排队处理中');
+        showUploadModal = false;
+        uploadFiles = [];
+        loadApplications();
+      } else {
+        alert('上传失败，请重试');
+      }
+    } catch (error) {
+      console.error('上传失败:', error);
+      alert('上传失败，请重试');
+    } finally {
+      loading = false;
+    }
+  }
+
+  function handleUploadFiles(event) {
+    const files = Array.from(event.target.files);
+    if (files.length > 3) {
+      alert('最多只能上传3张截图');
+      return;
+    }
+    uploadFiles = files;
+  }
+
+  function showModifyForm(app) {
+    if (app.remainingModifications <= 0) {
+      alert('修改次数已用完');
+      return;
+    }
+    currentApplication = app;
+    formData = {
+      images: [],
+      message: app.message,
+      kidsEmergency: app.kidsEmergency,
+      currency: app.currency,
+      amount: app.amount
+    };
+    charCount = formData.message.length;
+    showModifyModal = true;
+  }
+
+  async function submitModification() {
+    try {
+      loading = true;
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append('orderId', currentApplication._id);
+      formDataToSend.append('message', formData.message);
+      
+      imageFiles.forEach((file, index) => {
+        formDataToSend.append(`image${index}`, file);
+      });
+
+      const response = await fetch('/api/fortune/modify', {
+        method: 'POST',
+        body: formDataToSend
+      });
+
+      if (response.ok) {
+        alert('修改已提交');
+        showModifyModal = false;
+        resetForm();
+        loadApplications();
+      } else {
+        const error = await response.json();
+        alert(error.message || '修改失败，请重试');
+      }
+    } catch (error) {
+      console.error('修改失败:', error);
+      alert('修改失败，请重试');
     } finally {
       loading = false;
     }
@@ -178,11 +309,15 @@
     };
     imageFiles = [];
     charCount = 0;
+    currentApplication = null;
   }
 
-  function showUploadModal(orderId) {
-    // 这里应该显示上传支付凭证的模态框
-    alert(`订单 ${orderId} 已创建，请上传支付凭证`);
+  function closeModals() {
+    showNewApplication = false;
+    showUploadModal = false;
+    showModifyModal = false;
+    showPaymentChoiceModal = false;
+    resetForm();
   }
 
   function getStatusText(status) {
@@ -241,23 +376,39 @@
         <div class="border rounded-lg p-4 {app.priority ? 'border-red-300 bg-red-50' : 'border-gray-200'}">
           <div class="flex justify-between items-start mb-2">
             <div class="flex items-center space-x-2">
-              <span class="text-sm font-medium text-gray-900">#{app.queueIndex}</span>
-              {#if app.priority}
+              <span class="text-sm font-medium text-gray-900">#{app.queueIndex || '待排队'}</span>
+              {#if app.kidsEmergency}
                 <span class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">紧急</span>
               {/if}
               <span class="px-2 py-1 text-xs rounded-full {getStatusColor(app.status)}">
                 {getStatusText(app.status)}
               </span>
             </div>
-            <span class="text-sm text-gray-500">{new Date(app.createdAt).toLocaleDateString()}</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-sm text-gray-500">{new Date(app.createdAt).toLocaleDateString()}</span>
+              {#if (app.status === 'Pending' || app.status === 'Queued-payed' || app.status === 'Queued-upload') && app.remainingModifications > 0}
+                <button
+                  on:click={() => showModifyForm(app)}
+                  class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  修改
+                </button>
+              {/if}
+            </div>
           </div>
           
           <p class="text-gray-700 mb-2">{app.message.substring(0, 100)}{app.message.length > 100 ? '...' : ''}</p>
           
           <div class="flex justify-between items-center text-sm text-gray-600">
-            <span>金额: {app.convertedAmountCAD} CAD</span>
-            <span>剩余修改次数: {app.remainingModifications}</span>
+            <span>金额: {app.convertedAmountCAD || app.amount} {app.convertedAmountCAD ? 'CAD' : app.currency}</span>
+            <span>剩余修改次数: {app.remainingModifications || 5}</span>
           </div>
+          
+          {#if app.percentile}
+            <div class="mt-2 text-sm text-blue-600">
+              排队位置: 前 {app.percentile}%
+            </div>
+          {/if}
         </div>
       {/each}
     </div>
@@ -370,21 +521,161 @@
         <!-- 提交按钮 -->
         <div class="flex space-x-3">
           <button
-            on:click={() => submitApplication('stripe')}
+            on:click={submitApplication}
             disabled={loading}
             class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            提交申请
+          </button>
+          <button
+            on:click={closeModals}
+            class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- 支付方式选择模态框 -->
+{#if showPaymentChoiceModal}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3 text-center">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">选择支付方式</h3>
+        
+        <div class="space-y-3">
+          <button
+            on:click={handleOnlinePayment}
+            class="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             在线支付
           </button>
           <button
-            on:click={() => submitApplication('upload')}
-            disabled={loading}
-            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+            on:click={handleUploadPayment}
+            class="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             已付款上传凭证
           </button>
           <button
-            on:click={() => showNewApplication = false}
+            on:click={closeModals}
+            class="w-full px-4 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- 上传支付凭证模态框 -->
+{#if showUploadModal}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">上传支付凭证</h3>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">选择支付截图 (最多3张)</label>
+          <input
+            type="file"
+            multiple
+            accept="image/jpeg,image/png"
+            on:change={handleUploadFiles}
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
+        
+        <div class="flex space-x-3">
+          <button
+            on:click={uploadPaymentProof}
+            disabled={loading || uploadFiles.length === 0}
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {loading ? '上传中...' : '提交凭证'}
+          </button>
+          <button
+            on:click={closeModals}
+            class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- 修改申请模态框 -->
+{#if showModifyModal}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">修改申请 (剩余次数: {currentApplication?.remainingModifications || 0})</h3>
+        
+        <!-- 图片上传 -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">重新上传图片 (最多3张)</label>
+          <input
+            type="file"
+            multiple
+            accept="image/jpeg,image/png"
+            on:change={handleImageUpload}
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          
+          {#if imageFiles.length > 0}
+            <div class="mt-2 flex flex-wrap gap-2">
+              {#each imageFiles as file, index}
+                <div class="relative">
+                  <img src={URL.createObjectURL(file)} alt="预览" class="w-20 h-20 object-cover rounded" />
+                  <button
+                    on:click={() => removeImage(index)}
+                    class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                  >
+                    ×
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <!-- 附言输入 -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            修改附言 ({charCount}/{maxChars})
+          </label>
+          <textarea
+            bind:value={formData.message}
+            on:input={updateCharCount}
+            maxlength={maxChars}
+            rows="4"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="请描述您的问题..."
+          ></textarea>
+        </div>
+
+        <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+          <p class="text-sm text-yellow-800">
+            注意：金额和币种不可修改。每个申请最多可修改5次。
+          </p>
+        </div>
+
+        <!-- 提交按钮 -->
+        <div class="flex space-x-3">
+          <button
+            on:click={submitModification}
+            disabled={loading}
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {loading ? '提交中...' : '提交修改'}
+          </button>
+          <button
+            on:click={closeModals}
             class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             取消

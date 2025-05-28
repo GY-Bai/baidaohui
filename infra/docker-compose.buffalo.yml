@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # 算命服务 - 核心业务逻辑
+  fortune-service:
+    image: yourregistry/baidaohui-fortune-service:latest
+    container_name: fortune-service
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5003
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://107.172.87.113:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
+      - R2_SECRET_KEY=${R2_SECRET_KEY}
+      - R2_BUCKET=${R2_BUCKET}
+      - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
+      - EMAIL_SERVICE_URL=http://localhost:5007
+      - PAYMENT_SERVICE_URL=http://107.172.87.113:5006
+    ports:
+      - "5003:5003"
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 192M
+
+  # 邮件服务 - 通知系统
+  email-service:
+    image: yourregistry/baidaohui-email-service:latest
+    container_name: email-service
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5007
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://107.172.87.113:5001
+      - CF_EMAIL_DOMAIN=${CF_EMAIL_DOMAIN}
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - CF_ZONE_ID=${CF_ZONE_ID}
+      - DOMAIN=${DOMAIN}
+    ports:
+      - "5007:5007"
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+        reservations:
+          memory: 96M
+
+  # 电商轮询服务 - 定时同步
+  ecommerce-poller:
+    image: yourregistry/baidaohui-ecommerce-poller:latest
+    container_name: ecommerce-poller
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
+      - R2_SECRET_KEY=${R2_SECRET_KEY}
+      - R2_BUCKET=${R2_BUCKET}
+      - STRIPE_ACCOUNTS=${STRIPE_ACCOUNTS}
+      - EMAIL_SERVICE_URL=http://localhost:5007
+    networks:
+      - baidaohui-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  # 汇率更新服务 - 定时任务
+  exchange-rate-updater:
+    image: yourregistry/baidaohui-exchange-updater:latest
+    container_name: exchange-rate-updater
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://107.172.87.113:6379
+      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
+      - FORTUNE_SERVICE_URL=http://localhost:5003
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+    volumes:
+      - ./logs:/var/log
+    networks:
+      - baidaohui-network
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
+networks:
+  baidaohui-network:
+    driver: bridge 

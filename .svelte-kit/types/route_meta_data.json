@@ -1,0 +1,20 @@
+{
+	"/": [],
+	"/auth/callback": [],
+	"/fan": [
+		"src/routes/fan/+page.ts"
+	],
+	"/firstmate": [
+		"src/routes/firstmate/+page.ts"
+	],
+	"/login": [],
+	"/master": [
+		"src/routes/master/+page.ts"
+	],
+	"/member": [
+		"src/routes/member/+page.ts"
+	],
+	"/seller": [
+		"src/routes/seller/+page.ts"
+	]
+}

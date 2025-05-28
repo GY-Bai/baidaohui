@@ -1,16 +1,25 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { io } from 'socket.io-client';
+  import { createWebSocketManager } from '$lib/websocket';
+  import { apiCall, uploadFile, formatTime } from '$lib/auth';
+  import type { UserSession } from '$lib/auth';
+  import type { ChatMessage, WebSocketManager } from '$lib/websocket';
 
-  let socket;
-  let messages = [];
+  export let session: UserSession;
+
+  let wsManager: WebSocketManager;
+  let messages: ChatMessage[] = [];
   let newMessage = '';
-  let chatContainer;
+  let chatContainer: HTMLElement;
   let loading = true;
   let connected = false;
   let unreadCount = 0;
+  let showImageUpload = false;
+  let showEmojiPicker = false;
+  let imageInput: HTMLInputElement;
 
   const ANCHOR_ID = 'anchor@localhost';
+  const emojis = ['😊', '😂', '❤️', '👍', '👎', '😢', '😮', '😡', '🎉', '🔥'];
 
   onMount(() => {
     initializeChat();
@@ -18,81 +27,112 @@
   });
 
   onDestroy(() => {
-    if (socket) {
-      socket.disconnect();
+    if (wsManager) {
+      wsManager.disconnect();
     }
   });
 
-  function initializeChat() {
-    // 连接WebSocket
-    socket = io('/chat', {
-      auth: {
-        token: localStorage.getItem('access_token') // 从localStorage获取JWT
-      }
-    });
+  async function initializeChat() {
+    try {
+      wsManager = createWebSocketManager(session);
+      
+      wsManager.onConnect(() => {
+        connected = true;
+        loading = false;
+        console.log('聊天连接成功');
+        
+        // 加入私聊房间
+        wsManager.joinRoom(`private_${session.user.id}`, 'private');
+      });
 
-    socket.on('connect', () => {
-      connected = true;
+      wsManager.onDisconnect(() => {
+        connected = false;
+        console.log('聊天连接断开');
+      });
+
+      wsManager.onMessage((message) => {
+        messages = [...messages, message];
+        
+        // 如果是主播发送的消息，增加未读计数
+        if (message.sender === ANCHOR_ID && !isScrolledToBottom()) {
+          unreadCount++;
+        }
+        
+        scrollToBottom();
+      });
+
+      wsManager.onError((error) => {
+        console.error('聊天错误:', error);
+        alert('聊天连接出现问题，请刷新页面重试');
+      });
+
+      await wsManager.connect();
+    } catch (error) {
+      console.error('初始化聊天失败:', error);
       loading = false;
-      console.log('聊天连接成功');
-    });
-
-    socket.on('disconnect', () => {
-      connected = false;
-      console.log('聊天连接断开');
-    });
-
-    socket.on('message', (message) => {
-      messages = [...messages, message];
-      
-      // 如果是主播发送的消息，增加未读计数
-      if (message.sender === ANCHOR_ID) {
-        unreadCount++;
-      }
-      
-      scrollToBottom();
-    });
-
-    socket.on('error', (error) => {
-      console.error('聊天错误:', error);
-      alert('聊天连接出现问题，请刷新页面重试');
-    });
+    }
   }
 
   async function loadChatHistory() {
     try {
-      const response = await fetch('/api/messages/history?chatId=private&limit=50');
-      if (response.ok) {
-        const history = await response.json();
-        messages = history.reverse(); // 最新消息在底部
-        scrollToBottom();
-      }
+      const history = await apiCall(`/messages/history?chatId=private_${session.user.id}&limit=50`);
+      messages = history.reverse(); // 最新消息在底部
+      scrollToBottom();
     } catch (error) {
       console.error('加载聊天记录失败:', error);
     }
   }
 
-  function sendMessage() {
-    if (!newMessage.trim() || !connected) return;
+  function sendMessage(content = newMessage, type: 'text' | 'image' = 'text') {
+    if (!content.trim() || !connected) return;
 
     const message = {
-      content: newMessage.trim(),
-      type: 'text',
-      timestamp: new Date().toISOString(),
-      chatId: 'private'
+      content: content.trim(),
+      type: type,
+      chatId: `private_${session.user.id}`,
+      sender: session.user.id,
+      senderName: session.user.nickname || session.user.email
     };
 
-    socket.emit('message', message);
+    wsManager.sendMessage(message);
     
-    // 立即在UI中显示消息
-    messages = [...messages, {
-      ...message,
-      sender: 'me',
-      id: Date.now()
-    }];
-    
-    newMessage = '';
+    if (type === 'text') {
+      newMessage = '';
+    }
     scrollToBottom();
+  }
+
+  function sendEmoji(emoji: string) {
+    sendMessage(emoji, 'text');
+    showEmojiPicker = false;
+  }
+
+  async function handleImageUpload(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过5MB');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      alert('只能上传图片文件');
+      return;
+    }
+
+    try {
+      const imageUrl = await uploadFile(file, '/chat/upload-image');
+      sendMessage(imageUrl, 'image');
+    } catch (error) {
+      console.error('图片上传失败:', error);
+      alert('图片上传失败');
+    }
+
+    // 清空文件输入
+    target.value = '';
+    showImageUpload = false;
   }
 
   function scrollToBottom() {
@@ -103,44 +143,56 @@
     }, 100);
   }
 
-  function handleKeyPress(event) {
+  function isScrolledToBottom(): boolean {
+    if (!chatContainer) return true;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+    return scrollTop + clientHeight >= scrollHeight - 10;
+  }
+
+  function handleKeyPress(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       sendMessage();
     }
   }
 
-  function markAsRead() {
+  async function markAsRead() {
     if (unreadCount > 0) {
       unreadCount = 0;
-      // 调用API标记消息为已读
-      fetch('/api/chat/mark-read', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ chatId: 'private' })
-      }).catch(console.error);
+      try {
+        await apiCall('/chat/mark-read', {
+          method: 'POST',
+          body: JSON.stringify({ 
+            chatId: `private_${session.user.id}`,
+            userId: session.user.id
+          })
+        });
+      } catch (error) {
+        console.error('标记已读失败:', error);
+      }
     }
-  }
-
-  function formatTime(timestamp) {
-    return new Date(timestamp).toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   }
 
   // 当用户滚动到底部时标记为已读
   function handleScroll() {
-    if (chatContainer) {
-      const { scrollTop, scrollHeight, clientHeight } = chatContainer;
-      if (scrollTop + clientHeight >= scrollHeight - 10) {
-        markAsRead();
-      }
+    if (isScrolledToBottom()) {
+      markAsRead();
+    }
+  }
+
+  // 点击外部关闭弹窗
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as Element;
+    if (!target.closest('.emoji-picker')) {
+      showEmojiPicker = false;
+    }
+    if (!target.closest('.image-upload')) {
+      showImageUpload = false;
     }
   }
 </script>
+
+<svelte:window on:click={handleClickOutside} />
 
 <div class="bg-white rounded-lg shadow h-96 flex flex-col">
   <div class="flex items-center justify-between p-4 border-b">
@@ -187,9 +239,9 @@
       </div>
     {:else}
       {#each messages as message}
-        <div class="flex {message.sender === 'me' ? 'justify-end' : 'justify-start'}">
+        <div class="flex {message.sender === session.user.id ? 'justify-end' : 'justify-start'}">
           <div class="max-w-xs lg:max-w-md">
-            {#if message.sender !== 'me'}
+            {#if message.sender !== session.user.id}
               <div class="flex items-center space-x-2 mb-1">
                 <span class="text-xs text-gray-500">主播</span>
                 <span class="text-xs text-gray-400">{formatTime(message.timestamp)}</span>
@@ -197,18 +249,23 @@
             {/if}
             
             <div class="px-4 py-2 rounded-lg {
-              message.sender === 'me' 
+              message.sender === session.user.id
                 ? 'bg-blue-500 text-white' 
                 : 'bg-gray-100 text-gray-900'
             }">
               {#if message.type === 'text'}
                 <p class="text-sm whitespace-pre-wrap">{message.content}</p>
               {:else if message.type === 'image'}
-                <img src={message.content} alt="图片消息" class="max-w-full rounded" />
+                <img 
+                  src={message.content} 
+                  alt="图片消息" 
+                  class="max-w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
+                  on:click={() => window.open(message.content, '_blank')}
+                />
               {/if}
             </div>
             
-            {#if message.sender === 'me'}
+            {#if message.sender === session.user.id}
               <div class="text-right mt-1">
                 <span class="text-xs text-gray-400">{formatTime(message.timestamp)}</span>
               </div>
@@ -235,7 +292,7 @@
           disabled={!connected}
         />
         <button
-          on:click={sendMessage}
+          on:click={() => sendMessage()}
           disabled={!newMessage.trim() || !connected}
           class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
@@ -245,13 +302,57 @@
       
       <div class="flex items-center justify-between mt-2">
         <p class="text-xs text-gray-500">按 Enter 发送，Shift + Enter 换行</p>
-        <div class="flex space-x-2">
-          <button class="text-gray-400 hover:text-gray-600 text-sm">
-            📷 图片
-          </button>
-          <button class="text-gray-400 hover:text-gray-600 text-sm">
-            😊 表情
-          </button>
+        <div class="flex space-x-2 relative">
+          <!-- 图片上传 -->
+          <div class="relative image-upload">
+            <button 
+              on:click={() => showImageUpload = !showImageUpload}
+              class="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+            >
+              📷 图片
+            </button>
+            {#if showImageUpload}
+              <div class="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-2">
+                <input
+                  bind:this={imageInput}
+                  type="file"
+                  accept="image/*"
+                  on:change={handleImageUpload}
+                  class="hidden"
+                />
+                <button
+                  on:click={() => imageInput.click()}
+                  class="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
+                >
+                  选择图片
+                </button>
+              </div>
+            {/if}
+          </div>
+          
+          <!-- 表情选择器 -->
+          <div class="relative emoji-picker">
+            <button 
+              on:click={() => showEmojiPicker = !showEmojiPicker}
+              class="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+            >
+              😊 表情
+            </button>
+            {#if showEmojiPicker}
+              <div class="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-3">
+                <div class="grid grid-cols-5 gap-2">
+                  {#each emojis as emoji}
+                    <button
+                      on:click={() => sendEmoji(emoji)}
+                      class="text-lg hover:bg-gray-100 rounded p-1 transition-colors"
+                    >
+                      {emoji}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
     {/if}

@@ -48,13 +48,31 @@ const ecommerceSchema = new mongoose.Schema({
     type: String,
     required: true
   }],
-  price: priceSchema,
+  price: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  currency: {
+    type: String,
+    required: true,
+    enum: ['CNY', 'USD', 'CAD', 'SGD', 'AUD'],
+    default: 'CAD'
+  },
+  paymentLinkUrl: {
+    type: String,
+    required: true
+  },
   storeId: {
     type: String,
     required: true,
     index: true
   },
-  storeName: {
+  stripeProductId: {
+    type: String,
+    required: true
+  },
+  stripePriceId: {
     type: String,
     required: true
   },
@@ -67,14 +85,6 @@ const ecommerceSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  inventory: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  stripeProductId: String,
-  stripePriceId: String,
-  paymentLink: String,
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

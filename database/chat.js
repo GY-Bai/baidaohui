@@ -37,13 +37,27 @@ const chatSchema = new mongoose.Schema({
     default: Date.now,
     required: true
   },
+  readAt: {
+    type: Date,
+    default: null
+  },
+  attachments: [{
+    type: {
+      type: String,
+      enum: ['image', 'file', 'video'],
+      required: true
+    },
+    url: {
+      type: String,
+      required: true
+    },
+    filename: String,
+    size: Number,
+    mimeType: String
+  }],
   isRead: {
     type: Boolean,
     default: false
-  },
-  imageUrl: {
-    type: String,
-    required: false
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,
