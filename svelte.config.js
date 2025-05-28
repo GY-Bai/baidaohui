@@ -8,10 +8,6 @@ const config = {
 			routes: {
 				include: ['/*'],
 				exclude: ['/api/*', '/_app/*', '/favicon.png', '/robots.txt', '/sitemap.xml']
-			},
-			// 禁用默认的重定向规则，避免无限循环
-			platformProxy: {
-				persist: false
 			}
 		})
 	}

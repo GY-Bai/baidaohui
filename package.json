@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "build": "vite build",
-    "build:pages": "rm -rf node_modules package-lock.json && npm install && vite build",
+    "build": "vite build && node fix-redirects.cjs",
+    "build:pages": "rm -rf node_modules package-lock.json && npm install && vite build && node fix-redirects.cjs",
     "dev": "vite dev",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
