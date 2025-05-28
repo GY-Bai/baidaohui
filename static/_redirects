@@ -1,14 +1,4 @@
 # Cloudflare Pages 重定向规则
 
-# 主域名重定向到 www
-https://baidaohui.com/* https://www.baidaohui.com/:splat 301
-
-# 子域名重定向到对应路径（可选 - 如果您希望保持子域名独立，可以删除这些规则）
-https://fan.baidaohui.com/* https://www.baidaohui.com/fan/:splat 302
-https://member.baidaohui.com/* https://www.baidaohui.com/member/:splat 302
-https://master.baidaohui.com/* https://www.baidaohui.com/master/:splat 302
-https://firstmate.baidaohui.com/* https://www.baidaohui.com/firstmate/:splat 302
-https://seller.baidaohui.com/* https://www.baidaohui.com/seller/:splat 302
-
-# SPA 路由支持 - 所有未匹配的路径都返回 index.html
-/* /index.html 200 
+# SPA 路由支持
+/*  /index.html  200 
