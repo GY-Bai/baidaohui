@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   
 
-  export let session;
+  export const session = undefined;
 
   let showNewApplication = false;
   let showUploadModal = false;
@@ -424,8 +424,9 @@
         
         <!-- 图片上传 -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">上传图片 (最多3张)</label>
+          <label for="image-upload" class="block text-sm font-medium text-gray-700 mb-2">上传图片 (最多3张)</label>
           <input
+            id="image-upload"
             type="file"
             multiple
             accept="image/jpeg,image/png"
@@ -452,10 +453,11 @@
 
         <!-- 附言输入 -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="message-input" class="block text-sm font-medium text-gray-700 mb-2">
             附言 ({charCount}/{maxChars})
           </label>
           <textarea
+            id="message-input"
             bind:value={formData.message}
             on:input={updateCharCount}
             maxlength={maxChars}
@@ -480,8 +482,9 @@
         <!-- 币种和金额 -->
         <div class="mb-4 flex space-x-4">
           <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-2">币种</label>
+            <label for="currency-select" class="block text-sm font-medium text-gray-700 mb-2">币种</label>
             <select
+              id="currency-select"
               bind:value={formData.currency}
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
@@ -492,9 +495,10 @@
           </div>
           
           <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-2">金额</label>
+            <label for="amount-input" class="block text-sm font-medium text-gray-700 mb-2">金额</label>
             <div class="flex">
               <input
+                id="amount-input"
                 type="number"
                 bind:value={formData.amount}
                 min="0"
@@ -524,12 +528,14 @@
             on:click={submitApplication}
             disabled={loading}
             class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            aria-label="提交算命申请"
           >
             提交申请
           </button>
           <button
             on:click={closeModals}
             class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            aria-label="取消申请"
           >
             取消
           </button>
@@ -550,18 +556,21 @@
           <button
             on:click={handleOnlinePayment}
             class="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="选择在线支付方式"
           >
             在线支付
           </button>
           <button
             on:click={handleUploadPayment}
             class="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            aria-label="上传支付凭证"
           >
             已付款上传凭证
           </button>
           <button
             on:click={closeModals}
             class="w-full px-4 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            aria-label="取消支付"
           >
             取消
           </button>
@@ -579,8 +588,9 @@
         <h3 class="text-lg font-medium text-gray-900 mb-4">上传支付凭证</h3>
         
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">选择支付截图 (最多3张)</label>
+          <label for="payment-upload" class="block text-sm font-medium text-gray-700 mb-2">选择支付截图 (最多3张)</label>
           <input
+            id="payment-upload"
             type="file"
             multiple
             accept="image/jpeg,image/png"
@@ -618,8 +628,9 @@
         
         <!-- 图片上传 -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">重新上传图片 (最多3张)</label>
+          <label for="modify-image-upload" class="block text-sm font-medium text-gray-700 mb-2">重新上传图片 (最多3张)</label>
           <input
+            id="modify-image-upload"
             type="file"
             multiple
             accept="image/jpeg,image/png"
@@ -646,10 +657,11 @@
 
         <!-- 附言输入 -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="modify-message-input" class="block text-sm font-medium text-gray-700 mb-2">
             修改附言 ({charCount}/{maxChars})
           </label>
           <textarea
+            id="modify-message-input"
             bind:value={formData.message}
             on:input={updateCharCount}
             maxlength={maxChars}

@@ -3,7 +3,7 @@
   import { apiCall } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
 
 
   let orders = [];
@@ -178,8 +178,9 @@
     <div class="bg-gray-50 rounded-lg p-4 mb-6">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">搜索</label>
+          <label for="order-search" class="block text-sm font-medium text-gray-700 mb-2">搜索</label>
           <input
+            id="order-search"
             type="text"
             bind:value={filters.search}
             placeholder="订单号、商品名称、买家邮箱"
@@ -187,8 +188,9 @@
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">订单状态</label>
+          <label for="order-status" class="block text-sm font-medium text-gray-700 mb-2">订单状态</label>
           <select
+            id="order-status"
             bind:value={filters.status}
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -198,16 +200,18 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">开始日期</label>
+          <label for="date-from" class="block text-sm font-medium text-gray-700 mb-2">开始日期</label>
           <input
+            id="date-from"
             type="date"
             bind:value={filters.dateFrom}
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">结束日期</label>
+          <label for="date-to" class="block text-sm font-medium text-gray-700 mb-2">结束日期</label>
           <input
+            id="date-to"
             type="date"
             bind:value={filters.dateTo}
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -378,19 +382,19 @@
         <!-- 基本信息 -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">订单号</label>
+            <span class="block text-sm font-medium text-gray-700">订单号</span>
             <p class="text-sm text-gray-900">#{selectedOrder.orderId}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700">下单时间</label>
+            <span class="block text-sm font-medium text-gray-700">下单时间</span>
             <p class="text-sm text-gray-900">{formatDate(selectedOrder.createdAt)}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700">支付方式</label>
+            <span class="block text-sm font-medium text-gray-700">支付方式</span>
             <p class="text-sm text-gray-900">{selectedOrder.paymentMethod}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700">当前状态</label>
+            <span class="block text-sm font-medium text-gray-700">当前状态</span>
             <span class="px-2 py-1 text-xs rounded-full {getStatusColor(selectedOrder.status)}">
               {getStatusText(selectedOrder.status)}
             </span>

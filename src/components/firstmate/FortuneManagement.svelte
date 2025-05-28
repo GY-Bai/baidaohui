@@ -160,8 +160,9 @@
     <!-- 筛选器 -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">状态筛选</label>
+        <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-2">状态筛选</label>
         <select
+          id="status-filter"
           bind:value={filters.status}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
         >
@@ -171,8 +172,9 @@
         </select>
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">搜索</label>
+        <label for="search-input" class="block text-sm font-medium text-gray-700 mb-2">搜索</label>
         <input
+          id="search-input"
           type="text"
           bind:value={filters.searchTerm}
           placeholder="搜索订单ID、用户邮箱或备注..."
@@ -254,7 +256,12 @@
 {#if showDetailSidebar && selectedOrder}
   <div class="fixed inset-0 overflow-hidden z-50">
     <div class="absolute inset-0 overflow-hidden">
-      <div class="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity" on:click={closeDetailSidebar}></div>
+      <div class="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+           role="button"
+           tabindex="0"
+           on:click={closeDetailSidebar}
+           on:keydown={(e) => e.key === 'Escape' && closeDetailSidebar()}
+           aria-label="关闭订单详情"></div>
       
       <section class="absolute inset-y-0 right-0 pl-10 max-w-full flex">
         <div class="w-screen max-w-md">

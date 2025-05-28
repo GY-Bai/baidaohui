@@ -1,7 +1,7 @@
 <script>
   
   
-  export let session;
+  export const session = undefined;
 </script>
 
 <div class="bg-white rounded-lg shadow p-6">

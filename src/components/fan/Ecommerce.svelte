@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   
-  export let session;
+  export const session = undefined;
   
   let products = [];
   let relatedProducts = [];
@@ -246,14 +246,17 @@
 {#if showProductModal && selectedProduct}
   <div 
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    role="button"
+    tabindex="0"
     on:click={closeProductDetail}
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="product-modal-title"
+    on:keydown={(e) => e.key === 'Escape' && closeProductDetail()}
+    aria-label="关闭商品详情"
   >
     <div 
       class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-modal-title"
     >
       <!-- 模态框头部 -->
       <div class="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
@@ -368,9 +371,10 @@
             <h3 class="text-lg font-semibold text-gray-800 mb-4">相关推荐</h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               {#each relatedProducts as product}
-                <div 
-                  class="bg-gray-50 rounded-lg overflow-hidden hover:bg-gray-100 transition-colors cursor-pointer"
+                <button
+                  class="bg-gray-50 rounded-lg overflow-hidden hover:bg-gray-100 transition-colors text-left w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                   on:click={() => openProductDetail(product)}
+                  aria-label="查看 {product.name} 详情"
                 >
                   <div class="aspect-square">
                     {#if product.images && product.images.length > 0}
@@ -394,7 +398,7 @@
                       {formatPrice(product.default_price.unit_amount, product.default_price.currency)}
                     </span>
                   </div>
-                </div>
+                </button>
               {/each}
             </div>
           </div>

@@ -193,6 +193,8 @@
                   ? 'text-orange-600 border-orange-600' 
                   : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
               }"
+              aria-label="切换到{tab.name}标签"
+              aria-current={activeTab === tab.id ? 'page' : undefined}
             >
               <span class="mr-2">{tab.icon}</span>
               {tab.name}

@@ -4,7 +4,7 @@
   
   import QRCode from 'qrcode';
 
-  export let session;
+  export const session = undefined;
 
   let memberForm = {
     validHours: 24,
@@ -216,10 +216,11 @@
         
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="member-valid-hours" class="block text-sm font-medium text-gray-700 mb-1">
               有效期（小时）
             </label>
             <input
+              id="member-valid-hours"
               type="number"
               bind:value={memberForm.validHours}
               min="1"
@@ -231,10 +232,11 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="member-max-uses" class="block text-sm font-medium text-gray-700 mb-1">
               可使用次数
             </label>
             <input
+              id="member-max-uses"
               type="number"
               bind:value={memberForm.maxUses}
               min="1"
@@ -267,10 +269,11 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="seller-max-uses" class="block text-sm font-medium text-gray-700 mb-1">
               可使用人数
             </label>
             <input
+              id="seller-max-uses"
               type="number"
               value={sellerForm.maxUses}
               disabled

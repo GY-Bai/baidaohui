@@ -3,7 +3,7 @@
   import { apiCall, formatDate, formatTime, formatCurrency } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
 
   let orders = [];
   let loading = true;
@@ -286,9 +286,10 @@
       </div>
       
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">最低金额</label>
+        <label for="min-amount" class="block text-sm font-medium text-gray-700 mb-1">最低金额</label>
         <div class="flex space-x-2">
           <input
+            id="min-amount"
             type="number"
             bind:value={minAmount}
             min="0"
@@ -324,8 +325,9 @@
     
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">状态</label>
+        <label for="filter-status" class="block text-sm font-medium text-gray-700 mb-1">状态</label>
         <select
+          id="filter-status"
           bind:value={filters.status}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
@@ -339,8 +341,9 @@
       </div>
       
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">紧急订单</label>
+        <label for="filter-emergency" class="block text-sm font-medium text-gray-700 mb-1">紧急订单</label>
         <select
+          id="filter-emergency"
           bind:value={filters.emergency}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
@@ -351,8 +354,9 @@
       </div>
       
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
+        <label for="filter-date-from" class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
         <input
+          id="filter-date-from"
           type="date"
           bind:value={filters.dateFrom}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -360,8 +364,9 @@
       </div>
       
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
+        <label for="filter-date-to" class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
         <input
+          id="filter-date-to"
           type="date"
           bind:value={filters.dateTo}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -371,8 +376,9 @@
     
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">最低金额 (CAD)</label>
+        <label for="filter-min-amount" class="block text-sm font-medium text-gray-700 mb-1">最低金额 (CAD)</label>
         <input
+          id="filter-min-amount"
           type="number"
           bind:value={filters.minAmount}
           placeholder="最低金额"
@@ -381,8 +387,9 @@
       </div>
       
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">最高金额 (CAD)</label>
+        <label for="filter-max-amount" class="block text-sm font-medium text-gray-700 mb-1">最高金额 (CAD)</label>
         <input
+          id="filter-max-amount"
           type="number"
           bind:value={filters.maxAmount}
           placeholder="最高金额"
@@ -391,8 +398,9 @@
       </div>
       
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">搜索用户</label>
+        <label for="filter-search" class="block text-sm font-medium text-gray-700 mb-1">搜索用户</label>
         <input
+          id="filter-search"
           type="text"
           bind:value={filters.search}
           placeholder="用户昵称或ID"
@@ -447,28 +455,34 @@
           <thead class="bg-gray-50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <button on:click={() => changeSort('queueIndex')} class="flex items-center space-x-1 hover:text-gray-700">
+                <button on:click={() => changeSort('queueIndex')} 
+                        class="flex items-center space-x-1 hover:text-gray-700"
+                        aria-label="按排队序号排序">
                   <span>排队序号</span>
                   {#if sortBy === 'queueIndex'}
-                    <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                    <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                   {/if}
                 </button>
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">用户信息</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <button on:click={() => changeSort('amount')} class="flex items-center space-x-1 hover:text-gray-700">
+                <button on:click={() => changeSort('amount')} 
+                        class="flex items-center space-x-1 hover:text-gray-700"
+                        aria-label="按金额排序">
                   <span>金额</span>
                   {#if sortBy === 'amount'}
-                    <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                    <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                   {/if}
                 </button>
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <button on:click={() => changeSort('createdAt')} class="flex items-center space-x-1 hover:text-gray-700">
+                <button on:click={() => changeSort('createdAt')} 
+                        class="flex items-center space-x-1 hover:text-gray-700"
+                        aria-label="按提交时间排序">
                   <span>提交时间</span>
                   {#if sortBy === 'createdAt'}
-                    <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                    <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                   {/if}
                 </button>
               </th>
@@ -599,15 +613,15 @@
         <div class="bg-gray-50 rounded-lg p-4 mb-6">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-sm font-medium text-gray-500">订单号</label>
+              <span class="text-sm font-medium text-gray-500">订单号</span>
               <p class="text-sm text-gray-900">#{selectedOrder.queueIndex}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500">用户</label>
+              <span class="text-sm font-medium text-gray-500">用户</span>
               <p class="text-sm text-gray-900">{selectedOrder.userNickname}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500">金额</label>
+              <span class="text-sm font-medium text-gray-500">金额</span>
               <p class="text-sm text-gray-900">
                 {formatCurrency(selectedOrder.convertedAmountCAD, 'CAD')}
                 <span class="text-gray-500">
@@ -616,17 +630,17 @@
               </p>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500">状态</label>
+              <span class="text-sm font-medium text-gray-500">状态</span>
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getStatusColor(selectedOrder.status)}">
                 {getStatusText(selectedOrder.status)}
               </span>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500">提交时间</label>
+              <span class="text-sm font-medium text-gray-500">提交时间</span>
               <p class="text-sm text-gray-900">{formatDate(selectedOrder.createdAt)} {formatTime(selectedOrder.createdAt)}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500">剩余修改次数</label>
+              <span class="text-sm font-medium text-gray-500">剩余修改次数</span>
               <p class="text-sm text-gray-900">{selectedOrder.remainingModifications}</p>
             </div>
           </div>
@@ -646,12 +660,17 @@
             <h3 class="text-lg font-medium text-gray-900 mb-3">上传图片</h3>
             <div class="grid grid-cols-3 gap-3">
               {#each selectedOrder.images as image}
-                <img
-                  src={image}
-                  alt="用户上传图片"
-                  class="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-90"
+                <button
                   on:click={() => window.open(image, '_blank')}
-                />
+                  class="block w-full h-24 rounded-lg overflow-hidden hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="在新窗口中查看用户上传图片"
+                >
+                  <img
+                    src={image}
+                    alt="用户上传图片"
+                    class="w-full h-full object-cover"
+                  />
+                </button>
               {/each}
             </div>
           </div>
@@ -663,12 +682,17 @@
             <h3 class="text-lg font-medium text-gray-900 mb-3">付款凭证</h3>
             <div class="grid grid-cols-3 gap-3">
               {#each selectedOrder.paymentScreenshots as screenshot}
-                <img
-                  src={screenshot}
-                  alt="付款凭证"
-                  class="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-90"
+                <button
                   on:click={() => window.open(screenshot, '_blank')}
-                />
+                  class="block w-full h-24 rounded-lg overflow-hidden hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="在新窗口中查看付款凭证"
+                >
+                  <img
+                    src={screenshot}
+                    alt="付款凭证"
+                    class="w-full h-full object-cover"
+                  />
+                </button>
               {/each}
             </div>
           </div>
@@ -710,12 +734,17 @@
               {#if selectedOrder.reply.images.length > 0}
                 <div class="grid grid-cols-3 gap-2 mt-3">
                   {#each selectedOrder.reply.images as image}
-                    <img
-                      src={image}
-                      alt="回复图片"
-                      class="w-full h-16 object-cover rounded cursor-pointer"
+                    <button
                       on:click={() => window.open(image, '_blank')}
-                    />
+                      class="block w-full h-16 rounded overflow-hidden hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      aria-label="在新窗口中查看回复图片"
+                    >
+                      <img
+                        src={image}
+                        alt="回复图片"
+                        class="w-full h-full object-cover"
+                      />
+                    </button>
                   {/each}
                 </div>
               {/if}
@@ -724,6 +753,7 @@
             <!-- 回复编辑器 -->
             <div class="space-y-4">
               <textarea
+                id="reply-content"
                 bind:value={replyContent}
                 placeholder="输入回复内容..."
                 rows="6"
@@ -732,8 +762,9 @@
               
               <!-- 图片上传 -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">上传图片</label>
+                <label for="reply-image-upload" class="block text-sm font-medium text-gray-700 mb-2">上传图片</label>
                 <input
+                  id="reply-image-upload"
                   type="file"
                   multiple
                   accept="image/*"

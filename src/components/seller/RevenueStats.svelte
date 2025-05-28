@@ -3,7 +3,7 @@
   import { apiCall } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
 
 
 

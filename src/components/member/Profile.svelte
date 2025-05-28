@@ -3,7 +3,7 @@
   import { signOut, getSession } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
   
 
   let user = null;

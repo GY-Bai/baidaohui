@@ -5,7 +5,7 @@
 
   const dispatch = createEventDispatcher();
 
-  export let session;
+  export const session = undefined;
 
 
   let products = [];
@@ -307,6 +307,8 @@
               ? 'border-green-500 text-green-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }"
+          aria-label="切换到商品管理标签"
+          aria-current={activeTab === 'products' ? 'page' : undefined}
         >
           商品管理
         </button>
@@ -317,6 +319,8 @@
               ? 'border-green-500 text-green-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }"
+          aria-label="切换到教程视频标签"
+          aria-current={activeTab === 'tutorials' ? 'page' : undefined}
         >
           教程视频
         </button>
@@ -379,11 +383,11 @@
               <div class="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                 <div class="aspect-w-16 aspect-h-9">
                   {#if product.images.length > 0}
-                    <img src={product.images[0]} alt={product.name} class="w-full h-48 object-cover" />
+                    <img src={product.images[0]} alt="商品 {product.name} 的主图" class="w-full h-48 object-cover" />
                   {:else}
                     <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
-                      <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                      <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z"></path>
                       </svg>
                     </div>
                   {/if}
@@ -453,10 +457,12 @@
 
         <!-- 视频质量选择 -->
         <div class="flex items-center space-x-4">
-          <label class="text-sm font-medium text-gray-700">视频质量:</label>
+          <label for="video-quality" class="text-sm font-medium text-gray-700">视频质量:</label>
           <select
+            id="video-quality"
             bind:value={videoQuality}
             class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            aria-label="选择视频播放质量"
           >
             {#each videoQualities as quality}
               <option value={quality.value}>{quality.label}</option>
@@ -471,14 +477,15 @@
               <div class="relative">
                 <img 
                   src={`https://img.youtube.com/vi/${video.id}/maxresdefault.jpg`} 
-                  alt={video.title}
+                  alt="教程视频：{video.title} 的封面图"
                   class="w-full h-48 object-cover"
                 />
                 <button
                   on:click={() => playVideo(video.id)}
                   class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 hover:bg-opacity-50 transition-all"
+                  aria-label="播放教程视频：{video.title}"
                 >
-                  <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 5v14l11-7z"/>
                   </svg>
                 </button>
@@ -520,8 +527,9 @@
       <div class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">商品名称 *</label>
+            <label for="product-name" class="block text-sm font-medium text-gray-700 mb-1">商品名称 *</label>
             <input
+              id="product-name"
               type="text"
               bind:value={productForm.name}
               placeholder="输入商品名称"
@@ -529,8 +537,9 @@
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+            <label for="product-category" class="block text-sm font-medium text-gray-700 mb-1">分类</label>
             <select
+              id="product-category"
               bind:value={productForm.category}
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
             >
@@ -543,8 +552,9 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">商品描述</label>
+          <label for="product-description" class="block text-sm font-medium text-gray-700 mb-1">商品描述</label>
           <textarea
+            id="product-description"
             bind:value={productForm.description}
             placeholder="输入商品描述"
             rows="3"
@@ -554,8 +564,9 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">现价 * (元)</label>
+            <label for="product-price" class="block text-sm font-medium text-gray-700 mb-1">现价 * (元)</label>
             <input
+              id="product-price"
               type="number"
               bind:value={productForm.price}
               placeholder="0.00"
@@ -565,8 +576,9 @@
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">原价 (元)</label>
+            <label for="product-original-price" class="block text-sm font-medium text-gray-700 mb-1">原价 (元)</label>
             <input
+              id="product-original-price"
               type="number"
               bind:value={productForm.originalPrice}
               placeholder="0.00"
@@ -576,8 +588,9 @@
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">库存 *</label>
+            <label for="product-stock" class="block text-sm font-medium text-gray-700 mb-1">库存 *</label>
             <input
+              id="product-stock"
               type="number"
               bind:value={productForm.stock}
               placeholder="0"
@@ -588,8 +601,9 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">商品图片</label>
+          <label for="product-images" class="block text-sm font-medium text-gray-700 mb-1">商品图片</label>
           <input
+            id="product-images"
             type="file"
             multiple
             accept="image/*"
@@ -600,7 +614,7 @@
             <div class="grid grid-cols-4 gap-2 mt-2">
               {#each productForm.images as image, index}
                 <div class="relative">
-                  <img src={image} alt="商品图片" class="w-full h-20 object-cover rounded" />
+                  <img src={image} alt="商品图片预览 {index + 1}" class="w-full h-20 object-cover rounded" />
                   <button
                     on:click={() => removeImage(index)}
                     class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600"
@@ -615,11 +629,12 @@
 
         <div class="flex items-center">
           <input
+            id="product-active"
             type="checkbox"
             bind:checked={productForm.isActive}
             class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
           />
-          <label class="ml-2 text-sm text-gray-700">立即上架</label>
+          <label for="product-active" class="ml-2 text-sm text-gray-700">立即上架</label>
         </div>
 
         <div class="flex space-x-3 pt-4">
@@ -676,11 +691,12 @@
         <div class="{isFullscreen ? 'h-full' : 'aspect-w-16 aspect-h-9'}">
           <iframe
             src={getYouTubeEmbedUrl(currentVideoId)}
-            title="YouTube video player"
+            title="教程视频播放器"
             frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen
             class="w-full {isFullscreen ? 'h-full' : 'h-96'}"
+            aria-label="YouTube教程视频"
           ></iframe>
         </div>
       </div>

@@ -50,6 +50,7 @@ declare module '$env/static/private' {
 	export const TMPDIR: string;
 	export const npm_config_global_prefix: string;
 	export const CONDA_SHLVL: string;
+	export const npm_config_target_platform: string;
 	export const CONDA_PROMPT_MODIFIER: string;
 	export const TERM_PROGRAM_VERSION: string;
 	export const ZDOTDIR: string;
@@ -59,6 +60,7 @@ declare module '$env/static/private' {
 	export const COLOR: string;
 	export const npm_config_noproxy: string;
 	export const npm_config_local_prefix: string;
+	export const npm_config_target_arch: string;
 	export const NVM_DIR: string;
 	export const USER: string;
 	export const COMMAND_MODE: string;
@@ -88,12 +90,14 @@ declare module '$env/static/private' {
 	export const DISABLE_AUTO_UPDATE: string;
 	export const npm_lifecycle_event: string;
 	export const EDITOR: string;
+	export const npm_config_target_libc: string;
 	export const npm_package_name: string;
 	export const LANG: string;
 	export const BUNDLED_DEBUGPY_PATH: string;
 	export const npm_config_npm_version: string;
 	export const VSCODE_GIT_ASKPASS_EXTRA_ARGS: string;
 	export const XPC_FLAGS: string;
+	export const npm_package_engines_node: string;
 	export const npm_config_node_gyp: string;
 	export const npm_package_version: string;
 	export const _CE_M: string;
@@ -173,6 +177,7 @@ declare module '$env/dynamic/private' {
 		TMPDIR: string;
 		npm_config_global_prefix: string;
 		CONDA_SHLVL: string;
+		npm_config_target_platform: string;
 		CONDA_PROMPT_MODIFIER: string;
 		TERM_PROGRAM_VERSION: string;
 		ZDOTDIR: string;
@@ -182,6 +187,7 @@ declare module '$env/dynamic/private' {
 		COLOR: string;
 		npm_config_noproxy: string;
 		npm_config_local_prefix: string;
+		npm_config_target_arch: string;
 		NVM_DIR: string;
 		USER: string;
 		COMMAND_MODE: string;
@@ -211,12 +217,14 @@ declare module '$env/dynamic/private' {
 		DISABLE_AUTO_UPDATE: string;
 		npm_lifecycle_event: string;
 		EDITOR: string;
+		npm_config_target_libc: string;
 		npm_package_name: string;
 		LANG: string;
 		BUNDLED_DEBUGPY_PATH: string;
 		npm_config_npm_version: string;
 		VSCODE_GIT_ASKPASS_EXTRA_ARGS: string;
 		XPC_FLAGS: string;
+		npm_package_engines_node: string;
 		npm_config_node_gyp: string;
 		npm_package_version: string;
 		_CE_M: string;

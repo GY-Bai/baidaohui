@@ -3,7 +3,7 @@
   import { signOut } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
 
   let loading = false;
   let editingNickname = false;
@@ -291,19 +291,21 @@
       <h4 class="font-medium text-gray-900">设置</h4>
       
       <div class="space-y-2">
-        <button class="w-full text-left px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+        <button class="w-full text-left px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="打开通知设置">
           <div class="flex items-center justify-between">
             <span class="text-gray-700">通知设置</span>
-            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
         </button>
         
-        <button class="w-full text-left px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+        <button class="w-full text-left px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="打开隐私设置">
           <div class="flex items-center justify-between">
             <span class="text-gray-700">隐私设置</span>
-            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>

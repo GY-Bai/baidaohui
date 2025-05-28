@@ -48,6 +48,8 @@
                     ? 'text-green-600 bg-green-50' 
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }"
+                aria-label="切换到{tab.name}标签"
+                aria-current={activeTab === tab.id ? 'page' : undefined}
               >
                 <span class="mr-2">{tab.icon}</span>
                 {tab.name}

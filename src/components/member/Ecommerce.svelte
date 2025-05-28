@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   
-  export let session;
+  export const session = undefined;
   
   let products = [];
   let relatedProducts = [];
@@ -227,16 +227,22 @@
 {#if showProductModal && selectedProduct}
   <div 
     class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+    role="button"
+    tabindex="0"
     on:click={closeProductDetail}
+    on:keydown={(e) => e.key === 'Escape' && closeProductDetail()}
+    aria-label="关闭商品详情"
   >
     <div 
       class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-modal-title"
     >
       <div class="p-6">
         <!-- 头部 -->
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold text-gray-900">{selectedProduct.name}</h2>
+          <h2 id="product-modal-title" class="text-2xl font-bold text-gray-900">{selectedProduct.name}</h2>
           <button
             on:click={closeProductDetail}
             class="text-gray-400 hover:text-gray-600 text-2xl"

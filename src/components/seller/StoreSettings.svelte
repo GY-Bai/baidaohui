@@ -5,7 +5,7 @@
 
   const dispatch = createEventDispatcher();
 
-  export let session;
+  export const session = undefined;
 
 
   let settings = {
@@ -307,7 +307,7 @@
           
           <div class="space-y-3">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
+              <span class="block text-sm font-medium text-gray-700 mb-1">Secret Key</span>
               <div class="flex items-center space-x-2">
                 <span class="font-mono text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded border flex-1">
                   {showSecretKey ? settings.secretKey : maskSecretKey(settings.secretKey)}
@@ -322,7 +322,7 @@
             </div>
             
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Publishable Key</label>
+              <span class="block text-sm font-medium text-gray-700 mb-1">Publishable Key</span>
               <span class="font-mono text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded border block">
                 {settings.publishableKey}
               </span>
@@ -368,8 +368,9 @@
       
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">店铺名称</label>
+          <label for="store-name" class="block text-sm font-medium text-gray-700 mb-1">店铺名称</label>
           <input
+            id="store-name"
             type="text"
             bind:value={settings.storeName}
             placeholder="输入您的店铺名称"
@@ -378,8 +379,9 @@
         </div>
         
         <div class="relative">
-          <label class="block text-sm font-medium text-gray-700 mb-1">所在城市</label>
+          <label for="store-city" class="block text-sm font-medium text-gray-700 mb-1">所在城市</label>
           <input
+            id="store-city"
             type="text"
             bind:value={settings.city}
             on:input={handleCityInput}
@@ -403,8 +405,9 @@
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">通知邮箱</label>
+          <label for="notification-email" class="block text-sm font-medium text-gray-700 mb-1">通知邮箱</label>
           <input
+            id="notification-email"
             type="email"
             bind:value={settings.notificationEmail}
             placeholder="接收订单通知的邮箱"
@@ -483,8 +486,9 @@
       
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
+          <label for="secret-key" class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
           <input
+            id="secret-key"
             type="password"
             bind:value={newKeys.secretKey}
             placeholder="sk_test_... 或 sk_live_..."
@@ -493,8 +497,9 @@
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Publishable Key</label>
+          <label for="publishable-key" class="block text-sm font-medium text-gray-700 mb-1">Publishable Key</label>
           <input
+            id="publishable-key"
             type="text"
             bind:value={newKeys.publishableKey}
             placeholder="pk_test_... 或 pk_live_..."

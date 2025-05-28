@@ -3,7 +3,7 @@
   import { signOut } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
 
   let loading = false;
   let editingNickname = false;

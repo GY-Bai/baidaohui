@@ -3,7 +3,7 @@
   import { apiCall } from '$lib/auth';
   
 
-  export let session;
+  export const session = undefined;
 
 
 
@@ -623,8 +623,9 @@
         {#if showAddKeyForm}
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
+              <label for="master-secret-key" class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
               <input
+                id="master-secret-key"
                 type="password"
                 bind:value={newKey.secretKey}
                 placeholder="sk_test_..."
@@ -633,8 +634,9 @@
             </div>
             
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Publishable Key</label>
+              <label for="master-publishable-key" class="block text-sm font-medium text-gray-700 mb-1">Publishable Key</label>
               <input
+                id="master-publishable-key"
                 type="text"
                 bind:value={newKey.publishableKey}
                 placeholder="pk_test_..."
@@ -903,8 +905,9 @@
         
         <form on:submit|preventDefault={addSellerKey} class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">Store ID</label>
+            <label for="seller-store-id" class="block text-sm font-medium text-gray-700">Store ID</label>
             <input
+              id="seller-store-id"
               type="text"
               bind:value={keyForm.storeId}
               required
@@ -914,8 +917,9 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700">User ID</label>
+            <label for="seller-user-id" class="block text-sm font-medium text-gray-700">User ID</label>
             <input
+              id="seller-user-id"
               type="text"
               bind:value={keyForm.targetUserId}
               required
@@ -925,8 +929,9 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700">密钥类型</label>
+            <label for="seller-key-type" class="block text-sm font-medium text-gray-700">密钥类型</label>
             <select
+              id="seller-key-type"
               bind:value={keyForm.keyType}
               class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
@@ -936,8 +941,9 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700">密钥值</label>
+            <label for="seller-key-value" class="block text-sm font-medium text-gray-700">密钥值</label>
             <textarea
+              id="seller-key-value"
               bind:value={keyForm.keyValue}
               required
               rows="3"
@@ -976,8 +982,9 @@
         
         <form on:submit|preventDefault={addMasterKey} class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">密钥类型</label>
+            <label for="master-key-type" class="block text-sm font-medium text-gray-700">密钥类型</label>
             <select
+              id="master-key-type"
               bind:value={masterKeyForm.keyType}
               class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
@@ -987,8 +994,9 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700">密钥值</label>
+            <label for="master-key-value" class="block text-sm font-medium text-gray-700">密钥值</label>
             <textarea
+              id="master-key-value"
               bind:value={masterKeyForm.keyValue}
               required
               rows="3"
