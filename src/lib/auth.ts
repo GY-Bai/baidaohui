@@ -136,6 +136,12 @@ export async function validateAuth(cookies: Cookies, fetch: typeof globalThis.fe
       credentials: 'include'
     });
     
+    // 如果是503状态码，说明后端服务不可用，返回null但不报错
+    if (response.status === 503) {
+      console.log('后端服务暂时不可用');
+      return null;
+    }
+    
     if (!response.ok) {
       return null;
     }

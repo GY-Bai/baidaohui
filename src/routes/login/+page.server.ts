@@ -28,8 +28,17 @@ export const load: ServerLoad = async ({ url, cookies, fetch }) => {
       credentials: 'include'
     });
     
-    // 如果能收到响应（无论成功与否），说明后端服务可用
-    backendStatus = 'available';
+    // 检查响应状态码
+    if (response.status === 503) {
+      // 503表示服务不可用
+      backendStatus = 'unavailable';
+    } else if (response.ok) {
+      // 200-299表示服务可用
+      backendStatus = 'available';
+    } else {
+      // 其他错误状态码也认为服务不可用
+      backendStatus = 'unavailable';
+    }
   } catch (fetchError) {
     // 如果fetch失败，说明后端服务不可用
     backendStatus = 'unavailable';

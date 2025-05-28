@@ -1,9 +1,8 @@
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 
 const SSO_SERVICE_URL = process.env.SSO_SERVICE_URL || 'http://localhost:5002';
 
-export const GET: RequestHandler = async ({ request, cookies }) => {
+export const GET = async ({ request, cookies }) => {
   try {
     // 转发请求到SSO服务
     const response = await fetch(`${SSO_SERVICE_URL}/sso/session`, {
@@ -24,6 +23,11 @@ export const GET: RequestHandler = async ({ request, cookies }) => {
     });
   } catch (error) {
     console.error('SSO会话请求失败:', error);
-    return json({ session: null, error: '服务不可用' }, { status: 500 });
+    // 返回503状态码表示服务不可用
+    return json({ 
+      session: null, 
+      error: '后端服务不可用',
+      service_available: false 
+    }, { status: 503 });
   }
 }; 

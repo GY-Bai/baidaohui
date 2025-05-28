@@ -42,7 +42,7 @@
   async function handleGoogleLogin() {
     if (backendStatus === 'unavailable') {
       error = 'backend_unavailable';
-      message = '后端服务暂时不可用，请稍后再试';
+      message = '后端服务暂时不可用，无法进行登录。请等待服务部署完成后再试。';
       return;
     }
 
@@ -53,7 +53,7 @@
       await signInWithGoogle();
     } catch (err) {
       error = 'login_failed';
-      message = '登录失败，请重试';
+      message = '登录过程中出现错误，请重试';
       console.error(err);
     } finally {
       loading = false;
@@ -152,7 +152,7 @@
 <canvas bind:this={canvas} class="starfield"></canvas>
 
 {#if loading}
-  <div class="loading">跃迁引擎已启动！<br><br>[前往Google登录]</div>
+  <div class="loading">曲率引擎已启动！<br><br>[前往Google登录]</div>
 {/if}
 
 {#if error && !loading}
@@ -160,57 +160,59 @@
 {/if}
 
 <div class="login-container">
-  <div class="logo">
-    <img 
-      src="/favicon.png" 
-      alt="百刀会Logo" 
-      class="logo-img"
-      on:error={(e) => {
-        e.currentTarget.style.display = 'none';
-        e.currentTarget.nextElementSibling.style.display = 'block';
-      }}
-    />
-    <div class="logo-fallback">百刀会</div>
-  </div>
-  
-  <h1>即将跃迁到百刀会</h1>
-  <p class="subtitle">Everything Both Nothing</p>
-  
-  <!-- 后端服务状态显示 -->
-  {#if backendStatus === 'unavailable'}
-    <div class="status-warning">
-      <i class="fas fa-exclamation-triangle"></i>
-      <div>
-        <strong>后端服务暂时不可用</strong><br>
-        <small>正在部署中，请稍后再试</small>
-      </div>
+  <div class="login-card">
+    <div class="logo">
+      <img 
+        src="/favicon.png" 
+        alt="百刀会Logo" 
+        class="logo-img"
+        on:error={(e) => {
+          e.currentTarget.style.display = 'none';
+          e.currentTarget.nextElementSibling.style.display = 'block';
+        }}
+      />
+      <div class="logo-fallback">百刀会</div>
     </div>
-  {:else if backendStatus === 'available'}
-    <div class="status-success">
-      <i class="fas fa-check-circle"></i>
-      <span>服务正常</span>
-    </div>
-  {/if}
-  
-  <button 
-    on:click={handleGoogleLogin}
-    disabled={loading || backendStatus === 'unavailable'}
-    class="google-btn"
-    class:disabled={backendStatus === 'unavailable'}
-  >
-    <div class="google-icon">
-      <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
-    </div>
+    
+    <h1>欢迎来到百刀会</h1>
+    <p class="subtitle">Everything Both Nothing</p>
+    
+    <!-- 后端服务状态显示 -->
     {#if backendStatus === 'unavailable'}
-      服务部署中，请稍后再试
-    {:else}
-      点此启动跃迁引擎<br>[通过Google账号一键登录]
+      <div class="status-warning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div>
+          <strong>无法通信</strong><br>
+          <small>后端服务暂时不可用，正在抢修中，请稍后再试</small>
+        </div>
+      </div>
+    {:else if backendStatus === 'available'}
+      <div class="status-success">
+        <i class="fas fa-check-circle"></i>
+        <span>通信正常</span>
+      </div>
     {/if}
-  </button>
-  
-  <div class="footer">
-    😍教主悄悄话💬｜🤑算命申请🔮｜🤩好物推荐🛍️<br><br>
-    登录即表示您同意我们的<br>服务条款和隐私政策
+    
+    <button 
+      on:click={handleGoogleLogin}
+      disabled={loading || backendStatus === 'unavailable'}
+      class="google-btn"
+      class:disabled={backendStatus === 'unavailable'}
+    >
+      <div class="google-icon">
+        <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
+      </div>
+      {#if backendStatus === 'unavailable'}
+        引擎抢修中，请稍后再试
+      {:else}
+        点击启动曲率引擎
+      {/if}
+    </button>
+    
+    <div class="footer">
+      😍教主悄悄话💬｜🤑算命申请🔮｜🤩好物推荐🛍️<br><br>
+      登录即表示您同意我们的<br>服务条款和隐私政策
+    </div>
   </div>
 </div>
 
@@ -267,11 +269,19 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    text-align: center;
-    color: white;
     z-index: 100;
     max-width: 400px;
     width: 90%;
+  }
+
+  .login-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px 30px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .logo {
@@ -282,7 +292,7 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease;
   }
 
@@ -294,23 +304,20 @@
     display: none;
     font-size: 24px;
     font-weight: bold;
-    color: #00ff88;
-    text-shadow: 0 0 10px #00ff88;
+    color: #667eea;
+    text-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
   }
 
   h1 {
     font-size: 28px;
     margin: 20px 0 10px 0;
-    background: linear-gradient(45deg, #00ff88, #00ccff);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+    color: #333;
+    font-weight: 600;
   }
 
   .subtitle {
     font-size: 16px;
-    color: #cccccc;
+    color: #666;
     margin-bottom: 40px;
     font-style: italic;
   }
@@ -325,13 +332,14 @@
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 20px;
-    color: #ffc107;
+    color: #856404;
     font-size: 14px;
   }
 
   .status-warning i {
     font-size: 18px;
     flex-shrink: 0;
+    color: #ffc107;
   }
 
   .status-success {
@@ -344,12 +352,13 @@
     border-radius: 8px;
     padding: 8px 12px;
     margin-bottom: 20px;
-    color: #28a745;
+    color: #155724;
     font-size: 14px;
   }
 
   .status-success i {
     font-size: 16px;
+    color: #28a745;
   }
 
   .google-btn {
@@ -369,6 +378,7 @@
     margin: 0 auto 40px auto;
     position: relative;
     overflow: hidden;
+    font-weight: 500;
   }
 
   .google-btn:hover {
@@ -410,6 +420,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .footer {
@@ -426,7 +437,10 @@
   @media (max-width: 480px) {
     .login-container {
       width: 95%;
-      padding: 20px;
+    }
+    
+    .login-card {
+      padding: 30px 20px;
     }
     
     h1 {
