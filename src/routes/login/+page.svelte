@@ -332,9 +332,10 @@
     border: 1px solid #ffc107;
     border-radius: 8px;
     padding: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
     color: #856404;
     font-size: 14px;
+    width: 80%;
   }
 
   .status-warning i {
@@ -352,9 +353,10 @@
     border: 1px solid #28a745;
     border-radius: 8px;
     padding: 8px 12px;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
     color: #155724;
     font-size: 14px;
+    width: 80%;
   }
 
   .status-success i {
