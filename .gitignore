@@ -5,3 +5,37 @@
 .env
 .env.*
 *.example
+
+# 忽略项目里所有名为 build 的文件夹
+**/build/
+
+# 忽略项目里所有名为 dist 的文件夹
+**/dist/
+
+# SvelteKit 构建输出
+.svelte-kit/
+build/
+dist/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Cloudflare
+.wrangler/
+wrangler.toml.bak
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志文件
+*.log
