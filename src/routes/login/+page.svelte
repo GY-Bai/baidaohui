@@ -8,6 +8,7 @@
   let loading = false;
   let error = data?.error || '';
   let message = data?.message || '';
+  let backendStatus = data?.backendStatus || 'unknown';
   let canvas;
 
   onMount(async () => {
@@ -22,10 +23,16 @@
       message = decodeURIComponent(urlMessage);
     }
 
-    // 检查是否已经登录
-    const session = await getSession();
-    if (session) {
-      redirectToRoleDomain(session.user.role);
+    // 只有在后端服务可用时才检查登录状态
+    if (backendStatus === 'available') {
+      try {
+        const session = await getSession();
+        if (session) {
+          redirectToRoleDomain(session.user.role);
+        }
+      } catch (err) {
+        console.log('检查登录状态失败:', err);
+      }
     }
 
     // 初始化星空背景
@@ -33,6 +40,12 @@
   });
 
   async function handleGoogleLogin() {
+    if (backendStatus === 'unavailable') {
+      error = 'backend_unavailable';
+      message = '后端服务暂时不可用，请稍后再试';
+      return;
+    }
+
     try {
       loading = true;
       error = '';
@@ -163,15 +176,36 @@
   <h1>即将跃迁到百刀会</h1>
   <p class="subtitle">Everything Both Nothing</p>
   
+  <!-- 后端服务状态显示 -->
+  {#if backendStatus === 'unavailable'}
+    <div class="status-warning">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div>
+        <strong>后端服务暂时不可用</strong><br>
+        <small>正在部署中，请稍后再试</small>
+      </div>
+    </div>
+  {:else if backendStatus === 'available'}
+    <div class="status-success">
+      <i class="fas fa-check-circle"></i>
+      <span>服务正常</span>
+    </div>
+  {/if}
+  
   <button 
     on:click={handleGoogleLogin}
-    disabled={loading}
+    disabled={loading || backendStatus === 'unavailable'}
     class="google-btn"
+    class:disabled={backendStatus === 'unavailable'}
   >
     <div class="google-icon">
       <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
     </div>
-    点此启动跃迁引擎<br>[通过Google账号一键登录]
+    {#if backendStatus === 'unavailable'}
+      服务部署中，请稍后再试
+    {:else}
+      点此启动跃迁引擎<br>[通过Google账号一键登录]
+    {/if}
   </button>
   
   <div class="footer">
@@ -279,6 +313,43 @@
     color: #cccccc;
     margin-bottom: 40px;
     font-style: italic;
+  }
+
+  .status-warning {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 20px;
+    color: #ffc107;
+    font-size: 14px;
+  }
+
+  .status-warning i {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .status-success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(40, 167, 69, 0.1);
+    border: 1px solid #28a745;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 20px;
+    color: #28a745;
+    font-size: 14px;
+  }
+
+  .status-success i {
+    font-size: 16px;
   }
 
   .google-btn {
