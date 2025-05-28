@@ -113,6 +113,36 @@ services:
         reservations:
           memory: 32M
 
+  # R2同步服务 - 数据同步到Cloudflare R2
+  r2-sync-service:
+    image: yourregistry/baidaohui-r2-sync-service:latest
+    container_name: r2-sync-service
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5011
+      - MONGODB_URI=${MONGODB_URI}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
+      - R2_SECRET_KEY=${R2_SECRET_KEY}
+      - R2_BUCKET=${R2_BUCKET}
+      - SYNC_INTERVAL=*/10 * * * *
+    ports:
+      - "5011:5011"
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+        reservations:
+          memory: 48M
+
 networks:
   baidaohui-network:
     driver: bridge 

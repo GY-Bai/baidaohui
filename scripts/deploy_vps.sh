@@ -100,6 +100,8 @@ build_images() {
         "invite-service"
         "key-service"
         "email-service"
+        "static-api-service"
+        "r2-sync-service"
     )
     
     for service in "${services[@]}"; do
@@ -139,6 +141,8 @@ push_images() {
         "invite-service"
         "key-service"
         "email-service"
+        "static-api-service"
+        "r2-sync-service"
     )
     
     for service in "${services[@]}"; do
@@ -169,8 +173,9 @@ deploy_san_jose() {
     echo "  - Payment Service:    256M"
     echo "  - Invite Service:     192M"
     echo "  - Key Service:        192M"
+    echo "  - Static API Service: 128M (缓存优化)"
     echo "  - Redis:              256M"
-    echo "  - 系统预留:           ~500M"
+    echo "  - 系统预留:           ~372M"
     echo ""
     
     # 停止现有服务
@@ -208,7 +213,8 @@ deploy_buffalo() {
     echo "  - Email Service:      192M"
     echo "  - Ecommerce Poller:   128M"
     echo "  - Exchange Updater:   64M"
-    echo "  - 系统预留:           ~100M"
+    echo "  - R2 Sync Service:    96M (数据同步)"
+    echo "  - 系统预留:           ~4M"
     echo ""
     
     # 停止现有服务
@@ -248,6 +254,7 @@ check_san_jose_health() {
         "http://localhost:5006/health"  # payment-service
         "http://localhost:5008/health"  # invite-service
         "http://localhost:5009/health"  # key-service
+        "http://localhost:5010/health"  # static-api-service
     )
     
     for url in "${health_urls[@]}"; do
@@ -284,6 +291,7 @@ check_buffalo_health() {
     health_urls=(
         "http://localhost:5003/health"  # fortune-service
         "http://localhost:5007/health"  # email-service
+        "http://localhost:5011/health"  # r2-sync-service
     )
     
     for url in "${health_urls[@]}"; do
@@ -323,10 +331,12 @@ show_service_status() {
     echo "  • 支付服务:     http://${SAN_JOSE_IP}:5006"
     echo "  • 邀请服务:     http://${SAN_JOSE_IP}:5008"
     echo "  • 密钥服务:     http://${SAN_JOSE_IP}:5009"
+    echo "  • 静态API:      http://${SAN_JOSE_IP}:5010 (缓存优化)"
     echo ""
     echo -e "${CYAN}水牛城 VPS (${BUFFALO_IP}):${NC}"
     echo "  • 算命服务:     http://${BUFFALO_IP}:5003"
     echo "  • 邮件服务:     http://${BUFFALO_IP}:5007"
+    echo "  • R2同步服务:   http://${BUFFALO_IP}:5011 (数据同步)"
     echo ""
     echo -e "${YELLOW}注意: 请确保防火墙已开放相应端口${NC}"
 }

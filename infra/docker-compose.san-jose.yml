@@ -234,6 +234,35 @@ services:
         reservations:
           memory: 96M
 
+  # 静态API服务 - 缓存优化
+  static-api-service:
+    image: yourregistry/baidaohui-static-api-service:latest
+    container_name: static-api-service
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5010
+      - MONGODB_URI=${MONGODB_URI}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_BUCKET=${R2_BUCKET}
+      - CACHE_TTL=300
+      - CORS_ORIGINS=${CORS_ORIGINS}
+    ports:
+      - "5010:5010"
+    networks:
+      - baidaohui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
   # Redis缓存 - 本地缓存
   redis:
     image: redis:7-alpine

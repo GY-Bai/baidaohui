@@ -28,19 +28,19 @@ export const load = async ({ url, cookies, fetch }) => {
     throw redirect(302, '/login?error=missing_code&message=缺少授权码');
   }
 
-  try {
+    try {
     // 调用后端auth-service处理OAuth回调
-    const response = await fetch('/api/auth/callback', {
-      method: 'POST',
-      headers: {
+      const response = await fetch('/api/auth/callback', {
+        method: 'POST',
+        headers: {
         'Content-Type': 'application/json',
-      },
+        },
       body: JSON.stringify({
         code,
         state,
         redirect_uri: `${url.origin}/auth/callback`
       })
-    });
+      });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -48,14 +48,14 @@ export const load = async ({ url, cookies, fetch }) => {
       throw redirect(302, `/login?error=auth_failed&message=${encodeURIComponent(errorMessage)}`);
     }
 
-    const { user, access_token } = await response.json();
-
+        const { user, access_token } = await response.json();
+        
     // 设置HttpOnly Cookie
-    cookies.set('access_token', access_token, {
-      httpOnly: true,
-      secure: true,
+        cookies.set('access_token', access_token, {
+          httpOnly: true,
+          secure: true,
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7天
+          maxAge: 60 * 60 * 24 * 7, // 7天
       path: '/',
       domain: '.baidaohui.com' // 跨子域共享
     });
