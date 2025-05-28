@@ -182,14 +182,14 @@
       <div class="status-warning">
         <i class="fas fa-exclamation-triangle"></i>
         <div>
-          <strong>无法通信</strong><br>
-          <small>后端服务暂时不可用，正在抢修中，请稍后再试</small>
+          <strong>无法通信!!!</strong><br>
+          <small>后端服务正在抢修中...</small>
         </div>
       </div>
     {:else if backendStatus === 'available'}
       <div class="status-success">
         <i class="fas fa-check-circle"></i>
-        <span>通信正常</span>
+        <span>通信正常!</span>
       </div>
     {/if}
     
@@ -203,9 +203,9 @@
         <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
       </div>
       {#if backendStatus === 'unavailable'}
-        引擎抢修中，请稍后再试
+        曲率引擎抢修中...
       {:else}
-        点击启动曲率引擎
+        点击启动曲率引擎!!!
       {/if}
     </button>
     
@@ -271,7 +271,7 @@
     transform: translate(-50%, -50%);
     z-index: 100;
     max-width: 400px;
-    width: 90%;
+    width: 80%;
   }
 
   .login-card {
