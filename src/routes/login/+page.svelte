@@ -437,7 +437,8 @@
 
   @media (max-width: 480px) {
     .login-container {
-      width: 95%;
+      width: 70%;
+      padding: 0 30px;
     }
     
     .login-card {
