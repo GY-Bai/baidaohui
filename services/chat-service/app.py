@@ -9,6 +9,7 @@ import logging
 import redis
 from functools import wraps
 import os
+import urllib.parse
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -37,9 +38,21 @@ except Exception as e:
 
 # Redis连接
 try:
-    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+    if REDIS_URL.startswith('redis://'):
+        # 解析Redis URL
+        parsed = urllib.parse.urlparse(REDIS_URL)
+        redis_host = parsed.hostname or 'localhost'
+        redis_port = parsed.port or 6379
+        redis_db = int(parsed.path.lstrip('/')) if parsed.path and parsed.path != '/' else 0
+    else:
+        redis_host = 'localhost'
+        redis_port = 6379
+        redis_db = 0
+    
+    redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
     redis_client.ping()
-    logger.info("Redis连接成功")
+    logger.info(f"Redis连接成功: {redis_host}:{redis_port}")
 except Exception as e:
     logger.error(f"Redis连接失败: {e}")
     redis_client = None
@@ -725,4 +738,6 @@ def handle_leave_room(data):
         logger.info(f'用户离开房间: {room}')
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5002, debug=True) 
+    PORT = int(os.getenv('PORT', 5003))  # 默认5003端口，支持环境变量覆盖
+    socketio.run(app, host='0.0.0.0', port=PORT, debug=False)
+    logger.info(f"聊天服务启动在端口 {PORT}") 

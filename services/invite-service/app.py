@@ -781,4 +781,6 @@ def webhook_role_update():
         return jsonify({'error': '服务器内部错误'}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=False) 
+    PORT = int(os.getenv('PORT', 5006))  # 默认5006端口，支持环境变量覆盖
+    app.run(host='0.0.0.0', port=PORT, debug=False)
+    logger.info(f"邀请服务启动在端口 {PORT}") 
