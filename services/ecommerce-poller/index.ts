@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, ObjectId } from 'mongodb';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import cron from 'node-cron';
 import express, { Request, Response } from 'express';
@@ -8,7 +8,7 @@ const app = express();
 
 // 类型定义
 interface SellerKey {
-  _id: any;
+  _id: ObjectId;
   userId: string;
   storeId?: string;
   keyValue: string;
@@ -74,10 +74,12 @@ const r2Client = new S3Client({
 
 // MongoDB连接
 let db: Db;
+let mongoClient: MongoClient;
 
 MongoClient.connect(MONGODB_URI)
-  .then((client) => {
+  .then((client: MongoClient) => {
     console.log('MongoDB连接成功');
+    mongoClient = client;
     db = client.db('baidaohui');
     startPollingTasks();
   })
@@ -206,7 +208,7 @@ async function syncSellerProducts(sellerKey: SellerKey): Promise<ProductData[]> 
     if (EMAIL_SERVICE_URL) {
       try {
         // 获取seller的邮箱信息
-        const seller = await db.collection('users').findOne({ _id: sellerKey.userId });
+        const seller = await db.collection('users').findOne({ _id: new ObjectId(sellerKey.userId) });
         if (seller?.email) {
           await fetch(`${EMAIL_SERVICE_URL}/send-notification`, {
             method: 'POST',
@@ -441,16 +443,16 @@ app.listen(PORT, () => {
 // 优雅关闭
 process.on('SIGTERM', async () => {
   console.log('收到SIGTERM信号，正在关闭服务...');
-  if (db) {
-    await db.client.close();
+  if (mongoClient) {
+    await mongoClient.close();
   }
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('收到SIGINT信号，正在关闭服务...');
-  if (db) {
-    await db.client.close();
+  if (mongoClient) {
+    await mongoClient.close();
   }
   process.exit(0);
 });

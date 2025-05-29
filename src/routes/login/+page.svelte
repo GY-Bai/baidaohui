@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { signInWithGoogle, getSession, redirectToRoleDomain } from '$lib/auth';
+  import { signInWithGoogle, getSession, redirectToRolePath } from '$lib/auth';
 
   export let data;
 
@@ -28,7 +28,7 @@
       try {
         const session = await getSession();
         if (session) {
-          redirectToRoleDomain(session.user.role);
+          redirectToRolePath(session.role);
         }
       } catch (err) {
         console.log('检查登录状态失败:', err);
