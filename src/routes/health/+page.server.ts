@@ -1,6 +1,4 @@
-import type { PageServerLoad } from './$types';
-
-export const load: PageServerLoad = async ({ fetch }) => {
+export const load = async () => {
   try {
     // 简单的健康检查，不依赖后端服务
     return {
