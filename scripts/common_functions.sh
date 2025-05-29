@@ -380,13 +380,47 @@ stop_vps_services() {
     
     log_info "停止现有服务..."
     
+    # 强制停止和清理容器
     if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
-        docker-compose -f infra/docker-compose.san-jose.yml down 2>/dev/null || true
+        log_info "清理圣何塞VPS容器..."
+        
+        # 先停止compose服务
+        if [ -f "infra/docker-compose.san-jose.yml" ]; then
+            docker-compose -f infra/docker-compose.san-jose.yml down --remove-orphans 2>/dev/null || true
+        fi
+        
+        # 手动清理可能存在的同名容器
+        local san_jose_containers="auth-service sso-service chat-service ecommerce-service payment-service invite-service key-service static-api-service baidaohui-redis baidaohui-nginx"
+        for container in $san_jose_containers; do
+            if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+                log_info "清理容器: $container"
+                docker stop "$container" 2>/dev/null || true
+                docker rm -f "$container" 2>/dev/null || true
+            fi
+        done
     fi
     
     if [ "$target_vps" = "buffalo" ] || [ "$target_vps" = "both" ]; then
-        docker-compose -f infra/docker-compose.buffalo.yml down 2>/dev/null || true
+        log_info "清理水牛城VPS容器..."
+        
+        # 先停止compose服务
+        if [ -f "infra/docker-compose.buffalo.yml" ]; then
+            docker-compose -f infra/docker-compose.buffalo.yml down --remove-orphans 2>/dev/null || true
+        fi
+        
+        # 手动清理可能存在的同名容器
+        local buffalo_containers="fortune-service email-service ecommerce-poller r2-sync-service exchange-rate-updater"
+        for container in $buffalo_containers; do
+            if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+                log_info "清理容器: $container"
+                docker stop "$container" 2>/dev/null || true
+                docker rm -f "$container" 2>/dev/null || true
+            fi
+        done
     fi
+    
+    # 清理未使用的网络
+    docker network prune -f 2>/dev/null || true
     
     log_success "服务停止完成"
 }
