@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { get } from 'svelte/store';
   import { signInWithGoogle, getSession, redirectToRolePath } from '$lib/auth';
+  import { browser } from '$app/environment';
 
   export let data;
 
@@ -12,31 +13,45 @@
   let canvas;
 
   onMount(async () => {
-    // 检查URL参数中的错误信息
-    const currentPage = get(page);
-    const urlError = currentPage.url.searchParams.get('error');
-    const urlMessage = currentPage.url.searchParams.get('message');
-    
-    if (urlError) {
-      error = urlError;
-    }
-    if (urlMessage) {
-      message = decodeURIComponent(urlMessage);
-    }
-
-    // 检查是否已登录，如果已登录则重定向到对应角色页面
     try {
-      const session = await getSession();
-      if (session) {
-        redirectToRolePath(session.role);
+      // 检查URL参数中的错误信息
+      const currentPage = get(page);
+      const urlError = currentPage.url.searchParams.get('error');
+      const urlMessage = currentPage.url.searchParams.get('message');
+      
+      if (urlError) {
+        error = urlError;
+      }
+      if (urlMessage) {
+        message = decodeURIComponent(urlMessage);
+      }
+
+      // 检查环境变量是否存在
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        console.warn('Supabase环境变量未配置，跳过会话检查');
+        initStarfield();
         return;
       }
-    } catch (err) {
-      console.log('检查登录状态失败:', err);
-    }
 
-    // 初始化星空背景
-    initStarfield();
+      // 检查是否已登录，如果已登录则重定向到对应角色页面
+      try {
+        const session = await getSession();
+        if (session) {
+          redirectToRolePath(session.role);
+          return;
+        }
+      } catch (err) {
+        console.log('检查登录状态失败:', err);
+        // 不要显示错误给用户，只是跳过检查
+      }
+
+      // 初始化星空背景
+      initStarfield();
+    } catch (err) {
+      console.error('登录页面初始化错误:', err);
+      // 确保页面仍然可以显示
+      initStarfield();
+    }
   });
 
   async function handleGoogleLogin() {
@@ -44,12 +59,18 @@
       loading = true;
       error = '';
       message = '';
+      
+      // 检查环境变量
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        throw new Error('Supabase配置缺失，请联系管理员');
+      }
+      
       await signInWithGoogle();
       // 登录成功后会在callback页面处理重定向
     } catch (err) {
       error = 'login_failed';
-      message = '登录过程中出现错误，请重试';
-      console.error(err);
+      message = err.message || '登录过程中出现错误，请重试';
+      console.error('登录错误:', err);
     } finally {
       loading = false;
     }
