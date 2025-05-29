@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "npx --yes vite@5.4.8 build",
-    "build:cloudflare": "npx --yes vite@5.4.8 build && rm -rf build-final && mkdir -p build-final && cp -r build/cloudflare/* build-final/ && rm -rf build && mv build-final build",
+    "build": "npm install && npx --yes vite@5.4.8 build",
+    "build:cloudflare": "npm install && npx --yes vite@5.4.8 build && rm -rf build-final && mkdir -p build-final && cp -r build/cloudflare/* build-final/ && rm -rf build && mv build-final build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
