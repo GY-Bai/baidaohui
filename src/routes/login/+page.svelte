@@ -98,6 +98,7 @@
     window.addEventListener('resize', resize);
     resize();
 
+    // 初始化静态星点
     for (let i = 0; i < numDots; i++) {
       dots.push({
         x: Math.random() * width,
@@ -107,6 +108,7 @@
       });
     }
 
+    // 创建流星
     function createStreak() {
       const angle = Math.random() * Math.PI * 2;
       return {
@@ -118,14 +120,17 @@
       };
     }
 
+    // 初始化流星
     for (let i = 0; i < numStreaks; i++) {
       streaks.push(createStreak());
     }
 
     function draw() {
+      // 添加渐变淡化效果
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       ctx.fillRect(0, 0, width, height);
 
+      // 绘制静态星点
       for (const dot of dots) {
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
@@ -133,6 +138,7 @@
         ctx.fill();
       }
 
+      // 绘制流星
       for (const star of streaks) {
         const x1 = centerX + Math.cos(star.angle) * (star.radius - star.length * 0.3);
         const y1 = centerY + Math.sin(star.angle) * (star.radius - star.length * 0.3);
@@ -148,6 +154,7 @@
 
         star.radius += star.speed;
 
+        // 当流星飞出屏幕时重新创建
         if (x2 < 0-0.1*width || x2 > 1.1*width || y2 < 0-0.1*height || y2 > 1.1*height) {
           Object.assign(star, createStreak());
         }
@@ -233,7 +240,7 @@
     width: 100%;
     height: 100%;
     z-index: -1;
-    background: radial-gradient(ellipse at center, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+    background: black;
   }
 
   .loading {

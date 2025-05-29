@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>登录 - 百刀会</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100%;
+      background: transparent;
+    }
+
+    #starfield {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      background: black;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      background: transparent;
+      padding: env(safe-area-inset-top, 20px) env(safe-area-inset-right, 100px) env(safe-area-inset-bottom, 20px) env(safe-area-inset-left, 60px);
+      box-sizing: border-box;
+    }
+
+    .login-container {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 0 60px rgba(135, 206, 235, 0.1);
+      padding: 40px;
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      z-index: 10;
+      animation: slideUp 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      box-sizing: border-box;
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border-radius: 50%;
+      margin: 0 auto 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .logo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+
+    .logo-fallback {
+      color: white;
+      font-size: 32px;
+      font-weight: bold;
+      display: none;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 40px;
+    }
+
+    .google-btn {
+      width: 100%;
+      padding: 16px;
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .google-icon {
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .footer {
+      margin-top: 30px;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #loading {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 1000;
+    }
+
+    #error {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 0, 0, 0.9);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+  <div id="loading">跃迁引擎已启动！<br> <br>[前往Google登录]</div>
+  <div id="error"></div>
+  <div class="login-container">
+    <div class="logo">
+      <img 
+        src="./assets/pic/favicon.png" 
+        alt="百刀会Logo" 
+        class="logo-img"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+      />
+      <div class="logo-fallback"> </div>
+    </div>
+    <h1>即将跃迁到百刀会</h1>
+    <p class="subtitle">Everything Both Nothing</p>
+    <button id="googleLoginBtn" class="google-btn">
+      <div class="google-icon"><i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i></div>
+      点此启动跃迁引擎<br>[通过Google账号一键登录]
+    </button>
+    <div class="footer">😍教主悄悄话💬｜🤑算命申请🔮｜🤩好物推荐🛍️<br> <br>登录即表示您同意我们的<br>服务条款和隐私政策</div>
+  </div>
+  <script>
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+
+    let width, height, centerX, centerY;
+    const numDots = 100;
+    const numStreaks = 300;
+    const dots = [];
+    const streaks = [];
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      centerX = width / 2;
+      centerY = height / 2;
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    for (let i = 0; i < numDots; i++) {
+      dots.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        size: Math.random() * 1.5 + 0.3,
+        brightness: Math.random() * 0.5 + 0.2
+      });
+    }
+
+    function createStreak() {
+      const angle = Math.random() * Math.PI * 2;
+      return {
+        angle,
+        radius: 0,
+        speed: Math.random() * 3 + 2,
+        length: Math.random() * 60 + 40,
+        width: Math.random() * 1.2 + 0.5
+      };
+    }
+
+    for (let i = 0; i < numStreaks; i++) {
+      streaks.push(createStreak());
+    }
+
+    function draw() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(0, 0, width, height);
+
+      for (const dot of dots) {
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${dot.brightness})`;
+        ctx.fill();
+      }
+
+      for (const star of streaks) {
+        const x1 = centerX + Math.cos(star.angle) * (star.radius - star.length * 0.3);
+        const y1 = centerY + Math.sin(star.angle) * (star.radius - star.length * 0.3);
+        const x2 = centerX + Math.cos(star.angle) * (star.radius + star.length * 0.7);
+        const y2 = centerY + Math.sin(star.angle) * (star.radius + star.length * 0.7);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = star.width;
+        ctx.stroke();
+
+        star.radius += star.speed;
+
+        if (x2 < 0-0.1*width || x2 > 1.1*width || y2 < 0-0.1*height || y2 > 1.1*height) {
+          Object.assign(star, createStreak());
+        }
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  </script>
+  <script>
+    // 硬编码环境变量
+    const SUPABASE_URL = 'https://pvjowkjksutkhpsomwvv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2am93a2prc3V0a2hwc29td3Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc4NzYxMzEsImV4cCI6MjA2MzQ1MjEzMX0.m98BRjqAnpjVpyDxUC-9LRrU4B3SRXYdHMO3Dez-qyc';
+
+    // 验证环境变量
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        console.error('环境变量未正确加载:', { SUPABASE_URL, SUPABASE_ANON_KEY });
+        throw new Error('环境变量未正确加载');
+    }
+
+    // 验证 URL 格式
+    try {
+        new URL(SUPABASE_URL);
+    } catch (error) {
+        console.error('无效的 SUPABASE_URL:', SUPABASE_URL);
+        throw new Error('无效的 SUPABASE_URL');
+    }
+
+    // 角色对应的重定向URL
+    const ROLE_REDIRECTS = {
+        fan: 'https://fans.baidaohui.com',
+        member: 'https://fans.baidaohui.com',
+        anchor: 'https://master.baidaohui.com',
+        firstmate: 'https://firstmate.baidaohui.com'
+    };
+
+    // 初始化 Supabase 客户端
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // DOM 元素
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    const loadingDiv = document.getElementById('loading');
+    const errorDiv = document.getElementById('error');
+
+    // 工具函数
+    function showLoading(show = true) {
+        loadingDiv.style.display = show ? 'block' : 'none';
+        googleLoginBtn.disabled = show;
+    }
+
+    function showError(message) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        setTimeout(() => {
+            errorDiv.style.display = 'none';
+        }, 5000);
+    }
+
+    function hideError() {
+        errorDiv.style.display = 'none';
+    }
+
+    // 获取用户角色
+    async function getUserRole(userId) {
+        try {
+            // 首先尝试从 user_metadata 获取角色
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user?.user_metadata?.role) {
+                return user.user_metadata.role;
+            }
+
+            // 如果 metadata 中没有角色，调用 RPC 函数
+            const { data, error } = await supabaseClient.rpc('get_role', { uid: userId });
+            
+            if (error) {
+                console.error('获取角色失败:', error);
+                return null;
+            }
+            
+            return data || null;
+        } catch (error) {
+            console.error('获取角色时发生错误:', error);
+            return null;
+        }
+    }
+
+    // 检查用户昵称
+    function hasNickname(user) {
+        return user?.user_metadata?.nickname || 
+               user?.user_metadata?.display_name || 
+               user?.user_metadata?.full_name ||
+               user?.user_metadata?.name;
+    }
+
+    // 处理登录成功后的重定向
+    async function handleLoginSuccess(session) {
+        try {
+            const user = session.user;
+            
+            // 检查是否有昵称，如果没有则跳转到设置页面
+            if (!hasNickname(user)) {
+                console.log('用户未设置昵称，跳转到设置页面');
+                window.location.href = 'set-profile.html';
+                return;
+            }
+
+            // 获取用户角色
+            const role = await getUserRole(user.id);
+            console.log('用户角色:', role);
+
+            // 根据角色决定重定向URL
+            let redirectUrl;
+            if (role && ROLE_REDIRECTS[role]) {
+                redirectUrl = ROLE_REDIRECTS[role];
+            } else {
+                // 默认重定向到 fans 页面
+                redirectUrl = ROLE_REDIRECTS.fan;
+            }
+
+            console.log('重定向到:', redirectUrl);
+            
+            // 添加一个短暂的延迟让用户看到成功状态
+            setTimeout(() => {
+                window.location.href = redirectUrl;
+            }, 1000);
+
+        } catch (error) {
+            console.error('处理登录成功时发生错误:', error);
+            showError('登录处理失败，请稍后重试');
+            showLoading(false);
+        }
+    }
+
+    // Google OAuth 登录
+    async function signInWithGoogle() {
+        try {
+            hideError();
+            showLoading(true);
+
+            console.log('开始 Google 登录...');
+            
+            const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin + window.location.pathname,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    }
+                }
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            // OAuth 登录会触发页面重定向，这里不需要额外处理
+            console.log('Google 登录请求已发送');
+
+        } catch (error) {
+            console.error('Google 登录失败:', error);
+            showError('登录失败: ' + (error.message || '未知错误'));
+            showLoading(false);
+        }
+    }
+
+    // 检查当前会话状态
+    async function checkSession() {
+        try {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            
+            if (error) {
+                console.error('检查会话失败:', error);
+                return;
+            }
+
+            if (session) {
+                console.log('发现现有会话，处理登录');
+                showLoading(true);
+                await handleLoginSuccess(session);
+            }
+        } catch (error) {
+            console.error('检查会话时发生错误:', error);
+        }
+    }
+
+    // 监听认证状态变化
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        console.log('认证状态变化:', event, session?.user?.email);
+        
+        if (event === 'SIGNED_IN' && session) {
+            await handleLoginSuccess(session);
+        } else if (event === 'SIGNED_OUT') {
+            showLoading(false);
+            console.log('用户已登出');
+        } else if (event === 'TOKEN_REFRESHED') {
+            console.log('令牌已刷新');
+        }
+    });
+
+    // 事件监听器
+    googleLoginBtn.addEventListener('click', signInWithGoogle);
+
+    // 页面加载时检查现有会话
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('页面加载完成，检查会话状态');
+        checkSession();
+    });
+
+    // 处理页面可见性变化（当用户从OAuth页面返回时）
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            console.log('页面变为可见，检查会话状态');
+            setTimeout(checkSession, 500); // 给一些时间让认证状态更新
+        }
+    });
+
+    // 错误处理
+    window.addEventListener('error', (event) => {
+        console.error('全局错误:', event.error);
+        showError('发生未预期的错误，请刷新页面重试');
+        showLoading(false);
+    });
+
+    // 未处理的Promise拒绝
+    window.addEventListener('unhandledrejection', (event) => {
+        console.error('未处理的Promise拒绝:', event.reason);
+        showError('发生网络错误，请检查网络连接');
+        showLoading(false);
+    });
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 </script>
 
 <div class="min-h-screen bg-gray-50 flex items-center justify-center">
-  <div class="max-w-md w-full bg-white rounded-lg shadow-md p-6">
+  <div class="max-w-2xl w-full bg-white rounded-lg shadow-md p-6">
     <h1 class="text-2xl font-bold text-center mb-4">
       系统健康检查
     </h1>
@@ -26,12 +26,46 @@
           <h3 class="font-medium mb-2">环境变量检查:</h3>
           <div class="space-y-1 text-sm">
             <div class="flex justify-between">
-              <span>SSO_SERVICE_URL:</span>
-              <span class="text-gray-600 break-all">{data.env_check.SSO_SERVICE_URL}</span>
+              <span>VITE_SUPABASE_URL:</span>
+              <span class="text-gray-600 {data.env_check.VITE_SUPABASE_URL === '已配置' ? 'text-green-600' : 'text-red-600'}">
+                {data.env_check.VITE_SUPABASE_URL}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>VITE_SUPABASE_ANON_KEY:</span>
+              <span class="text-gray-600 {data.env_check.VITE_SUPABASE_ANON_KEY === '已配置' ? 'text-green-600' : 'text-red-600'}">
+                {data.env_check.VITE_SUPABASE_ANON_KEY}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>VITE_APP_URL:</span>
+              <span class="text-gray-600 {data.env_check.VITE_APP_URL !== '未配置' ? 'text-green-600' : 'text-red-600'}">
+                {data.env_check.VITE_APP_URL}
+              </span>
             </div>
             <div class="flex justify-between">
               <span>NODE_ENV:</span>
               <span class="text-gray-600">{data.env_check.NODE_ENV}</span>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      {#if data.build_info}
+        <div class="border-t pt-3">
+          <h3 class="font-medium mb-2">构建信息:</h3>
+          <div class="space-y-1 text-sm">
+            <div class="flex justify-between">
+              <span>Mode:</span>
+              <span class="text-gray-600">{data.build_info.mode}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Development:</span>
+              <span class="text-gray-600">{data.build_info.dev ? '是' : '否'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Production:</span>
+              <span class="text-gray-600">{data.build_info.prod ? '是' : '否'}</span>
             </div>
           </div>
         </div>
