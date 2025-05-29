@@ -7,15 +7,18 @@ const config = {
   preprocess: sveltePreprocess(),
   kit: {
     adapter: adapter({
-      // 指定输出目录为 build，匹配 wrangler.toml 中的配置
-      output: 'build'
+      // 指定Cloudflare Pages输出目录
+      platformProxy: {
+        persist: false
+      }
     }),
     alias: {
       $lib: 'src/lib'
     },
     paths: {
       base: '' // 确保根路径正确
-    }
+    },
+    outDir: 'build'
   }
 };
 

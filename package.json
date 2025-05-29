@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --max-old-space-size=8192 node_modules/.bin/vite dev --port 3000",
-    "build": "vite build",
+    "dev": "vite dev",
+    "build": "vite build && rm -rf build-final && mkdir -p build-final && cp -r build/cloudflare/* build-final/ && rm -rf build && mv build-final build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "npm run test:integration && npm run test:unit",
+    "test:integration": "playwright test",
+    "test:unit": "vitest",
     "lint": "prettier --plugin-search-dir . --check . && eslint .",
     "format": "prettier --plugin-search-dir . --write ."
   },

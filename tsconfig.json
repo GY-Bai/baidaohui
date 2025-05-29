@@ -1,4 +1,21 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
-	"compilerOptions": { "strict": true }
-  }
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"moduleResolution": "node",
+		"target": "esnext",
+		"module": "esnext",
+		"lib": ["dom", "es2020", "esnext"],
+		"declaration": false,
+		"declarationMap": false,
+		"allowSyntheticDefaultImports": true
+	},
+	"include": ["src/**/*", "app.d.ts"],
+	"exclude": ["node_modules/**/*", ".svelte-kit/**/*"]
+}
