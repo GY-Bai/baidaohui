@@ -1,18 +1,24 @@
 import { json } from '@sveltejs/kit';
 
-const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://localhost:5002';
+const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://107.172.87.113:5002';
 
 export const GET = async ({ request, cookies }) => {
   try {
+    // 设置请求超时避免Worker资源耗尽
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+    
     // 转发请求到SSO服务
     const response = await fetch(`${SSO_SERVICE_URL}/sso/session`, {
       method: 'GET',
       headers: {
         'Cookie': request.headers.get('cookie') || '',
         'Content-Type': 'application/json'
-      }
+      },
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
     const data = await response.json();
     
     return json(data, { 
