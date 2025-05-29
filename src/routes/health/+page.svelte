@@ -9,271 +9,216 @@
   $: sanJoseVps = backendStatus?.san_jose_vps || {};
   $: buffaloVps = backendStatus?.buffalo_vps || {};
   
-  // 获取服务状态图标
-  function getStatusIcon(status) {
-    switch (status) {
-      case 'healthy':
-        return '🟢';
-      case 'error':
-      case 'timeout':
-        return '🔴';
-      default:
-        return '🟡';
+  // 获取服务状态图标和文本
+  function getStatusDisplay(result) {
+    if (!result) {
+      return { icon: '🟡', text: '未知' };
     }
+    
+    const { status, error, http_status } = result;
+    
+    if (status === 'healthy') {
+      return { 
+        icon: '✅', 
+        text: http_status ? `正常（HTTP ${http_status}）` : '正常'
+      };
+    } else if (status === 'timeout') {
+      return { 
+        icon: '🔴', 
+        text: '异常（请求超时）'
+      };
+    } else if (status === 'error') {
+      return { 
+        icon: '🔴', 
+        text: error ? `异常（${error}）` : '异常'
+      };
+    }
+    
+    return { icon: '🟡', text: '未知' };
   }
   
-  // 获取服务状态文本
-  function getStatusText(status) {
-    switch (status) {
-      case 'healthy':
-        return '正常';
-      case 'error':
-        return '异常';
-      case 'timeout':
-        return '超时';
-      default:
-        return '未知';
-    }
+  // 强制刷新页面
+  function forceRefresh() {
+    window.location.reload();
   }
 </script>
 
 <!-- 版本信息用于强制刷新 -->
 <svelte:head>
-  <title>系统健康检查 v{data?.version || '1.0'} - 百道汇</title>
-  <meta name="cache-control" content="no-cache, no-store, must-revalidate">
-  <meta name="pragma" content="no-cache">
-  <meta name="expires" content="0">
+  <title>系统健康检查 v{buildInfo?.version || '2.1.0'}</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="cache-buster" content="{buildInfo?.cache_buster || Date.now()}">
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-  <div class="max-w-7xl w-full bg-white rounded-lg shadow-md p-6">
-    <h1 class="text-3xl font-bold text-center mb-2 text-gray-800">
-      系统健康检查
-    </h1>
-    <p class="text-center text-sm text-gray-500 mb-8">
-      版本 {data?.version || '1.0'} • 缓存破坏器: {data?.cache_buster || 'N/A'} • 自动检测服务状态
-    </p>
+<div class="min-h-screen bg-gray-50 py-8">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     
-    <!-- 状态概览 -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 class="font-semibold text-gray-700 mb-2">系统状态</h3>
-        <div class="flex items-center space-x-2">
-          <span class="px-3 py-1 rounded-full text-sm font-medium {data?.status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-            {data?.status || 'unknown'}
-          </span>
-        </div>
-      </div>
-      
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 class="font-semibold text-gray-700 mb-2">检查时间</h3>
-        <p class="text-sm text-gray-600">{data?.timestamp || 'N/A'}</p>
-      </div>
-      
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 class="font-semibold text-gray-700 mb-2">运行模式</h3>
-        <p class="text-sm text-gray-600">{buildInfo.mode || 'unknown'}</p>
-      </div>
-      
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 class="font-semibold text-gray-700 mb-2">页面版本</h3>
-        <p class="text-sm text-gray-600">{debugInfo.page_version || 'N/A'}</p>
-      </div>
+    <!-- 页面标题 -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
+        系统健康检查面板
+      </h1>
+      <p class="text-gray-600">
+        版本 {buildInfo?.version || '2.1.0'} • 
+        最后更新: {buildInfo?.timestamp ? new Date(buildInfo.timestamp).toLocaleString('zh-CN') : '未知'}
+      </p>
+      <button 
+        on:click={forceRefresh}
+        class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+      >
+        🔄 强制刷新
+      </button>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    {#if data?.error}
+      <!-- 错误状态显示 -->
+      <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">系统检查异常</h3>
+            <p class="mt-1 text-sm text-red-700">{data.error}: {data.message}</p>
+          </div>
+        </div>
+      </div>
+    {:else}
       
-      <!-- 环境变量检查 -->
-      <div class="bg-gray-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">🔧 环境变量检查</h3>
-        <div class="space-y-3">
-          {#each Object.entries(envCheck) as [key, value]}
-            <div class="flex justify-between items-center py-2 border-b border-gray-200">
-              <span class="font-medium text-gray-700">{key}:</span>
-              <span class="text-sm px-2 py-1 rounded {
-                value === 'configured' || value === '✓ Set' ? 'bg-green-100 text-green-700' :
-                value === 'not_configured' || value === '✗ Missing' ? 'bg-red-100 text-red-700' :
-                'bg-blue-100 text-blue-700'
-              }">
-                {value}
-              </span>
-            </div>
-          {/each}
-        </div>
-      </div>
-
-      <!-- 构建信息 -->
-      <div class="bg-gray-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">⚙️ 构建信息</h3>
-        <div class="space-y-3">
-          <div class="flex justify-between items-center py-2 border-b border-gray-200">
-            <span class="font-medium text-gray-700">Mode:</span>
-            <span class="text-sm text-gray-600">{buildInfo.mode || 'unknown'}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-gray-200">
-            <span class="font-medium text-gray-700">Development:</span>
-            <span class="text-sm text-gray-600">{buildInfo.development ? '是' : '否'}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-gray-200">
-            <span class="font-medium text-gray-700">Production:</span>
-            <span class="text-sm text-gray-600">{buildInfo.production ? '是' : '否'}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-gray-200">
-            <span class="font-medium text-gray-700">SSR:</span>
-            <span class="text-sm text-gray-600">{buildInfo.ssr ? '是' : '否'}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-gray-200">
-            <span class="font-medium text-gray-700">Svelte:</span>
-            <span class="text-sm text-gray-600">{buildInfo.svelte_version || 'N/A'}</span>
-          </div>
-          <div class="flex justify-between items-center py-2">
-            <span class="font-medium text-gray-700">Vite:</span>
-            <span class="text-sm text-gray-600">{buildInfo.vite_version || 'N/A'}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 圣何塞VPS服务状态 -->
-    {#if sanJoseVps.service_status}
-      <div class="mt-8 bg-blue-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">🇺🇸 圣何塞VPS - 主要API服务</h3>
-        <p class="text-sm text-gray-600 mb-4">IP: {sanJoseVps.ip} • API端点: {sanJoseVps.api_endpoint}</p>
+      <!-- 服务状态监控区 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {#each Object.entries(sanJoseVps.service_status) as [service, status]}
-            <div class="bg-white rounded border p-3">
-              <div class="flex justify-between items-center">
-                <span class="font-medium text-gray-700 capitalize text-sm">{service}</span>
-                <div class="flex items-center space-x-2">
-                  <span class="text-lg">{getStatusIcon(status.status)}</span>
-                  <span class="text-xs text-gray-500">{getStatusText(status.status)}</span>
-                </div>
+        <!-- 圣何塞VPS服务状态 -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+          <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+            <span class="w-3 h-3 bg-blue-500 rounded-full mr-3"></span>
+            主要API服务
+          </h2>
+          
+          <div class="space-y-2">
+            {#each Object.entries(sanJoseVps) as [serviceName, result]}
+              {@const status = getStatusDisplay(result)}
+              <div class="flex items-center justify-between py-1">
+                <span class="text-sm font-medium text-gray-700">{serviceName}</span>
+                <span class="flex items-center text-sm">
+                  <span class="mr-1">{status.icon}</span>
+                  <span class={status.icon === '✅' ? 'text-green-600' : 'text-red-600'}>
+                    {status.text}
+                  </span>
+                  {#if result?.response_time}
+                    <span class="text-gray-500 ml-2 text-xs">
+                      ({result.response_time}ms)
+                    </span>
+                  {/if}
+                </span>
               </div>
-              {#if status.error}
-                <p class="text-xs text-red-500 mt-1 truncate">{status.error}</p>
-              {/if}
-            </div>
-          {/each}
+            {/each}
+          </div>
+          
+          {#if Object.keys(sanJoseVps).length === 0}
+            <p class="text-gray-500 text-sm">无服务数据</p>
+          {/if}
+        </div>
+
+        <!-- 水牛城VPS服务状态 -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+          <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+            <span class="w-3 h-3 bg-green-500 rounded-full mr-3"></span>
+            专门服务
+          </h2>
+          
+          <div class="space-y-2">
+            {#each Object.entries(buffaloVps) as [serviceName, result]}
+              {@const status = getStatusDisplay(result)}
+              <div class="flex items-center justify-between py-1">
+                <span class="text-sm font-medium text-gray-700">{serviceName}</span>
+                <span class="flex items-center text-sm">
+                  <span class="mr-1">{status.icon}</span>
+                  <span class={status.icon === '✅' ? 'text-green-600' : 'text-red-600'}>
+                    {status.text}
+                  </span>
+                  {#if result?.response_time}
+                    <span class="text-gray-500 ml-2 text-xs">
+                      ({result.response_time}ms)
+                    </span>
+                  {/if}
+                </span>
+              </div>
+            {/each}
+          </div>
+          
+          {#if Object.keys(buffaloVps).length === 0}
+            <p class="text-gray-500 text-sm">无服务数据</p>
+          {/if}
         </div>
       </div>
-    {/if}
 
-    <!-- 水牛城VPS服务状态 -->
-    {#if buffaloVps.service_status}
-      <div class="mt-8 bg-green-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">🐃 水牛城VPS - 专门服务</h3>
-        <p class="text-sm text-gray-600 mb-4">IP: {buffaloVps.ip} • {buffaloVps.description}</p>
+      <!-- 系统信息区 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- HTTP服务 -->
-        <div class="mb-6">
-          <h4 class="font-medium text-gray-700 mb-3">HTTP服务状态:</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {#each Object.entries(buffaloVps.service_status) as [service, status]}
-              <div class="bg-white rounded border p-3">
-                <div class="flex justify-between items-center">
-                  <span class="font-medium text-gray-700 capitalize text-sm">{service}</span>
-                  <div class="flex items-center space-x-2">
-                    <span class="text-lg">{getStatusIcon(status.status)}</span>
-                    <span class="text-xs text-gray-500">{getStatusText(status.status)}</span>
-                  </div>
-                </div>
-                {#if status.error}
-                  <p class="text-xs text-red-500 mt-1 truncate">{status.error}</p>
-                {/if}
+        <!-- 环境变量检查 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">环境配置</h3>
+          <div class="space-y-2">
+            {#each Object.entries(envCheck) as [key, value]}
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">{key}:</span>
+                <span class="text-sm font-medium {value === '已设置' || value === '已配置' ? 'text-green-600' : 'text-gray-500'}">
+                  {value}
+                </span>
               </div>
             {/each}
           </div>
         </div>
 
-        <!-- 容器服务 -->
-        {#if buffaloVps.containers}
-          <div>
-            <h4 class="font-medium text-gray-700 mb-3">容器服务:</h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {#each Object.entries(buffaloVps.containers) as [container, description]}
-                <div class="bg-white rounded border p-3">
-                  <div class="flex justify-between items-center">
-                    <span class="font-medium text-gray-700 text-sm">{container}</span>
-                    <span class="text-xs text-gray-500">{description}</span>
-                  </div>
-                </div>
-              {/each}
+        <!-- 构建信息 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">构建信息</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">版本:</span>
+              <span class="text-sm font-medium text-green-600">{buildInfo?.version || '未知'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">模式:</span>
+              <span class="text-sm font-medium">{buildInfo?.mode || '未知'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">生产环境:</span>
+              <span class="text-sm font-medium">{buildInfo?.is_prod ? '是' : '否'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">SSR:</span>
+              <span class="text-sm font-medium">{buildInfo?.is_ssr ? '是' : '否'}</span>
             </div>
           </div>
-        {/if}
-      </div>
-    {/if}
+        </div>
 
-    <!-- 调试信息 -->
-    {#if debugInfo.all_env_vars}
-      <div class="mt-8 bg-yellow-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">🐛 调试信息</h3>
-        
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- 环境变量详情 -->
-          <div>
-            <h4 class="font-medium text-gray-700 mb-3">环境变量详情:</h4>
-            <div class="grid grid-cols-1 gap-2">
-              {#each Object.entries(debugInfo.all_env_vars) as [key, value]}
-                <div class="flex justify-between items-center py-2 px-3 bg-white rounded border">
-                  <span class="font-medium text-gray-700 text-sm">{key}:</span>
-                  <span class="text-sm px-2 py-1 rounded {
-                    value.includes('✓') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }">
-                    {value}
-                  </span>
-                </div>
-              {/each}
+        <!-- 调试信息 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">系统信息</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">用户代理:</span>
+              <span class="text-sm font-medium">{debugInfo?.user_agent || '未知'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">部署环境:</span>
+              <span class="text-sm font-medium text-blue-600">{debugInfo?.deployment_env || '未知'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">最后检查:</span>
+              <span class="text-sm font-medium">
+                {debugInfo?.last_check ? new Date(debugInfo.last_check).toLocaleTimeString('zh-CN') : '未知'}
+              </span>
             </div>
           </div>
-
-          <!-- 部署信息 -->
-          {#if debugInfo.deployment_info}
-            <div>
-              <h4 class="font-medium text-gray-700 mb-3">部署信息:</h4>
-              <div class="space-y-2">
-                {#each Object.entries(debugInfo.deployment_info) as [key, value]}
-                  <div class="flex justify-between items-center py-2 px-3 bg-white rounded border">
-                    <span class="font-medium text-gray-700 text-sm">{key}:</span>
-                    <span class="text-sm text-gray-600">{value}</span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
         </div>
       </div>
     {/if}
-      
-    <!-- 错误信息 -->
-    {#if data?.error}
-      <div class="mt-8 bg-red-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-red-800 mb-4">❌ 错误信息</h3>
-        <pre class="text-sm text-red-700 bg-red-100 p-4 rounded whitespace-pre-wrap">{data.error}</pre>
-        {#if debugInfo.error_details}
-          <details class="mt-4">
-            <summary class="cursor-pointer text-sm font-medium text-red-800">详细错误信息</summary>
-            <pre class="text-xs text-red-600 bg-red-50 p-3 rounded mt-2 whitespace-pre-wrap">{debugInfo.error_details}</pre>
-          </details>
-        {/if}
-      </div>
-    {/if}
-    
-    <!-- 操作按钮 -->
-    <div class="mt-8 flex flex-wrap justify-center gap-4">
-      <a href="/login" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-        返回登录页
-      </a>
-      <a href="{sanJoseVps?.health_check || 'http://107.172.87.113/api/health'}" target="_blank" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-        圣何塞健康检查
-      </a>
-      <a href="http://216.144.233.104:5007/health" target="_blank" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-        水牛城健康检查
-      </a>
-      <button on:click={() => window.location.reload()} class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-        强制刷新 (v{data?.version})
-      </button>
-    </div>
   </div>
 </div> 
