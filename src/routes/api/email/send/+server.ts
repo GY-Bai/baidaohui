@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 
-const EMAIL_SERVICE_URL = process.env.EMAIL_SERVICE_URL || 'http://localhost:5003';
+const EMAIL_SERVICE_URL = import.meta.env.EMAIL_SERVICE_URL || import.meta.env.VITE_EMAIL_SERVICE_URL || 'http://localhost:5003';
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
     try {

@@ -10,7 +10,7 @@ export const GET: RequestHandler = async ({ url, fetch }) => {
     }
 
     // 转发到后端服务
-    const response = await fetch(`${process.env.AUTH_SERVICE_URL || 'http://localhost:5001'}/api/profile/check-nickname?nickname=${encodeURIComponent(nickname)}`);
+    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:5001'}/api/profile/check-nickname?nickname=${encodeURIComponent(nickname)}`);
     
     if (!response.ok) {
       const error = await response.json();

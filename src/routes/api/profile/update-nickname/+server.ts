@@ -17,7 +17,7 @@ export const POST: RequestHandler = async ({ request, fetch, cookies }) => {
     }
 
     // 转发到后端服务
-    const response = await fetch(`${process.env.AUTH_SERVICE_URL || 'http://localhost:5001'}/api/profile/update-nickname`, {
+    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:5001'}/api/profile/update-nickname`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
+const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://localhost:5002';
 
-const SSO_SERVICE_URL = process.env.SSO_SERVICE_URL || 'http://localhost:5002';
-
-export async function POST({ request }) {
+export const POST = async ({ request }) => {
   try {
     const body = await request.json();
     
@@ -28,8 +27,8 @@ export async function POST({ request }) {
     console.error('SSO验证请求失败:', error);
     return json({ 
       valid: false, 
-      error: '服务不可用',
+      error: '验证服务不可用',
       redirect_url: 'https://www.baidaohui.com/login'
-    }, { status: 500 });
+    }, { status: 503 });
   }
-} 
+}; 

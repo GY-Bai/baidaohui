@@ -29,8 +29,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  // 2. 根域名或 www → 登录逻辑
-  const isApex = host === 'baidaohui.com' || host === 'www.baidaohui.com';
+  // 2. 根域名、www 或 localhost → 登录逻辑
+  const isApex = host === 'baidaohui.com' || host === 'www.baidaohui.com' || host === 'localhost' || host.startsWith('127.0.0.1');
   if (!isApex) throw redirect(302, '/login');
 
   // 3. session 获取

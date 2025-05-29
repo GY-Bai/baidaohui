@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 
-const SSO_SERVICE_URL = process.env.SSO_SERVICE_URL || 'http://localhost:5002';
+const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://localhost:5002';
 
 export const GET = async ({ request, cookies }) => {
   try {

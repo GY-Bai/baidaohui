@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
-const SSO_SERVICE_URL = process.env.SSO_SERVICE_URL || 'http://localhost:5002';
+const AUTH_SERVICE_URL = import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:5001';
+const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://localhost:5002';
 
 export async function POST({ request, cookies }) {
   try {
