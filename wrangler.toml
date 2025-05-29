@@ -1,9 +1,6 @@
 name = "baidaohui"
 compatibility_date = "2024-01-01"
 
-# Cloudflare Pages 配置
-pages_build_output_dir = ".svelte-kit/output"
-
 [env.production]
 name = "baidaohui-production"
 
