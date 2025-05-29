@@ -2,11 +2,54 @@ import Stripe from 'stripe';
 import { MongoClient, Db } from 'mongodb';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import cron from 'node-cron';
-import axios from 'axios';
-import { config } from './config';
-import express from 'express';
+import express, { Request, Response } from 'express';
 
 const app = express();
+
+// 类型定义
+interface SellerKey {
+  _id: any;
+  userId: string;
+  storeId?: string;
+  keyValue: string;
+  keyType: string;
+  userRole: string;
+  isActive: boolean;
+  isListed: boolean;
+  lastUsed?: Date;
+}
+
+interface ProductData {
+  productId: string;
+  stripeProductId: string;
+  stripePriceId: string;
+  name: string;
+  description: string;
+  imageUrls: string[];
+  price: number;
+  currency: string;
+  paymentLinkUrl: string;
+  storeId: string;
+  category: string;
+  tags: string[];
+  isActive: boolean;
+  isListed: boolean;
+  sellerUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface SyncResult {
+  success: boolean;
+  count: number;
+  sellers: number;
+  failed?: number;
+}
+
+// 全局变量声明
+declare global {
+  var lastSyncTime: string | undefined;
+}
 
 // 中间件
 app.use(express.json());
@@ -33,18 +76,18 @@ const r2Client = new S3Client({
 let db: Db;
 
 MongoClient.connect(MONGODB_URI)
-  .then(client => {
+  .then((client) => {
     console.log('MongoDB连接成功');
     db = client.db('baidaohui');
     startPollingTasks();
   })
-  .catch(error => {
+  .catch((error: Error) => {
     console.error('MongoDB连接失败:', error);
     process.exit(1);
   });
 
 // 健康检查
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({ 
     status: 'healthy', 
     service: 'ecommerce-poller',
@@ -54,14 +97,14 @@ app.get('/health', (req, res) => {
 });
 
 // 获取所有有效的seller Stripe密钥
-async function getActiveSellerKeys() {
+async function getActiveSellerKeys(): Promise<SellerKey[]> {
   try {
     const sellerKeys = await db.collection('keys').find({
       userRole: 'seller',
       keyType: 'stripe_secret',
       isActive: true,
       isListed: true // 只获取上架的seller
-    }).toArray();
+    }).toArray() as SellerKey[];
     
     console.log(`找到 ${sellerKeys.length} 个有效的seller Stripe密钥`);
     return sellerKeys;
@@ -72,7 +115,7 @@ async function getActiveSellerKeys() {
 }
 
 // 同步单个seller的商品
-async function syncSellerProducts(sellerKey: any) {
+async function syncSellerProducts(sellerKey: SellerKey): Promise<ProductData[]> {
   try {
     const stripe = new Stripe(sellerKey.keyValue);
     const storeId = sellerKey.storeId || sellerKey.userId;
@@ -93,14 +136,14 @@ async function syncSellerProducts(sellerKey: any) {
     });
     
     // 创建Payment Link映射
-    const paymentLinkMap = new Map();
-    paymentLinks.data.forEach(link => {
+    const paymentLinkMap = new Map<string, string>();
+    paymentLinks.data.forEach((link: any) => {
       if (link.line_items?.data?.[0]?.price?.product) {
-        paymentLinkMap.set(link.line_items.data[0].price.product, link.url);
+        paymentLinkMap.set(link.line_items.data[0].price.product as string, link.url);
       }
     });
     
-    const processedProducts = [];
+    const processedProducts: ProductData[] = [];
     
     for (const product of products.data) {
       try {
@@ -112,7 +155,7 @@ async function syncSellerProducts(sellerKey: any) {
           continue;
         }
         
-        const productData = {
+        const productData: ProductData = {
           productId: product.id,
           stripeProductId: product.id,
           stripePriceId: defaultPrice.id,
@@ -156,7 +199,8 @@ async function syncSellerProducts(sellerKey: any) {
     return processedProducts;
     
   } catch (error) {
-    console.error(`同步 seller ${sellerKey.storeId || sellerKey.userId} 失败:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`同步 seller ${sellerKey.storeId || sellerKey.userId} 失败:`, errorMessage);
     
     // 发送错误通知邮件给对应的seller
     if (EMAIL_SERVICE_URL) {
@@ -172,7 +216,7 @@ async function syncSellerProducts(sellerKey: any) {
               type: 'seller_sync_error',
               data: {
                 storeId: sellerKey.storeId || sellerKey.userId,
-                error: error.message,
+                error: errorMessage,
                 timestamp: new Date().toISOString()
               }
             })
@@ -188,7 +232,7 @@ async function syncSellerProducts(sellerKey: any) {
 }
 
 // 处理下架的seller商品
-async function handleUnlistedSellers() {
+async function handleUnlistedSellers(): Promise<void> {
   try {
     // 获取被下架的seller
     const unlistedSellers = await db.collection('keys').find({
@@ -196,7 +240,7 @@ async function handleUnlistedSellers() {
       keyType: 'stripe_secret',
       isActive: true,
       isListed: false
-    }).toArray();
+    }).toArray() as SellerKey[];
     
     for (const seller of unlistedSellers) {
       const storeId = seller.storeId || seller.userId;
@@ -221,7 +265,7 @@ async function handleUnlistedSellers() {
 }
 
 // 主同步函数
-async function syncAllProducts() {
+async function syncAllProducts(): Promise<SyncResult> {
   try {
     console.log('开始同步所有seller商品...');
     global.lastSyncTime = new Date().toISOString();
@@ -237,7 +281,7 @@ async function syncAllProducts() {
       return { success: true, count: 0, sellers: 0 };
     }
     
-    let allProducts = [];
+    const allProducts: ProductData[] = [];
     let successCount = 0;
     
     // 并发同步所有seller（限制并发数）
@@ -293,7 +337,7 @@ async function syncAllProducts() {
 }
 
 // 启动定时任务
-function startPollingTasks() {
+function startPollingTasks(): void {
   console.log('启动电商轮询定时任务...');
   
   // 每小时同步一次
@@ -317,20 +361,21 @@ function startPollingTasks() {
 }
 
 // 手动同步接口
-app.post('/sync/products', async (req, res) => {
+app.post('/sync/products', async (req: Request, res: Response) => {
   try {
     const result = await syncAllProducts();
     res.json(result);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: errorMessage 
     });
   }
 });
 
 // 同步特定seller
-app.post('/sync/seller/:storeId', async (req, res) => {
+app.post('/sync/seller/:storeId', async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
     
@@ -342,7 +387,7 @@ app.post('/sync/seller/:storeId', async (req, res) => {
       userRole: 'seller',
       keyType: 'stripe_secret',
       isActive: true
-    });
+    }) as SellerKey | null;
     
     if (!sellerKey) {
       return res.status(404).json({
@@ -360,15 +405,16 @@ app.post('/sync/seller/:storeId', async (req, res) => {
     });
     
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: errorMessage
     });
   }
 });
 
 // 获取同步状态
-app.get('/sync/status', (req, res) => {
+app.get('/sync/status', (req: Request, res: Response) => {
   res.json({
     service: 'ecommerce-poller',
     lastSyncTime: global.lastSyncTime || null,
@@ -395,13 +441,17 @@ app.listen(PORT, () => {
 // 优雅关闭
 process.on('SIGTERM', async () => {
   console.log('收到SIGTERM信号，正在关闭服务...');
-  await db.close();
+  if (db) {
+    await db.client.close();
+  }
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('收到SIGINT信号，正在关闭服务...');
-  await db.close();
+  if (db) {
+    await db.client.close();
+  }
   process.exit(0);
 });
 

@@ -42,6 +42,8 @@ services:
   auth-service:
     image: baidaohui-auth-service:latest
     container_name: auth-service
+    ports:
+      - "5001:5001"
     environment:
       # 外部API配置 - 从.env文件读取
       - MONGODB_URI=${MONGODB_URI}
@@ -69,6 +71,8 @@ services:
   sso-service:
     image: baidaohui-sso-service:latest
     container_name: sso-service
+    ports:
+      - "5002:5002"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -96,6 +100,8 @@ services:
   chat-service:
     image: baidaohui-chat-service:latest
     container_name: chat-service
+    ports:
+      - "5003:5003"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -125,6 +131,8 @@ services:
   ecommerce-service:
     image: baidaohui-ecommerce-api-service:latest
     container_name: ecommerce-service
+    ports:
+      - "5004:5004"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -153,6 +161,8 @@ services:
   payment-service:
     image: baidaohui-payment-service:latest
     container_name: payment-service
+    ports:
+      - "5008:5008"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -176,6 +186,8 @@ services:
   invite-service:
     image: baidaohui-invite-service:latest
     container_name: invite-service
+    ports:
+      - "5006:5006"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -196,6 +208,8 @@ services:
   key-service:
     image: baidaohui-key-service:latest
     container_name: key-service
+    ports:
+      - "5009:5009"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -216,6 +230,8 @@ services:
   static-api-service:
     image: baidaohui-static-api-service:latest
     container_name: static-api-service
+    ports:
+      - "5010:5010"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}

@@ -9,6 +9,8 @@ services:
   fortune-service:
     image: baidaohui-fortune-service:latest
     container_name: fortune-service
+    ports:
+      - "5007:5007"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -38,6 +40,8 @@ services:
   email-service:
     image: baidaohui-email-service:latest
     container_name: email-service
+    ports:
+      - "5008:5008"
     environment:
       # 外部API配置
       - MJ_APIKEY_PUBLIC=${MJ_APIKEY_PUBLIC}
@@ -61,6 +65,8 @@ services:
   ecommerce-poller:
     image: baidaohui-ecommerce-poller:latest
     container_name: ecommerce-poller
+    ports:
+      - "5004:5004"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
@@ -106,6 +112,8 @@ services:
   r2-sync-service:
     image: baidaohui-r2-sync-service:latest
     container_name: r2-sync-service
+    ports:
+      - "5011:5011"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}
