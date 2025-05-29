@@ -29,7 +29,11 @@ CORS(app, supports_credentials=True)
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/baidaohui')
 JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret-key')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
-# Vault配置已废弃 - 现直接存储在MongoDB Atlas中
+# Vault配置（可选，如果不使用Vault则为None）
+VAULT_URL = os.getenv('VAULT_URL')
+VAULT_TOKEN = os.getenv('VAULT_TOKEN')
+VAULT_MOUNT_POINT = os.getenv('VAULT_MOUNT_POINT', 'secret')
+VAULT_ENCRYPTION_KEY = os.getenv('VAULT_ENCRYPTION_KEY')
 PAYMENT_SERVICE_URL = os.getenv('PAYMENT_SERVICE_URL', 'http://payment-service:5006')
 ECOMMERCE_POLLER_URL = os.getenv('ECOMMERCE_POLLER_URL', 'http://ecommerce-poller:3000')
 
