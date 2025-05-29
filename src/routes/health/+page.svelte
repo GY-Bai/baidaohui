@@ -8,6 +8,33 @@
   $: debugInfo = data?.debug_info || {};
   $: sanJoseVps = backendStatus?.san_jose_vps || {};
   $: buffaloVps = backendStatus?.buffalo_vps || {};
+  
+  // 获取服务状态图标
+  function getStatusIcon(status) {
+    switch (status) {
+      case 'healthy':
+        return '🟢';
+      case 'error':
+      case 'timeout':
+        return '🔴';
+      default:
+        return '🟡';
+    }
+  }
+  
+  // 获取服务状态文本
+  function getStatusText(status) {
+    switch (status) {
+      case 'healthy':
+        return '正常';
+      case 'error':
+        return '异常';
+      case 'timeout':
+        return '超时';
+      default:
+        return '未知';
+    }
+  }
 </script>
 
 <!-- 版本信息用于强制刷新 -->
@@ -24,7 +51,7 @@
       系统健康检查
     </h1>
     <p class="text-center text-sm text-gray-500 mb-8">
-      版本 {data?.version || '1.0'} • 缓存破坏器: {data?.cache_buster || 'N/A'}
+      版本 {data?.version || '1.0'} • 缓存破坏器: {data?.cache_buster || 'N/A'} • 自动检测服务状态
     </p>
     
     <!-- 状态概览 -->
@@ -108,20 +135,24 @@
     </div>
 
     <!-- 圣何塞VPS服务状态 -->
-    {#if sanJoseVps.services}
+    {#if sanJoseVps.service_status}
       <div class="mt-8 bg-blue-50 rounded-lg p-6">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">🇺🇸 圣何塞VPS - 主要API服务</h3>
         <p class="text-sm text-gray-600 mb-4">IP: {sanJoseVps.ip} • API端点: {sanJoseVps.api_endpoint}</p>
         
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {#each Object.entries(sanJoseVps.services) as [service, url]}
+          {#each Object.entries(sanJoseVps.service_status) as [service, status]}
             <div class="bg-white rounded border p-3">
               <div class="flex justify-between items-center">
-                <span class="font-medium text-gray-700 capitalize text-sm">{service}:</span>
-                <a href="{url}" target="_blank" class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200">
-                  测试
-                </a>
+                <span class="font-medium text-gray-700 capitalize text-sm">{service}</span>
+                <div class="flex items-center space-x-2">
+                  <span class="text-lg">{getStatusIcon(status.status)}</span>
+                  <span class="text-xs text-gray-500">{getStatusText(status.status)}</span>
+                </div>
               </div>
+              {#if status.error}
+                <p class="text-xs text-red-500 mt-1 truncate">{status.error}</p>
+              {/if}
             </div>
           {/each}
         </div>
@@ -129,23 +160,27 @@
     {/if}
 
     <!-- 水牛城VPS服务状态 -->
-    {#if buffaloVps.services}
+    {#if buffaloVps.service_status}
       <div class="mt-8 bg-green-50 rounded-lg p-6">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">🐃 水牛城VPS - 专门服务</h3>
         <p class="text-sm text-gray-600 mb-4">IP: {buffaloVps.ip} • {buffaloVps.description}</p>
         
         <!-- HTTP服务 -->
         <div class="mb-6">
-          <h4 class="font-medium text-gray-700 mb-3">HTTP服务:</h4>
+          <h4 class="font-medium text-gray-700 mb-3">HTTP服务状态:</h4>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {#each Object.entries(buffaloVps.services) as [service, url]}
+            {#each Object.entries(buffaloVps.service_status) as [service, status]}
               <div class="bg-white rounded border p-3">
                 <div class="flex justify-between items-center">
-                  <span class="font-medium text-gray-700 capitalize text-sm">{service}:</span>
-                  <a href="{url}" target="_blank" class="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200">
-                    测试
-                  </a>
+                  <span class="font-medium text-gray-700 capitalize text-sm">{service}</span>
+                  <div class="flex items-center space-x-2">
+                    <span class="text-lg">{getStatusIcon(status.status)}</span>
+                    <span class="text-xs text-gray-500">{getStatusText(status.status)}</span>
+                  </div>
                 </div>
+                {#if status.error}
+                  <p class="text-xs text-red-500 mt-1 truncate">{status.error}</p>
+                {/if}
               </div>
             {/each}
           </div>
@@ -159,7 +194,7 @@
               {#each Object.entries(buffaloVps.containers) as [container, description]}
                 <div class="bg-white rounded border p-3">
                   <div class="flex justify-between items-center">
-                    <span class="font-medium text-gray-700 text-sm">{container}:</span>
+                    <span class="font-medium text-gray-700 text-sm">{container}</span>
                     <span class="text-xs text-gray-500">{description}</span>
                   </div>
                 </div>
@@ -216,6 +251,12 @@
       <div class="mt-8 bg-red-50 rounded-lg p-6">
         <h3 class="text-lg font-semibold text-red-800 mb-4">❌ 错误信息</h3>
         <pre class="text-sm text-red-700 bg-red-100 p-4 rounded whitespace-pre-wrap">{data.error}</pre>
+        {#if debugInfo.error_details}
+          <details class="mt-4">
+            <summary class="cursor-pointer text-sm font-medium text-red-800">详细错误信息</summary>
+            <pre class="text-xs text-red-600 bg-red-50 p-3 rounded mt-2 whitespace-pre-wrap">{debugInfo.error_details}</pre>
+          </details>
+        {/if}
       </div>
     {/if}
     
