@@ -1,8 +1,7 @@
 <!-- Firstmate的邀请链接组件，与Master相同但有助理标识 -->
 <script>
   import { apiCall } from '$lib/auth';
-  
-  import QRCode from 'qrcode';
+  import QRCode from '@castlenine/svelte-qrcode';
 
   export const session = undefined;
 
@@ -97,14 +96,16 @@
   // 生成二维码数据URL
   async function generateQRCodeDataURL(text) {
     try {
-      return await QRCode.toDataURL(text, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
+      // 暂时禁用二维码功能
+      return '';
+      // return await QRCode.toDataURL(text, {
+      //   width: 200,
+      //   margin: 2,
+      //   color: {
+      //     dark: '#000000',
+      //     light: '#FFFFFF'
+      //   }
+      // });
     } catch (error) {
       console.error('生成二维码失败:', error);
       // 返回一个错误占位符
@@ -125,12 +126,39 @@
     }
   }
 
-  // 下载二维码
-  function downloadQRCode() {
-    const link = document.createElement('a');
-    link.download = 'invite-qrcode.png';
-    link.href = qrCodeData;
-    link.click();
+  // 下载二维码 - 使用现代的方式获取二维码数据
+  async function downloadQRCode() {
+    try {
+      // 获取二维码SVG元素
+      const qrElement = document.querySelector('.qr-code-container svg');
+      if (!qrElement) {
+        alert('二维码元素未找到');
+        return;
+      }
+
+      // 创建canvas并绘制SVG
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const svgData = new XMLSerializer().serializeToString(qrElement);
+      const img = new Image();
+      
+      img.onload = function() {
+        canvas.width = img.width || 256;
+        canvas.height = img.height || 256;
+        ctx.drawImage(img, 0, 0);
+        
+        // 下载
+        const link = document.createElement('a');
+        link.download = 'invite-qrcode.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+    } catch (error) {
+      console.error('下载二维码失败:', error);
+      alert('下载二维码失败，请重试');
+    }
   }
 
   // 启动倒计时
@@ -369,8 +397,14 @@
         {/if}
       </div>
       
-      <div class="text-center mb-4">
-        <img src={qrCodeData} alt="邀请链接二维码" class="mx-auto border rounded" />
+      <div class="text-center mb-4 qr-code-container">
+        <QRCode 
+          value={qrCodeUrl} 
+          size={200}
+          margin={2}
+          backgroundColor="#FFFFFF"
+          foregroundColor="#000000"
+        />
       </div>
       
       <div class="bg-gray-50 rounded p-2 mb-4">

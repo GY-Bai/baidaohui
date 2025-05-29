@@ -1,16 +1,13 @@
+// svelte.config.js
 import adapter from '@sveltejs/adapter-cloudflare';
+import sveltePreprocess from 'svelte-preprocess';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	kit: {
-		adapter: adapter({
-			// Cloudflare Pages 配置
-			routes: {
-				include: ['/*'],
-				exclude: ['/api/*', '/_app/*', '/favicon.png', '/robots.txt', '/sitemap.xml']
-			}
-		})
-	}
+  preprocess: sveltePreprocess(),
+  kit: {
+    adapter: adapter(),
+  }
 };
 
-export default config; 
+export default config;

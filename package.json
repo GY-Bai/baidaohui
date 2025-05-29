@@ -2,45 +2,35 @@
   "name": "baidaohui",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build": "vite build && node fix-redirects.cjs",
-    "build:pages": "rm -rf node_modules package-lock.json && npm install && vite build && node fix-redirects.cjs",
     "dev": "vite dev",
+    "build": "vite build && node fix-redirects.cjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --plugin-search-dir . --check . && eslint .",
     "format": "prettier --plugin-search-dir . --write ."
   },
-  "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint": "^8.28.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-svelte": "^2.30.0",
-    "prettier": "^2.8.0",
-    "prettier-plugin-svelte": "^2.10.1",
-    "svelte-check": "^3.4.3"
-  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.38.0",
-    "@types/qrcode": "^1.5.5",
+    "@castlenine/svelte-qrcode": "^2.3.0",
+    "@supabase/supabase-js": "^2.49.8",
+    "@sveltejs/adapter-cloudflare": "^7.0.3",
+    "@sveltejs/kit": "^2.21.1",
     "qrcode": "^1.5.4",
-    "socket.io-client": "^4.7.2",
-    "@sveltejs/adapter-auto": "^2.0.0",
-    "@sveltejs/adapter-cloudflare": "^2.3.4",
-    "@sveltejs/kit": "^1.20.4",
-    "autoprefixer": "^10.4.14",
-    "postcss": "^8.4.24",
-    "svelte": "^4.0.5",
+    "svelte": "^5.33.5"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@sveltejs/adapter-static": "^3.0.8",
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tailwindcss/postcss": "^4.1.8",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
     "svelte-preprocess": "^6.0.3",
-    "tailwindcss": "^3.3.0",
-    "tslib": "^2.4.1",
-    "typescript": "^5.8.3",
-    "vite": "^4.4.2"
+    "tailwindcss": "^4.1.8",
+    "vite": "^6.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "type": "module"
+  }
 }
