@@ -9,6 +9,26 @@ const ROLE_PATH_MAP: Record<string, string> = {
   Seller: '/seller'
 };
 
+// 带超时的fetch函数
+async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}) {
+  const { timeout = 3000, ...fetchOptions } = options;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
   const { request, url, fetch } = event;
 
@@ -28,8 +48,12 @@ export const handle: Handle = async ({ event, resolve }) => {
     const expectedRole = Object.keys(ROLE_PATH_MAP).find(role => ROLE_PATH_MAP[role] === currentRolePath);
 
     try {
-      // 验证用户会话和角色权限
-      const res = await fetch('/api/sso/session', { method: 'GET', credentials: 'include' });
+      // 验证用户会话和角色权限（添加超时保护）
+      const res = await fetchWithTimeout('/api/sso/session', { 
+        method: 'GET', 
+        credentials: 'include',
+        timeout: 3000 // 3秒超时
+      });
       
       if (!res.ok) {
         // 未登录，重定向到登录页
@@ -72,8 +96,12 @@ export const handle: Handle = async ({ event, resolve }) => {
   // 对于根路径 "/" 的处理
   if (path === '/') {
     try {
-      // 尝试获取用户会话
-      const res = await fetch('/api/sso/session', { method: 'GET', credentials: 'include' });
+      // 尝试获取用户会话（添加超时保护）
+      const res = await fetchWithTimeout('/api/sso/session', { 
+        method: 'GET', 
+        credentials: 'include',
+        timeout: 3000 // 3秒超时
+      });
       
       if (res.ok) {
         const { user } = await res.json();

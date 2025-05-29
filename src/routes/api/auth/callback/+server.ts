@@ -1,20 +1,26 @@
 import { json } from '@sveltejs/kit';
 
-const AUTH_SERVICE_URL = import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:5001';
-const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://localhost:5002';
+const AUTH_SERVICE_URL = import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://107.172.87.113:5001';
+const SSO_SERVICE_URL = import.meta.env.SSO_SERVICE_URL || import.meta.env.VITE_SSO_SERVICE_URL || 'http://107.172.87.113:5002';
 
 export async function POST({ request, cookies }) {
   try {
     const body = await request.json();
     
-    // 转发OAuth回调到auth-service
+    // 转发OAuth回调到auth-service（添加超时保护）
+    const controller1 = new AbortController();
+    const timeoutId1 = setTimeout(() => controller1.abort(), 10000); // 10秒超时
+    
     const authResponse = await fetch(`${AUTH_SERVICE_URL}/auth/callback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller1.signal
     });
+    
+    clearTimeout(timeoutId1);
 
     if (!authResponse.ok) {
       const errorData = await authResponse.json();
@@ -23,7 +29,10 @@ export async function POST({ request, cookies }) {
 
     const authData = await authResponse.json();
     
-    // 使用SSO服务设置跨子域会话
+    // 使用SSO服务设置跨子域会话（添加超时保护）
+    const controller2 = new AbortController();
+    const timeoutId2 = setTimeout(() => controller2.abort(), 5000); // 5秒超时
+    
     const ssoResponse = await fetch(`${SSO_SERVICE_URL}/sso/set-session`, {
       method: 'POST',
       headers: {
@@ -31,8 +40,11 @@ export async function POST({ request, cookies }) {
       },
       body: JSON.stringify({
         user: authData.user
-      })
+      }),
+      signal: controller2.signal
     });
+    
+    clearTimeout(timeoutId2);
 
     if (!ssoResponse.ok) {
       console.error('设置SSO会话失败');

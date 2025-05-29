@@ -15,12 +15,18 @@ export const GET: RequestHandler = async ({ url, fetch, cookies }) => {
       return json({ error: '未授权' }, { status: 401 });
     }
 
-    // 转发到后端服务
-    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:5001'}/api/profile/master-stats?userId=${encodeURIComponent(userId)}`, {
+    // 转发到后端服务（添加超时保护）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://107.172.87.113:5001'}/api/profile/master-stats?userId=${encodeURIComponent(userId)}`, {
       headers: {
         'Authorization': `Bearer ${token}`
-      }
+      },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const error = await response.json();

@@ -16,15 +16,21 @@ export const POST: RequestHandler = async ({ request, fetch, cookies }) => {
       return json({ error: '未授权' }, { status: 401 });
     }
 
-    // 转发到后端服务
-    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:5001'}/api/profile/update-nickname`, {
+    // 转发到后端服务（添加超时保护）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://107.172.87.113:5001'}/api/profile/update-nickname`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ userId, nickname })
+      body: JSON.stringify({ userId, nickname }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const error = await response.json();
