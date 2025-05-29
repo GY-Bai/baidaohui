@@ -1,28 +1,42 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getSession, redirectToRolePath } from '$lib/auth';
+  import { page } from '$app/stores';
+  import { supabase, getSession, redirectToRolePath } from '$lib/auth';
+
+  export let data;
 
   let loading = true;
   let error = '';
 
   onMount(async () => {
     try {
-      // 等待认证完成
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 处理Supabase OAuth回调
+      const { error: authError } = await supabase.auth.exchangeCodeForSession(data.code);
       
+      if (authError) {
+        console.error('Supabase认证错误:', authError);
+        error = '认证失败: ' + authError.message;
+        setTimeout(() => {
+          goto('/login');
+        }, 2000);
+        return;
+      }
+
+      // 认证成功，获取用户会话并重定向
       const session = await getSession();
       if (session) {
-        redirectToRolePath(session.user.role);
+        console.log('登录成功，角色:', session.role);
+        redirectToRolePath(session.role);
       } else {
-        error = '登录失败，请重试';
+        error = '获取用户信息失败，请重试';
         setTimeout(() => {
           goto('/login');
         }, 2000);
       }
     } catch (err) {
       error = '登录过程中出现错误';
-      console.error(err);
+      console.error('登录回调处理错误:', err);
       setTimeout(() => {
         goto('/login');
       }, 2000);
@@ -45,8 +59,8 @@
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
       </div>
-      <h2 class="text-2xl font-semibold text-gray-900 mb-2">正在登录...</h2>
-      <p class="text-gray-600">请稍候，正在验证您的身份</p>
+      <h2 class="text-2xl font-semibold text-gray-900 mb-2">正在验证登录...</h2>
+      <p class="text-gray-600">请稍候，正在通过Supabase验证您的身份</p>
     {:else if error}
       <div class="mb-4">
         <svg class="h-12 w-12 text-red-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">

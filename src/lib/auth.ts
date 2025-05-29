@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { redirect } from '@sveltejs/kit';
-import type { Cookies } from '@sveltejs/kit';
 
 // 从环境变量获取Supabase配置
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
@@ -33,7 +32,7 @@ export interface UserSession {
   access_token?: string;
 }
 
-// 角色对应的路径映射（替换子域名映射）
+// 角色对应的路径映射
 export const rolePaths: Record<UserRole, string> = {
   Fan: '/fan',
   Member: '/member',
@@ -77,14 +76,14 @@ export async function getSession(): Promise<User | null> {
     if (error) throw error;
     if (!session) return null;
 
-    // 从用户元数据或数据库获取角色信息
+    // 从用户元数据获取角色信息，默认为Fan
     const role = session.user.user_metadata?.role || 'Fan';
     
     return {
       id: session.user.id,
       email: session.user.email || '',
       role: role as UserRole,
-      nickname: session.user.user_metadata?.nickname
+      nickname: session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
     };
   } catch (error) {
     console.error('获取会话失败:', error);
@@ -129,107 +128,36 @@ export async function signOut() {
   }
 }
 
-// 验证用户认证状态
-export async function validateAuth(cookies: Cookies, fetch: typeof globalThis.fetch): Promise<User | null> {
-  try {
-    const response = await fetch('/api/sso/session', {
-      credentials: 'include'
-    });
-    
-    // 如果是503状态码，说明后端服务不可用，返回null但不报错
-    if (response.status === 503) {
-      console.log('后端服务暂时不可用');
-      return null;
-    }
-    
-    if (!response.ok) {
-      return null;
-    }
-
-    const { session } = await response.json();
-    if (!session) {
-      return null;
-    }
-
-    return {
-      id: session.user.id,
-      email: session.user.email,
-      role: session.user.role as UserRole,
-      nickname: session.user.nickname
-    };
-  } catch (error) {
-    console.error('验证失败:', error);
-    return null;
-  }
-}
-
-// 通用路由守卫函数（更新为路径检查）
-export async function createRouteGuard(
-  expectedRole: UserRole,
-  url: URL,
-  cookies: Cookies,
-  fetch: typeof globalThis.fetch
-) {
-  const currentPath = url.pathname;
-  const expectedPath = rolePaths[expectedRole];
+// 简化的客户端路由守卫（不依赖VPS）
+export async function clientSideRouteGuard(expectedRole: UserRole): Promise<boolean> {
+  if (!browser) return true;
   
-  // 检查是否在正确的路径
-  if (!currentPath.startsWith(expectedPath)) {
-    throw redirect(302, '/login');
-  }
-
   try {
-    // 使用SSO服务验证会话
-    const response = await fetch('/api/sso/validate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        expected_role: expectedRole,
-        current_path: currentPath
-      })
-    });
-
-    const result = await response.json();
-
-    if (!result.valid) {
-      // 根据错误类型进行重定向
-      if (result.redirect_url) {
-        throw redirect(302, result.redirect_url);
-      } else {
-        throw redirect(302, '/login');
-      }
+    const user = await getSession();
+    
+    if (!user) {
+      // 未登录，重定向到登录页
+      goto('/login');
+      return false;
     }
-
-    return { user: result.user };
+    
+    if (user.role !== expectedRole) {
+      // 角色不匹配，重定向到对应角色页面
+      redirectToRolePath(user.role);
+      return false;
+    }
+    
+    // 检查是否在正确的路径
+    if (!isCorrectPath(expectedRole)) {
+      redirectToRolePath(expectedRole);
+      return false;
+    }
+    
+    return true;
   } catch (error) {
-    console.error('路由守卫验证失败:', error);
-    
-    // 如果是重定向错误，直接抛出
-    if (error instanceof Response) {
-      throw error;
-    }
-    
-    // 其他错误重定向到登录页
-    throw redirect(302, '/login');
-  }
-}
-
-// 检查用户是否已认证并重定向到对应角色页面
-export async function redirectAuthenticatedUser(
-  url: URL,
-  cookies: Cookies,
-  fetch: typeof globalThis.fetch
-) {
-  const user = await validateAuth(cookies, fetch);
-  
-  if (user) {
-    const targetPath = rolePaths[user.role];
-    if (targetPath) {
-      throw redirect(302, targetPath);
-    }
+    console.error('角色验证失败:', error);
+    goto('/login');
+    return false;
   }
 }
 
@@ -249,76 +177,6 @@ export function isCorrectPath(role: UserRole): boolean {
   const expectedPath = rolePaths[role];
   
   return currentPath.startsWith(expectedPath);
-}
-
-// API调用工具函数
-export async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const token = await getAccessToken();
-  
-  const defaultHeaders = {
-    'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
-  };
-
-  const response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers
-    }
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || `HTTP ${response.status}`);
-  }
-
-  return response.json();
-}
-
-// WebSocket连接工具
-export function createWebSocketConnection(namespace: string = '') {
-  return new Promise((resolve, reject) => {
-    getAccessToken().then(token => {
-      if (!token) {
-        reject(new Error('未找到访问令牌'));
-        return;
-      }
-
-      // 这里使用socket.io-client连接
-      // 实际项目中需要安装socket.io-client包
-      const socket = {
-        emit: (event: string, data: any) => console.log('emit:', event, data),
-        on: (event: string, callback: Function) => console.log('on:', event),
-        disconnect: () => console.log('disconnect')
-      };
-      
-      resolve(socket);
-    }).catch(reject);
-  });
-}
-
-// 文件上传工具
-export async function uploadFile(file: File, endpoint: string): Promise<string> {
-  const token = await getAccessToken();
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const response = await fetch(`/api${endpoint}`, {
-    method: 'POST',
-    headers: {
-      ...(token && { 'Authorization': `Bearer ${token}` })
-    },
-    body: formData
-  });
-  
-  if (!response.ok) {
-    throw new Error('文件上传失败');
-  }
-  
-  const result = await response.json();
-  return result.url;
 }
 
 // 格式化时间
@@ -344,6 +202,12 @@ export function formatCurrency(amount: number, currency: string = 'CAD'): string
     style: 'currency',
     currency: currency
   }).format(amount);
+}
+
+// 临时的API调用函数，返回错误信息（VPS服务已解耦）
+export async function apiCall(endpoint: string, options: RequestInit = {}) {
+  console.warn('API调用已禁用，VPS服务已解耦:', endpoint);
+  throw new Error('VPS服务暂时不可用，请稍后再试');
 }
 
 // 客户端角色验证和重定向

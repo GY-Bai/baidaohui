@@ -1,5 +1,4 @@
-import { createRouteGuard } from '$lib/auth';
-
-export const load = async ({ url, cookies, fetch }) => {
-  return await createRouteGuard('Master', url, cookies, fetch);
+// 移除服务器端路由守卫，改为客户端认证
+export const load = async () => {
+  return {};
 }; 

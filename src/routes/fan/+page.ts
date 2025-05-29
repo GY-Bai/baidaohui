@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { getSession, isCorrectPath } from '$lib/auth';
 
-export const load = async ({ url }: any) => {
+export const load = async ({ url }) => {
   // 获取当前会话
   const session = await getSession();
   

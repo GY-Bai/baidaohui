@@ -1,6 +1,7 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { get } from 'svelte/store';
   import { signInWithGoogle, getSession, redirectToRolePath } from '$lib/auth';
 
   export let data;
@@ -8,13 +9,13 @@
   let loading = false;
   let error = data?.error || '';
   let message = data?.message || '';
-  let backendStatus = data?.backendStatus || 'unknown';
   let canvas;
 
   onMount(async () => {
     // 检查URL参数中的错误信息
-    const urlError = $page.url.searchParams.get('error');
-    const urlMessage = $page.url.searchParams.get('message');
+    const currentPage = get(page);
+    const urlError = currentPage.url.searchParams.get('error');
+    const urlMessage = currentPage.url.searchParams.get('message');
     
     if (urlError) {
       error = urlError;
@@ -23,16 +24,15 @@
       message = decodeURIComponent(urlMessage);
     }
 
-    // 只有在后端服务可用时才检查登录状态
-    if (backendStatus === 'available') {
-      try {
-        const session = await getSession();
-        if (session) {
-          redirectToRolePath(session.role);
-        }
-      } catch (err) {
-        console.log('检查登录状态失败:', err);
+    // 检查是否已登录，如果已登录则重定向到对应角色页面
+    try {
+      const session = await getSession();
+      if (session) {
+        redirectToRolePath(session.role);
+        return;
       }
+    } catch (err) {
+      console.log('检查登录状态失败:', err);
     }
 
     // 初始化星空背景
@@ -40,17 +40,12 @@
   });
 
   async function handleGoogleLogin() {
-    if (backendStatus === 'unavailable') {
-      error = 'backend_unavailable';
-      message = '后端服务暂时不可用，无法进行登录。请等待服务部署完成后再试。';
-      return;
-    }
-
     try {
       loading = true;
       error = '';
       message = '';
       await signInWithGoogle();
+      // 登录成功后会在callback页面处理重定向
     } catch (err) {
       error = 'login_failed';
       message = '登录过程中出现错误，请重试';
@@ -177,36 +172,21 @@
     <h1>欢迎来到百刀会</h1>
     <p class="subtitle">Everything Both Nothing</p>
     
-    <!-- 后端服务状态显示 -->
-    {#if backendStatus === 'unavailable'}
-      <div class="status-warning">
-        <i class="fas fa-exclamation-triangle"></i>
-        <div>
-          <strong>🔴服务器罢工!</strong><br>
-          <small>后端服务正在紧急抢修中...</small>
-        </div>
-      </div>
-    {:else if backendStatus === 'available'}
-      <div class="status-success">
-        <i class="fas fa-check-circle"></i>
-        <span>🟢服务器正常!</span>
-      </div>
-    {/if}
+    <!-- 使用纯Supabase认证，不需要后端状态检查 -->
+    <div class="status-success">
+      <i class="fas fa-check-circle"></i>
+      <span>🟢认证服务正常运行!</span>
+    </div>
     
     <button 
       on:click={handleGoogleLogin}
-      disabled={loading || backendStatus === 'unavailable'}
+      disabled={loading}
       class="google-btn"
-      class:disabled={backendStatus === 'unavailable'}
     >
       <div class="google-icon">
         <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
       </div>
-      {#if backendStatus === 'unavailable'}
-        曲率引擎抢修中...<br>暂时无法登录
-      {:else}
-        点击启动曲率引擎!!!<br>一键直达谷歌登录
-      {/if}
+      点击启动曲率引擎!!!<br>一键直达谷歌登录
     </button>
     
     <div class="footer">
@@ -323,27 +303,6 @@
     font-style: italic;
   }
 
-  .status-warning {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    background: rgba(255, 193, 7, 0);
-    border: 1px rgba(255, 193, 7, 0);
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 20px;
-    color: #856404;
-    font-size: 14px;
-    
-  }
-
-  .status-warning i {
-    font-size: 18px;
-    flex-shrink: 0;
-    color:rgb(255, 36, 7);
-  }
-
   .status-success {
     display: flex;
     align-items: center;
@@ -391,12 +350,6 @@
 
   .google-btn:active {
     transform: translateY(0);
-  }
-
-  .google-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
   }
 
   .google-btn::before {
