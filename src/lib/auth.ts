@@ -33,13 +33,13 @@ export interface UserSession {
   access_token?: string;
 }
 
-// 角色对应的子域名映射
-export const roleSubdomains: Record<UserRole, string> = {
-  Fan: 'fan.baidaohui.com',
-  Member: 'member.baidaohui.com',
-  Master: 'master.baidaohui.com',
-  Firstmate: 'firstmate.baidaohui.com',
-  Seller: 'seller.baidaohui.com'
+// 角色对应的路径映射（替换子域名映射）
+export const rolePaths: Record<UserRole, string> = {
+  Fan: '/fan',
+  Member: '/member',
+  Master: '/master',
+  Firstmate: '/firstmate',
+  Seller: '/seller'
 };
 
 // Google登录
@@ -52,7 +52,7 @@ export async function signInWithGoogle() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/auth/callback`
+        redirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/login/callback`
       }
     });
     
@@ -163,19 +163,19 @@ export async function validateAuth(cookies: Cookies, fetch: typeof globalThis.fe
   }
 }
 
-// 通用路由守卫函数
+// 通用路由守卫函数（更新为路径检查）
 export async function createRouteGuard(
   expectedRole: UserRole,
   url: URL,
   cookies: Cookies,
   fetch: typeof globalThis.fetch
 ) {
-  const hostname = url.hostname;
-  const expectedDomain = roleSubdomains[expectedRole];
+  const currentPath = url.pathname;
+  const expectedPath = rolePaths[expectedRole];
   
-  // 检查是否在正确的子域名（开发环境允许localhost）
-  if (hostname !== expectedDomain && hostname !== 'localhost') {
-    throw redirect(302, 'https://www.baidaohui.com/login');
+  // 检查是否在正确的路径
+  if (!currentPath.startsWith(expectedPath)) {
+    throw redirect(302, '/login');
   }
 
   try {
@@ -188,7 +188,7 @@ export async function createRouteGuard(
       credentials: 'include',
       body: JSON.stringify({
         expected_role: expectedRole,
-        current_domain: hostname
+        current_path: currentPath
       })
     });
 
@@ -199,7 +199,7 @@ export async function createRouteGuard(
       if (result.redirect_url) {
         throw redirect(302, result.redirect_url);
       } else {
-        throw redirect(302, 'https://www.baidaohui.com/login');
+        throw redirect(302, '/login');
       }
     }
 
@@ -213,7 +213,7 @@ export async function createRouteGuard(
     }
     
     // 其他错误重定向到登录页
-    throw redirect(302, 'https://www.baidaohui.com/login');
+    throw redirect(302, '/login');
   }
 }
 
@@ -226,29 +226,29 @@ export async function redirectAuthenticatedUser(
   const user = await validateAuth(cookies, fetch);
   
   if (user) {
-    const targetDomain = roleSubdomains[user.role];
-    if (targetDomain) {
-      throw redirect(302, `https://${targetDomain}`);
+    const targetPath = rolePaths[user.role];
+    if (targetPath) {
+      throw redirect(302, targetPath);
     }
   }
 }
 
-// 根据角色重定向到对应子域
-export function redirectToRoleDomain(role: UserRole) {
+// 根据角色重定向到对应路径
+export function redirectToRolePath(role: UserRole) {
   if (browser) {
-    const subdomain = roleSubdomains[role];
-    window.location.href = `https://${subdomain}`;
+    const path = rolePaths[role];
+    goto(path);
   }
 }
 
-// 检查当前域名是否匹配用户角色
-export function isCorrectDomain(role: UserRole): boolean {
+// 检查当前路径是否匹配用户角色
+export function isCorrectPath(role: UserRole): boolean {
   if (!browser) return true;
   
-  const currentHost = window.location.host;
-  const expectedHost = roleSubdomains[role];
+  const currentPath = window.location.pathname;
+  const expectedPath = rolePaths[role];
   
-  return currentHost === expectedHost;
+  return currentPath.startsWith(expectedPath);
 }
 
 // API调用工具函数
@@ -361,13 +361,13 @@ export async function validateRoleAndRedirect(expectedRole: UserRole): Promise<b
     
     if (user.role !== expectedRole) {
       // 角色不匹配，重定向到对应角色页面
-      redirectToRoleDomain(user.role);
+      redirectToRolePath(user.role);
       return false;
     }
     
-    // 检查是否在正确的域名
-    if (!isCorrectDomain(expectedRole)) {
-      redirectToRoleDomain(expectedRole);
+    // 检查是否在正确的路径
+    if (!isCorrectPath(expectedRole)) {
+      redirectToRolePath(expectedRole);
       return false;
     }
     

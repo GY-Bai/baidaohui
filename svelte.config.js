@@ -7,6 +7,12 @@ const config = {
   preprocess: sveltePreprocess(),
   kit: {
     adapter: adapter(),
+    alias: {
+      $lib: 'src/lib'
+    },
+    paths: {
+      base: '' // 确保根路径正确
+    }
   }
 };
 

@@ -1,16 +1,10 @@
 import { redirect } from '@sveltejs/kit';
-import { redirectAuthenticatedUser } from '../../lib/auth';
+import { redirectAuthenticatedUser } from '$lib/auth';
 import type { ServerLoad } from '@sveltejs/kit';
 
 export const load: ServerLoad = async ({ url, cookies, fetch }) => {
-  // 检查是否在正确的主域名
-  const hostname = url.hostname;
+  // 在子目录架构下，不需要检查域名
   
-  // 如果不是主域名或www主域名，重定向到www主域名登录页
-  if (hostname !== 'www.baidaohui.com' && hostname !== 'baidaohui.com' && hostname !== 'localhost') {
-    throw redirect(302, 'https://www.baidaohui.com/login');
-  }
-
   // 检查用户是否已认证，如果是则重定向到对应角色页面
   await redirectAuthenticatedUser(url, cookies, fetch);
 

@@ -16,13 +16,13 @@ DOMAIN = os.getenv('DOMAIN', 'baidaohui.com')
 
 logger = logging.getLogger(__name__)
 
-# 角色对应的子域名映射
-ROLE_SUBDOMAINS = {
-    'Fan': f'fan.{DOMAIN}',
-    'Member': f'member.{DOMAIN}',
-    'Master': f'master.{DOMAIN}',
-    'Firstmate': f'firstmate.{DOMAIN}',
-    'Seller': f'seller.{DOMAIN}'
+# 角色对应的路径映射（替换子域名映射）
+ROLE_PATHS = {
+    'Fan': '/fan',
+    'Member': '/member',
+    'Master': '/master',
+    'Firstmate': '/firstmate',
+    'Seller': '/seller'
 }
 
 @sso_bp.route('/session', methods=['GET'])
@@ -45,15 +45,13 @@ def get_session():
         
         # 返回用户会话信息
         return jsonify({
-            'session': {
-                'user': {
-                    'id': payload['sub'],
-                    'email': payload['email'],
-                    'role': payload['role'],
-                    'nickname': payload.get('nickname')
-                },
-                'expires_at': payload['exp']
-            }
+            'user': {
+                'id': payload['sub'],
+                'email': payload['email'],
+                'role': payload['role'],
+                'nickname': payload.get('nickname')
+            },
+            'expires_at': payload['exp']
         })
         
     except Exception as e:
@@ -62,11 +60,11 @@ def get_session():
 
 @sso_bp.route('/validate', methods=['POST'])
 def validate_session():
-    """验证会话并检查域名权限"""
+    """验证会话并检查路径权限"""
     try:
         data = request.get_json()
         expected_role = data.get('expected_role')
-        current_domain = data.get('current_domain')
+        current_path = data.get('current_path')
         
         # 从Cookie获取token
         token = request.cookies.get('access_token')
@@ -75,7 +73,7 @@ def validate_session():
             return jsonify({
                 'valid': False,
                 'error': '未登录',
-                'redirect_url': f'https://{DOMAIN}/login'
+                'redirect_url': '/login'
             }), 401
         
         # 验证JWT
@@ -85,39 +83,39 @@ def validate_session():
             return jsonify({
                 'valid': False,
                 'error': 'Token已过期',
-                'redirect_url': f'https://{DOMAIN}/login'
+                'redirect_url': '/login'
             }), 401
         except jwt.InvalidTokenError:
             return jsonify({
                 'valid': False,
                 'error': '无效的token',
-                'redirect_url': f'https://{DOMAIN}/login'
+                'redirect_url': '/login'
             }), 401
         
         user_role = payload['role']
         
         # 检查角色权限
         if expected_role and user_role != expected_role:
-            correct_domain = ROLE_SUBDOMAINS.get(user_role)
+            correct_path = ROLE_PATHS.get(user_role)
             return jsonify({
                 'valid': False,
                 'error': '角色不匹配',
                 'user_role': user_role,
                 'expected_role': expected_role,
-                'redirect_url': f'https://{correct_domain}' if correct_domain else f'https://{DOMAIN}/login'
+                'redirect_url': correct_path if correct_path else '/login'
             }), 403
         
-        # 检查域名权限
-        expected_domain = ROLE_SUBDOMAINS.get(user_role)
-        if current_domain and expected_domain:
-            # 允许localhost用于开发环境
-            if current_domain != expected_domain and current_domain != 'localhost':
+        # 检查路径权限
+        expected_path = ROLE_PATHS.get(user_role)
+        if current_path and expected_path:
+            # 检查当前路径是否以期望路径开头
+            if not current_path.startswith(expected_path):
                 return jsonify({
                     'valid': False,
-                    'error': '域名不匹配',
-                    'current_domain': current_domain,
-                    'expected_domain': expected_domain,
-                    'redirect_url': f'https://{expected_domain}'
+                    'error': '路径不匹配',
+                    'current_path': current_path,
+                    'expected_path': expected_path,
+                    'redirect_url': expected_path
                 }), 403
         
         return jsonify({
@@ -135,12 +133,12 @@ def validate_session():
         return jsonify({
             'valid': False,
             'error': '验证失败',
-            'redirect_url': f'https://{DOMAIN}/login'
+            'redirect_url': '/login'
         }), 500
 
 @sso_bp.route('/set-session', methods=['POST'])
 def set_session():
-    """设置跨子域会话"""
+    """设置会话（更新为单域名架构）"""
     try:
         data = request.get_json()
         user_data = data.get('user')
@@ -164,10 +162,10 @@ def set_session():
         response = make_response(jsonify({
             'success': True,
             'user': user_data,
-            'target_domain': ROLE_SUBDOMAINS.get(user_data['role'])
+            'target_path': ROLE_PATHS.get(user_data['role'])
         }))
         
-        # 设置跨子域Cookie
+        # 设置Cookie（单域名，无需跨子域）
         response.set_cookie(
             'access_token',
             jwt_token,
@@ -175,7 +173,7 @@ def set_session():
             httponly=True,
             secure=True,
             samesite='Lax',
-            domain=f'.{DOMAIN}'  # 跨子域共享
+            domain=DOMAIN  # 单域名
         )
         
         logger.info(f'设置会话成功: {user_data["email"]} ({user_data["role"]})')
@@ -187,7 +185,7 @@ def set_session():
 
 @sso_bp.route('/clear-session', methods=['POST'])
 def clear_session():
-    """清除跨子域会话"""
+    """清除会话"""
     try:
         response = make_response(jsonify({'success': True, 'message': '会话已清除'}))
         
@@ -199,7 +197,7 @@ def clear_session():
             httponly=True,
             secure=True,
             samesite='Lax',
-            domain=f'.{DOMAIN}'
+            domain=DOMAIN
         )
         
         return response
@@ -210,37 +208,37 @@ def clear_session():
 
 @sso_bp.route('/redirect-to-role', methods=['GET'])
 def redirect_to_role():
-    """根据用户角色重定向到对应子域"""
+    """根据用户角色重定向到对应路径"""
     try:
         # 从Cookie获取token
         token = request.cookies.get('access_token')
         
         if not token:
-            return redirect(f'https://{DOMAIN}/login')
+            return redirect('/login')
         
         # 验证JWT
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
         except jwt.InvalidTokenError:
-            return redirect(f'https://{DOMAIN}/login')
+            return redirect('/login')
         
         user_role = payload['role']
-        target_domain = ROLE_SUBDOMAINS.get(user_role)
+        target_path = ROLE_PATHS.get(user_role)
         
-        if target_domain:
-            return redirect(f'https://{target_domain}')
+        if target_path:
+            return redirect(target_path)
         else:
-            return redirect(f'https://{DOMAIN}/login')
+            return redirect('/login')
         
     except Exception as e:
         logger.error(f'角色重定向失败: {str(e)}')
-        return redirect(f'https://{DOMAIN}/login')
+        return redirect('/login')
 
-@sso_bp.route('/check-domain', methods=['GET'])
-def check_domain():
-    """检查当前域名是否匹配用户角色"""
+@sso_bp.route('/check-path', methods=['GET'])
+def check_path():
+    """检查当前路径是否匹配用户角色"""
     try:
-        current_domain = request.args.get('domain')
+        current_path = request.args.get('path')
         
         # 从Cookie获取token
         token = request.cookies.get('access_token')
@@ -248,7 +246,7 @@ def check_domain():
         if not token:
             return jsonify({
                 'valid': False,
-                'redirect_url': f'https://{DOMAIN}/login'
+                'redirect_url': '/login'
             })
         
         # 验证JWT
@@ -257,24 +255,24 @@ def check_domain():
         except jwt.InvalidTokenError:
             return jsonify({
                 'valid': False,
-                'redirect_url': f'https://{DOMAIN}/login'
+                'redirect_url': '/login'
             })
         
         user_role = payload['role']
-        expected_domain = ROLE_SUBDOMAINS.get(user_role)
+        expected_path = ROLE_PATHS.get(user_role)
         
-        # 检查域名是否匹配
-        if current_domain == expected_domain or current_domain == 'localhost':
+        # 检查路径是否匹配
+        if current_path and expected_path and current_path.startswith(expected_path):
             return jsonify({'valid': True})
         else:
             return jsonify({
                 'valid': False,
-                'redirect_url': f'https://{expected_domain}' if expected_domain else f'https://{DOMAIN}/login'
+                'redirect_url': expected_path if expected_path else '/login'
             })
         
     except Exception as e:
-        logger.error(f'域名检查失败: {str(e)}')
+        logger.error(f'路径检查失败: {str(e)}')
         return jsonify({
             'valid': False,
-            'redirect_url': f'https://{DOMAIN}/login'
+            'redirect_url': '/login'
         }) 

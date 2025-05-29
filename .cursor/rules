@@ -1,0 +1,276 @@
+# 百刀会子目录架构迁移 - Cursor 开发规则
+
+## 🎯 迁移目标
+将当前的子域名架构（fan.baidaohui.com）迁移到子目录架构（baidaohui.com/fan），优化部署和开发体验。
+
+## 📁 项目结构约定
+
+### 前端路由结构（新）
+```
+src/routes/
+├── +page.svelte              # 主页：角色选择或智能重定向
+├── +layout.svelte            # 全局布局：导航、认证检查
+├── login/
+│   ├── +page.svelte         # 登录页面
+│   ├── +page.server.ts      # 登录服务端逻辑
+│   └── callback/
+│       ├── +page.svelte     # OAuth回调页面
+│       └── +page.server.ts  # OAuth回调处理
+├── fan/+page.svelte          # Fan用户主页
+├── member/+page.svelte       # Member用户主页
+├── master/+page.svelte       # Master用户主页
+├── firstmate/+page.svelte    # Firstmate用户主页
+├── seller/+page.svelte       # Seller用户主页
+└── api/                      # API代理路由
+    ├── auth/
+    ├── sso/
+    ├── fortune/
+    ├── chat/
+    ├── ecommerce/
+    ├── payment/
+    ├── keys/
+    └── email/
+```
+
+## 🔐 认证和权限规则
+
+### 路径权限映射
+```typescript
+const PATH_ROLE_MAPPING = {
+  '/': 'any',           // 主页：任何用户
+  '/login': 'guest',    // 登录：未登录用户
+  '/fan': 'fan',        // Fan页面：fan角色
+  '/member': 'member',  // Member页面：member角色
+  '/master': 'master',  // Master页面：master角色
+  '/firstmate': 'firstmate', // Firstmate页面：firstmate角色
+  '/seller': 'seller'   // Seller页面：seller角色
+};
+```
+
+### 认证检查逻辑
+1. **页面加载时**：检查用户角色是否匹配当前路径
+2. **权限不匹配**：重定向到正确的角色页面或登录页
+3. **未登录用户**：重定向到`/login`页面
+4. **登录用户访问登录页**：重定向到对应角色页面
+
+## 🛣️ 路由和链接规则
+
+### 内部链接约定
+```typescript
+// ✅ 正确：使用相对路径
+<a href="/fan">Fan页面</a>
+<a href="/master">Master页面</a>
+
+// ❌ 错误：不要使用子域名
+<a href="https://fan.baidaohui.com">Fan页面</a>
+
+// ✅ 正确：使用SvelteKit的goto函数
+import { goto } from '$app/navigation';
+goto('/member');
+
+// ❌ 错误：不要使用window.location直接跳转子域名
+window.location.href = 'https://member.baidaohui.com';
+```
+
+### API调用规范
+```typescript
+// ✅ 正确：统一的API路径
+fetch('/api/fortune/list');
+fetch('/api/chat/messages');
+fetch('/api/keys/list');
+
+// ❌ 错误：不要硬编码子域名
+fetch('https://master.baidaohui.com/api/keys/list');
+
+// ✅ 正确：使用环境变量（开发环境）
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+fetch(`${API_BASE}/api/fortune/list`);
+```
+
+## 🎨 UI/UX 开发规则
+
+### 导航组件
+```svelte
+<!-- ✅ 正确：角色导航 -->
+<nav class="role-nav">
+  {#if userRole === 'fan'}
+    <a href="/fan" class="nav-link">私信</a>
+    <a href="/fan#fortune" class="nav-link">算命</a>
+  {:else if userRole === 'master'}
+    <a href="/master" class="nav-link">邀请链接</a>
+    <a href="/master#fortune" class="nav-link">算命管理</a>
+  {/if}
+</nav>
+
+<!-- ❌ 错误：不要使用子域名链接 -->
+<a href="https://fan.baidaohui.com">私信</a>
+```
+
+### 响应式设计
+- 移动端优先设计
+- 使用TailwindCSS的响应式类
+- 确保在所有设备上路由正常工作
+
+## 🔧 开发配置规则
+
+### 环境变量管理
+```bash
+# 开发环境 (.env.local)
+VITE_APP_BASE_URL=http://localhost:3000
+VITE_API_BASE_URL=http://localhost:8080
+
+# 生产环境
+VITE_APP_BASE_URL=https://baidaohui.com
+VITE_API_BASE_URL=https://baidaohui.com
+```
+
+### SvelteKit配置
+```javascript
+// svelte.config.js
+export default {
+  kit: {
+    adapter: adapter(),
+    paths: {
+      base: '', // 使用根路径
+    },
+    trailingSlash: 'never', // 不使用尾随斜杠
+    alias: {
+      $lib: 'src/lib',
+      $components: 'src/components'
+    }
+  }
+};
+```
+
+## 🧪 测试规则
+
+### 路由测试
+```typescript
+// 测试路由权限
+test('fan用户访问master页面应重定向', async () => {
+  // 模拟fan用户
+  mockUser({ role: 'fan' });
+  
+  // 访问master页面
+  await goto('/master');
+  
+  // 应该重定向到fan页面
+  expect(page.url().pathname).toBe('/fan');
+});
+```
+
+### API测试
+```typescript
+// 测试API调用
+test('API调用使用正确路径', async () => {
+  const response = await fetch('/api/fortune/list');
+  expect(response.status).toBe(200);
+});
+```
+
+## 🚨 常见问题和解决方案
+
+### 问题1：内存不足（当前问题）
+```bash
+# 临时解决方案：增加Node.js内存限制
+node --max-old-space-size=8192 node_modules/.bin/vite dev
+
+# 长期解决方案：优化代码分割和懒加载
+# 在路由组件中使用动态导入
+const LazyComponent = () => import('./HeavyComponent.svelte');
+```
+
+### 问题2：路由历史管理
+```typescript
+// ✅ 正确：使用SvelteKit的路由API
+import { page } from '$app/stores';
+import { goto } from '$app/navigation';
+
+// 检查当前路径
+$page.url.pathname; // '/fan'
+
+// 编程式导航
+goto('/member', { replaceState: true });
+```
+
+### 问题3：Cookie和认证
+```typescript
+// ✅ 正确：单域名Cookie配置
+cookies.set('access_token', token, {
+  domain: 'baidaohui.com', // 单域名
+  path: '/',
+  httpOnly: true,
+  secure: true,
+  sameSite: 'lax'
+});
+```
+
+## 📋 开发检查清单
+
+### 代码提交前检查
+- [ ] 所有链接使用相对路径，无子域名硬编码
+- [ ] API调用路径正确，使用`/api/`前缀
+- [ ] 认证逻辑基于路径而非域名
+- [ ] 环境变量正确配置
+- [ ] 响应式设计在各设备正常显示
+- [ ] 路由权限测试通过
+- [ ] 无TypeScript错误
+- [ ] ESLint和Prettier格式化通过
+
+### 功能测试检查
+- [ ] 登录流程正常
+- [ ] 角色权限正确控制
+- [ ] 页面间导航无误
+- [ ] API调用成功
+- [ ] 刷新页面状态保持
+- [ ] 浏览器前进后退正常
+
+## 🔄 迁移优先级
+
+### P0（必须完成）
+1. 路由结构调整
+2. 认证逻辑更新
+3. API路径修复
+4. 基本功能测试
+
+### P1（重要）
+1. 导航组件更新
+2. 错误页面处理
+3. 性能优化
+4. 用户体验改进
+
+### P2（可选）
+1. SEO优化
+2. PWA支持
+3. 高级缓存策略
+4. 监控和分析
+
+## 💡 性能优化建议
+
+### 代码分割
+```typescript
+// ✅ 正确：路由级代码分割
+const routes = {
+  '/fan': () => import('./routes/fan/+page.svelte'),
+  '/member': () => import('./routes/member/+page.svelte'),
+  '/master': () => import('./routes/master/+page.svelte')
+};
+```
+
+### 懒加载
+```svelte
+<!-- ✅ 正确：组件懒加载 -->
+{#await import('./HeavyComponent.svelte') then { default: Component }}
+  <Component />
+{/await}
+```
+
+### 静态资源优化
+- 图片使用WebP格式和懒加载
+- CSS/JS使用压缩和缓存
+- 字体文件本地化
+
+---
+
+**遵循这些规则可以确保迁移过程顺利，减少bug和性能问题。**
+**如有疑问，请参考迁移计划文档：`docs/subdirectory-migration-plan.md`** 

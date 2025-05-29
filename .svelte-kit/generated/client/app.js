@@ -24,12 +24,12 @@ export const server_loads = [2,3,4,5,6];
 
 export const dictionary = {
 		"/": [~7],
-		"/auth/callback": [~8],
-		"/chat/group/general": [9],
-		"/chat/private/[memberId]": [10],
-		"/fan": [11,[2]],
-		"/firstmate": [12,[3]],
-		"/login": [~13],
+		"/chat/group/general": [8],
+		"/chat/private/[memberId]": [9],
+		"/fan": [10,[2]],
+		"/firstmate": [11,[3]],
+		"/login": [~12],
+		"/login/callback": [~13],
 		"/master": [14,[4]],
 		"/member": [15,[5]],
 		"/seller": [16,[6]]

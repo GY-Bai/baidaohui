@@ -70,9 +70,9 @@ declare module '$env/static/private' {
 	export const CONDA_PROMPT_MODIFIER: string;
 	export const TERM_PROGRAM_VERSION: string;
 	export const ZDOTDIR: string;
+	export const CURSOR_TRACE_ID: string;
 	export const ORIGINAL_XDG_CURRENT_DESKTOP: string;
 	export const MallocNanoZone: string;
-	export const CURSOR_TRACE_ID: string;
 	export const COLOR: string;
 	export const npm_config_noproxy: string;
 	export const npm_config_local_prefix: string;
@@ -215,9 +215,9 @@ declare module '$env/dynamic/private' {
 		CONDA_PROMPT_MODIFIER: string;
 		TERM_PROGRAM_VERSION: string;
 		ZDOTDIR: string;
+		CURSOR_TRACE_ID: string;
 		ORIGINAL_XDG_CURRENT_DESKTOP: string;
 		MallocNanoZone: string;
-		CURSOR_TRACE_ID: string;
 		COLOR: string;
 		npm_config_noproxy: string;
 		npm_config_local_prefix: string;

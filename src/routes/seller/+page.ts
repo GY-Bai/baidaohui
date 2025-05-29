@@ -1,8 +1,7 @@
-import type { PageLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { getSession, isCorrectDomain } from '$lib/auth';
+import { getSession, isCorrectPath } from '$lib/auth';
 
-export const load: PageLoad = async ({ url }) => {
+export const load = async ({ url }: any) => {
   // 获取当前会话
   const session = await getSession();
   
@@ -12,15 +11,15 @@ export const load: PageLoad = async ({ url }) => {
   }
   
   // 检查用户角色是否为Seller
-  if (session.user.role !== 'Seller') {
+  if (session.role !== 'Seller') {
     // 如果角色不匹配，重定向到登录页并显示错误
     throw redirect(302, '/login?error=unauthorized&message=您无权访问，请使用正确账号登录');
   }
   
-  // 检查当前域名是否正确
-  if (!isCorrectDomain('Seller')) {
-    // 如果域名不匹配，重定向到正确的子域
-    throw redirect(302, `https://seller.baidaohui.com${url.pathname}${url.search}`);
+  // 检查当前路径是否正确
+  if (!isCorrectPath('Seller')) {
+    // 如果路径不匹配，重定向到正确的路径
+    throw redirect(302, '/seller');
   }
   
   return {

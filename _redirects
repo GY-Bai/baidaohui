@@ -1,4 +1,14 @@
 # Cloudflare Pages 重定向规则
 
+# 子域名到子目录的重定向规则（支持迁移）
+https://fan.baidaohui.com/*     https://baidaohui.com/fan/:splat     301
+https://member.baidaohui.com/*  https://baidaohui.com/member/:splat  301
+https://master.baidaohui.com/*  https://baidaohui.com/master/:splat  301
+https://firstmate.baidaohui.com/* https://baidaohui.com/firstmate/:splat 301
+https://seller.baidaohui.com/*  https://baidaohui.com/seller/:splat  301
+
+# 根域名重定向到登录页
+https://www.baidaohui.com/*     https://baidaohui.com/:splat         301
+
 # SPA 路由支持
 /*  /index.html  200 

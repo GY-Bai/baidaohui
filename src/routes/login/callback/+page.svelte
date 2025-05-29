@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getSession, redirectToRoleDomain } from '$lib/auth';
+  import { getSession, redirectToRolePath } from '$lib/auth';
 
   let loading = true;
   let error = '';
@@ -13,7 +13,7 @@
       
       const session = await getSession();
       if (session) {
-        redirectToRoleDomain(session.user.role);
+        redirectToRolePath(session.user.role);
       } else {
         error = '登录失败，请重试';
         setTimeout(() => {

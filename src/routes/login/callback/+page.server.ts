@@ -1,16 +1,9 @@
 import { redirect } from '@sveltejs/kit';
-import { validateAuth, roleSubdomains } from '$lib/auth';
+import { validateAuth, rolePaths } from '$lib/auth';
 import type { UserRole } from '$lib/auth';
 
 export const load = async ({ url, cookies, fetch }) => {
-  // 检查是否在正确的主域名
-  const hostname = url.hostname;
-  
-  // 如果不是主域名，重定向到主域名
-  if (hostname !== 'www.baidaohui.com' && hostname !== 'baidaohui.com' && hostname !== 'localhost') {
-    throw redirect(302, 'https://www.baidaohui.com/auth/callback' + url.search);
-  }
-
+  // 在子目录架构下，不需要检查域名
   // 获取OAuth回调参数
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -28,19 +21,19 @@ export const load = async ({ url, cookies, fetch }) => {
     throw redirect(302, '/login?error=missing_code&message=缺少授权码');
   }
 
-    try {
+  try {
     // 调用后端auth-service处理OAuth回调
-      const response = await fetch('/api/auth/callback', {
-        method: 'POST',
-        headers: {
+    const response = await fetch('/api/auth/callback', {
+      method: 'POST',
+      headers: {
         'Content-Type': 'application/json',
-        },
+      },
       body: JSON.stringify({
         code,
         state,
-        redirect_uri: `${url.origin}/auth/callback`
+        redirect_uri: `${url.origin}/login/callback`
       })
-      });
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -48,22 +41,22 @@ export const load = async ({ url, cookies, fetch }) => {
       throw redirect(302, `/login?error=auth_failed&message=${encodeURIComponent(errorMessage)}`);
     }
 
-        const { user, access_token } = await response.json();
-        
-    // 设置HttpOnly Cookie
-        cookies.set('access_token', access_token, {
-          httpOnly: true,
-          secure: true,
+    const { user, access_token } = await response.json();
+    
+    // 设置HttpOnly Cookie（子目录架构下使用单域名）
+    cookies.set('access_token', access_token, {
+      httpOnly: true,
+      secure: true,
       sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 7, // 7天
-      path: '/',
-      domain: '.baidaohui.com' // 跨子域共享
+      maxAge: 60 * 60 * 24 * 7, // 7天
+      path: '/'
+      // 移除domain设置，使用默认单域名
     });
 
-    // 根据用户角色重定向到对应子域
-    const targetDomain = roleSubdomains[user.role as UserRole];
-    if (targetDomain) {
-      throw redirect(302, `https://${targetDomain}`);
+    // 根据用户角色重定向到对应路径
+    const targetPath = rolePaths[user.role as UserRole];
+    if (targetPath) {
+      throw redirect(302, targetPath);
     } else {
       throw redirect(302, '/login?error=invalid_role&message=无效的用户角色');
     }
