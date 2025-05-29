@@ -169,6 +169,18 @@ build_images() {
     local success_count=0
     local failed_services=()
     
+    # 先构建nginx镜像（如果是圣何塞VPS）
+    if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
+        log_info "构建 Nginx API 代理镜像..."
+        if docker build -t baidaohui-nginx:latest infra/nginx/; then
+            log_success "Nginx 镜像构建成功"
+            ((success_count++))
+        else
+            log_error "Nginx 镜像构建失败"
+            failed_services+=("nginx")
+        fi
+    fi
+    
     # 构建服务镜像
     for service in $services_to_build; do
         if build_service_image "$service"; then
@@ -179,6 +191,11 @@ build_images() {
     done
     
     local total_services=$(echo $services_to_build | wc -w)
+    # 如果包含nginx，总数加1
+    if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
+        ((total_services++))
+    fi
+    
     log_info "镜像构建完成: $success_count/$total_services"
     
     if [ ${#failed_services[@]} -gt 0 ]; then
