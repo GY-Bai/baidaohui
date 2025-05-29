@@ -21,7 +21,7 @@ export const load = async () => {
     const cacheBuster = Date.now();
     
     // 测试服务健康状态的函数
-    async function testService(url: string): Promise<{status: string, error?: string, response_time: number, http_status?: number}> {
+    async function testService(url: string): Promise<{status: string, error?: string, response_time: number, http_status?: number, service_info?: any}> {
       const startTime = Date.now();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
@@ -42,15 +42,50 @@ export const load = async () => {
         if (response.ok) {
           try {
             const data = await response.json();
+            
+            // 检查JSON响应中的status字段
+            if (data && typeof data === 'object') {
+              const serviceStatus = data.status;
+              
+              if (serviceStatus === 'healthy') {
+                return { 
+                  status: 'healthy', 
+                  response_time: responseTime,
+                  http_status: response.status,
+                  service_info: data
+                };
+              } else if (serviceStatus) {
+                // status字段存在但不是healthy
+                return { 
+                  status: 'error', 
+                  error: `服务状态: ${serviceStatus}`, 
+                  response_time: responseTime,
+                  http_status: response.status,
+                  service_info: data
+                };
+              } else {
+                // 没有status字段
+                return { 
+                  status: 'error', 
+                  error: '响应中缺少status字段', 
+                  response_time: responseTime,
+                  http_status: response.status,
+                  service_info: data
+                };
+              }
+            } else {
+              return { 
+                status: 'error', 
+                error: '无效的JSON响应格式', 
+                response_time: responseTime,
+                http_status: response.status
+              };
+            }
+          } catch (jsonError) {
+            // JSON解析失败
             return { 
-              status: 'healthy', 
-              response_time: responseTime,
-              http_status: response.status
-            };
-          } catch {
-            // 如果不是JSON，但状态码是200，仍然认为是健康的
-            return { 
-              status: 'healthy', 
+              status: 'error', 
+              error: `JSON解析失败: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`, 
               response_time: responseTime,
               http_status: response.status
             };
@@ -128,7 +163,7 @@ export const load = async () => {
         api_base_url: apiBaseUrl ? '已配置' : '未设置'
       },
       build_info: {
-        version: '2.1.0',
+        version: '2.2.0',
         mode,
         is_dev: isDev,
         is_prod: isProd,
