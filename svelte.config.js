@@ -1,22 +1,20 @@
-// svelte.config.js
+// svelte.config.js - 极简配置，避免CI依赖问题
 import adapter from '@sveltejs/adapter-cloudflare';
-import sveltePreprocess from 'svelte-preprocess';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-  preprocess: sveltePreprocess(),
   kit: {
     adapter: adapter({
-      // 指定Cloudflare Pages输出目录
       platformProxy: {
         persist: false
       }
     }),
     alias: {
-      $lib: 'src/lib'
+      $lib: 'src/lib',
+      $components: 'src/components'
     },
     paths: {
-      base: '' // 确保根路径正确
+      base: ''
     },
     outDir: 'build'
   }

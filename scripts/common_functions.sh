@@ -374,81 +374,70 @@ show_memory_planning() {
     echo ""
 }
 
-# 停止VPS服务
+# 停止VPS服务 - 核弹级清理
 stop_vps_services() {
     local target_vps="$1"
     
-    log_info "停止现有服务..."
+    log_info "执行强制容器清理..."
     
-    # 强制停止和清理容器
+    # 第一步：停止所有compose服务
     if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
-        log_info "清理圣何塞VPS容器..."
-        
-        # 先停止compose服务
-        if [ -f "infra/docker-compose.san-jose.yml" ]; then
-            docker-compose -f infra/docker-compose.san-jose.yml down --remove-orphans 2>/dev/null || true
-        fi
-        
-        # 获取所有相关容器ID并强制删除
-        log_info "强制清理所有相关容器..."
-        local san_jose_containers="auth-service sso-service chat-service ecommerce-service payment-service invite-service key-service static-api-service baidaohui-redis baidaohui-nginx"
-        
-        for container in $san_jose_containers; do
-            # 查找容器ID
-            local container_ids=$(docker ps -aq --filter "name=^${container}$" 2>/dev/null || true)
-            if [ -n "$container_ids" ]; then
-                log_info "强制删除容器: $container"
-                echo "$container_ids" | xargs -r docker stop 2>/dev/null || true
-                echo "$container_ids" | xargs -r docker rm -f 2>/dev/null || true
-            fi
-            
-            # 额外检查以/开头的容器名
-            local slash_container_ids=$(docker ps -aq --filter "name=^/${container}$" 2>/dev/null || true)
-            if [ -n "$slash_container_ids" ]; then
-                log_info "清理斜杠前缀容器: /$container"
-                echo "$slash_container_ids" | xargs -r docker stop 2>/dev/null || true
-                echo "$slash_container_ids" | xargs -r docker rm -f 2>/dev/null || true
-            fi
-        done
-        
-        # 清理任何包含这些名字的容器
-        for container in $san_jose_containers; do
-            local related_ids=$(docker ps -aq --filter "name=${container}" 2>/dev/null || true)
-            if [ -n "$related_ids" ]; then
-                log_info "清理相关容器: *${container}*"
-                echo "$related_ids" | xargs -r docker stop 2>/dev/null || true
-                echo "$related_ids" | xargs -r docker rm -f 2>/dev/null || true
-            fi
-        done
+        log_info "停止圣何塞VPS compose服务..."
+        cd infra 2>/dev/null || true
+        docker-compose -f docker-compose.san-jose.yml down --remove-orphans --volumes --timeout 10 2>/dev/null || true
+        cd - > /dev/null 2>&1 || true
     fi
     
     if [ "$target_vps" = "buffalo" ] || [ "$target_vps" = "both" ]; then
-        log_info "清理水牛城VPS容器..."
-        
-        # 先停止compose服务
-        if [ -f "infra/docker-compose.buffalo.yml" ]; then
-            docker-compose -f infra/docker-compose.buffalo.yml down --remove-orphans 2>/dev/null || true
-        fi
-        
-        # 强制清理水牛城容器
-        local buffalo_containers="fortune-service email-service ecommerce-poller r2-sync-service exchange-rate-updater"
-        for container in $buffalo_containers; do
-            local container_ids=$(docker ps -aq --filter "name=${container}" 2>/dev/null || true)
-            if [ -n "$container_ids" ]; then
-                log_info "清理容器: $container"
-                echo "$container_ids" | xargs -r docker stop 2>/dev/null || true
-                echo "$container_ids" | xargs -r docker rm -f 2>/dev/null || true
-            fi
-        done
+        log_info "停止水牛城VPS compose服务..."
+        cd infra 2>/dev/null || true
+        docker-compose -f docker-compose.buffalo.yml down --remove-orphans --volumes --timeout 10 2>/dev/null || true
+        cd - > /dev/null 2>&1 || true
     fi
     
-    # 清理未使用的网络
+    # 第二步：核弹级清理 - 停止所有运行的容器
+    log_info "强制停止所有运行容器..."
+    docker stop $(docker ps -q) 2>/dev/null || true
+    
+    # 第三步：删除所有已停止的容器
+    log_info "删除所有容器..."
+    docker rm -f $(docker ps -aq) 2>/dev/null || true
+    
+    # 第四步：按名称强制删除可能残留的容器
+    local all_service_names="auth-service sso-service chat-service ecommerce-service payment-service invite-service key-service static-api-service fortune-service email-service ecommerce-poller r2-sync-service exchange-rate-updater baidaohui-redis baidaohui-nginx redis nginx"
+    
+    log_info "清理特定服务容器..."
+    for container_name in $all_service_names; do
+        # 尝试多种方式删除
+        docker stop "$container_name" 2>/dev/null || true
+        docker rm -f "$container_name" 2>/dev/null || true
+        docker stop "/${container_name}" 2>/dev/null || true  
+        docker rm -f "/${container_name}" 2>/dev/null || true
+        
+        # 通过容器ID查找并删除
+        local container_ids=$(docker ps -aq --filter "name=${container_name}" 2>/dev/null || true)
+        if [ -n "$container_ids" ]; then
+            echo "$container_ids" | xargs -r docker stop 2>/dev/null || true
+            echo "$container_ids" | xargs -r docker rm -f 2>/dev/null || true
+        fi
+    done
+    
+    # 第五步：清理网络
+    log_info "清理Docker网络..."
     docker network prune -f 2>/dev/null || true
     
-    # 等待一下确保清理完成
-    sleep 5
+    # 第六步：清理卷
+    log_info "清理未使用的卷..."
+    docker volume prune -f 2>/dev/null || true
     
-    log_success "服务停止完成"
+    # 最后：等待确保清理完成
+    sleep 3
+    
+    log_success "✅ 容器强制清理完成"
+    
+    # 显示清理后状态
+    local remaining_containers=$(docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | tail -n +2 | wc -l)
+    log_info "剩余容器数量: $remaining_containers"
 }
 
 # 启动VPS服务
@@ -457,22 +446,47 @@ start_vps_services() {
     
     log_info "启动服务..."
     
-    cd infra
+    # 确保在正确的目录中
+    if [ ! -d "infra" ]; then
+        log_error "错误：未找到 infra 目录，请确保在项目根目录中运行脚本"
+        return 1
+    fi
+    
+    cd infra || {
+        log_error "无法进入 infra 目录"
+        return 1
+    }
     
     if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
+        log_info "启动圣何塞 VPS 服务..."
+        if [ ! -f "docker-compose.san-jose.yml" ]; then
+            log_error "未找到 docker-compose.san-jose.yml 文件"
+            cd - > /dev/null
+            return 1
+        fi
+        
         if docker-compose -f docker-compose.san-jose.yml up -d; then
-            log_success "圣何塞 VPS 服务启动成功"
+            log_success "✅ 圣何塞 VPS 服务启动成功"
         else
-            log_error "圣何塞 VPS 服务启动失败"
+            log_error "❌ 圣何塞 VPS 服务启动失败"
+            cd - > /dev/null
             return 1
         fi
     fi
     
     if [ "$target_vps" = "buffalo" ] || [ "$target_vps" = "both" ]; then
+        log_info "启动水牛城 VPS 服务..."
+        if [ ! -f "docker-compose.buffalo.yml" ]; then
+            log_error "未找到 docker-compose.buffalo.yml 文件"
+            cd - > /dev/null
+            return 1
+        fi
+        
         if docker-compose -f docker-compose.buffalo.yml up -d; then
-            log_success "水牛城 VPS 服务启动成功"
+            log_success "✅ 水牛城 VPS 服务启动成功"
         else
-            log_error "水牛城 VPS 服务启动失败"
+            log_error "❌ 水牛城 VPS 服务启动失败"
+            cd - > /dev/null
             return 1
         fi
     fi
@@ -480,7 +494,7 @@ start_vps_services() {
     cd - > /dev/null
     
     # 等待服务启动
-    log_info "等待服务启动..."
+    log_info "等待服务启动完成..."
     sleep 30
     
     return 0
