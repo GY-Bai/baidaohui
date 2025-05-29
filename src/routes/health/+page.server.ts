@@ -31,8 +31,11 @@ export const load = async () => {
           method: 'GET',
           signal: controller.signal,
           headers: {
-            'User-Agent': 'Health Check Bot',
-            'Accept': 'application/json'
+            'User-Agent': 'Mozilla/5.0 (compatible; Health-Check/1.0)',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
           }
         });
         
@@ -82,21 +85,42 @@ export const load = async () => {
               };
             }
           } catch (jsonError) {
-            // JSON解析失败
+            // JSON解析失败，但HTTP状态OK，返回响应文本
+            try {
+              const text = await response.text();
+              return { 
+                status: 'error', 
+                error: `非JSON响应: ${text.substring(0, 100)}`, 
+                response_time: responseTime,
+                http_status: response.status
+              };
+            } catch {
+              return { 
+                status: 'error', 
+                error: '无法读取响应内容', 
+                response_time: responseTime,
+                http_status: response.status
+              };
+            }
+          }
+        } else {
+          // HTTP错误状态，尝试获取错误信息
+          try {
+            const errorText = await response.text();
             return { 
               status: 'error', 
-              error: `JSON解析失败: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`, 
+              error: `HTTP ${response.status}${errorText ? `: ${errorText.substring(0, 50)}` : ''}`, 
+              response_time: responseTime,
+              http_status: response.status
+            };
+          } catch {
+            return { 
+              status: 'error', 
+              error: `HTTP ${response.status}`, 
               response_time: responseTime,
               http_status: response.status
             };
           }
-        } else {
-          return { 
-            status: 'error', 
-            error: `HTTP ${response.status}`, 
-            response_time: responseTime,
-            http_status: response.status
-          };
         }
       } catch (error: unknown) {
         clearTimeout(timeoutId);
@@ -106,7 +130,7 @@ export const load = async () => {
           return { status: 'timeout', error: 'Request timeout', response_time: responseTime };
         }
         const errorMessage = error instanceof Error ? error.message : String(error);
-        return { status: 'error', error: errorMessage, response_time: responseTime };
+        return { status: 'error', error: `网络错误: ${errorMessage}`, response_time: responseTime };
       }
     }
 
@@ -163,7 +187,7 @@ export const load = async () => {
         api_base_url: apiBaseUrl ? '已配置' : '未设置'
       },
       build_info: {
-        version: '2.2.0',
+        version: '2.2.1',
         mode,
         is_dev: isDev,
         is_prod: isProd,
@@ -178,7 +202,14 @@ export const load = async () => {
       debug_info: {
         user_agent: 'Health Check System',
         deployment_env: 'Cloudflare Pages',
-        last_check: timestamp
+        last_check: timestamp,
+        request_user_agent: 'Mozilla/5.0 (compatible; Health-Check/1.0)',
+        api_base_url: apiBaseUrl,
+        test_urls: {
+          auth_service: `${apiBaseUrl}/auth/health`,
+          sso_service: `${apiBaseUrl}/sso/health`,
+          fortune_service: 'http://216.144.233.104:5007/health'
+        }
       }
     };
 
