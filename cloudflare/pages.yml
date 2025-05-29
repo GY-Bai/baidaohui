@@ -6,11 +6,12 @@ production:
   project_name: baidaohui
   account_id: ${CLOUDFLARE_ACCOUNT_ID}
   build:
-    command: "npm run build"
+    command: "npm ci && npm run build"
     output_directory: ".svelte-kit/output/client"
-    # 添加 SSR 函数目录
-    functions_directory: ".svelte-kit/output/functions"
+    # SvelteKit Cloudflare adapter 函数目录
+    functions_directory: ".svelte-kit/output/server"
   timeout: 15
+  node_version: "18"
 
 preview:
   enabled: true
