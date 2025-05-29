@@ -7,7 +7,7 @@ networks:
 services:
   # 算命服务
   fortune-service:
-    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-fortune-service:${IMAGE_TAG:-latest}
+    image: baidaohui-fortune-service:latest
     container_name: fortune-service
     environment:
       # 外部API配置
@@ -23,7 +23,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
       - FORTUNE_SERVICE_KEY=${FORTUNE_SERVICE_KEY:-auto-generated-fortune-key}
       - EMAIL_SERVICE_URL=http://email-service:5008
-      - PAYMENT_SERVICE_URL=http://107.172.87.113:5005
+      - PAYMENT_SERVICE_URL=http://107.172.87.113:5008
       # 算命服务采用完全自定义金额模式，无建议价格
     networks:
       - baidaohui-network
@@ -36,7 +36,7 @@ services:
 
   # 邮件服务 - 仅发送，无Email Routing
   email-service:
-    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-email-service:${IMAGE_TAG:-latest}
+    image: baidaohui-email-service:latest
     container_name: email-service
     environment:
       # 外部API配置
@@ -59,7 +59,7 @@ services:
 
   # 电商轮询服务
   ecommerce-poller:
-    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-ecommerce-poller:${IMAGE_TAG:-latest}
+    image: baidaohui-ecommerce-poller:latest
     container_name: ecommerce-poller
     environment:
       # 外部API配置
@@ -70,7 +70,7 @@ services:
       - R2_ENDPOINT=${R2_ENDPOINT}
       # 内部配置
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=5004
       - SYNC_INTERVAL=10
       # Stripe密钥从MongoDB动态读取
     networks:
@@ -84,7 +84,7 @@ services:
 
   # 汇率更新服务 - 独立服务
   exchange-rate-updater:
-    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-exchange-updater:${IMAGE_TAG:-latest}
+    image: baidaohui-exchange-rate-updater:latest
     container_name: exchange-rate-updater
     environment:
       # 外部API配置
@@ -104,7 +104,7 @@ services:
 
   # R2数据同步服务
   r2-sync-service:
-    image: ${DOCKER_REGISTRY:-your-registry}/baidaohui-r2-sync-service:${IMAGE_TAG:-latest}
+    image: baidaohui-r2-sync-service:latest
     container_name: r2-sync-service
     environment:
       # 外部API配置

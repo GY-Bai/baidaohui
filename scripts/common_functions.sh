@@ -107,11 +107,11 @@ get_service_port() {
     case $service in
         "auth-service") echo "5001" ;;
         "sso-service") echo "5002" ;;
-        "chat-service") echo "5004" ;;
+        "chat-service") echo "5003" ;;
         "fortune-service") echo "5007" ;;
-        "ecommerce-api-service") echo "5005" ;;
-        "payment-service") echo "5006" ;;
-        "invite-service") echo "5008" ;;
+        "ecommerce-api-service") echo "5004" ;;
+        "payment-service") echo "5008" ;;
+        "invite-service") echo "5006" ;;
         "key-service") echo "5009" ;;
         "email-service") echo "5008" ;;
         "static-api-service") echo "5010" ;;
@@ -143,11 +143,11 @@ get_service_description() {
     esac
 }
 
-# 构建单个服务镜像
+# 构建单个服务镜像（本地部署版本）
 build_service_image() {
     local service=$1
     local service_dir="services/$service"
-    local image_name="$DOCKER_REGISTRY/$PROJECT-$service:$IMAGE_TAG"
+    local image_name="baidaohui-$service:latest"
     
     log_step "构建服务: $service ($(get_service_description $service))"
     
@@ -163,26 +163,10 @@ build_service_image() {
     
     # 构建镜像
     log_info "构建镜像: $image_name"
-    if docker build -t "$image_name" "$service_dir" > /dev/null 2>&1; then
+    if docker build -t "$image_name" "$service_dir"; then
         log_success "✅ 构建成功: $service"
     else
         log_error "❌ 构建失败: $service"
-        return 1
-    fi
-    
-    return 0
-}
-
-# 推送单个服务镜像
-push_service_image() {
-    local service=$1
-    local image_name="$DOCKER_REGISTRY/$PROJECT-$service:$IMAGE_TAG"
-    
-    log_info "推送镜像: $service"
-    if docker push "$image_name" > /dev/null 2>&1; then
-        log_success "✅ 推送成功: $service"
-    else
-        log_error "❌ 推送失败: $service"
         return 1
     fi
     

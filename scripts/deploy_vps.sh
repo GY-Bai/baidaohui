@@ -150,11 +150,11 @@ get_operation_selection() {
     done
 }
 
-# 构建镜像
-build_and_push_images() {
+# 构建镜像（本地部署版本）
+build_images() {
     local target_vps="$1"
     
-    log_step "构建和推送镜像..."
+    log_step "构建镜像..."
     
     # 选择要构建的服务
     local services_to_build=""
@@ -169,14 +169,10 @@ build_and_push_images() {
     local success_count=0
     local failed_services=()
     
-    # 构建服务
+    # 构建服务镜像
     for service in $services_to_build; do
         if build_service_image "$service"; then
-            if push_service_image "$service"; then
-                ((success_count++))
-            else
-                failed_services+=("$service")
-            fi
+            ((success_count++))
         else
             failed_services+=("$service")
         fi
@@ -187,9 +183,11 @@ build_and_push_images() {
     
     if [ ${#failed_services[@]} -gt 0 ]; then
         log_error "构建失败的服务: ${failed_services[*]}"
+        log_error "镜像构建失败，部署终止"
         return 1
     fi
     
+    log_success "所有镜像构建成功，开始部署..."
     return 0
 }
 
@@ -423,7 +421,7 @@ main() {
         
         # 构建镜像（如果需要）
         if [ "$BUILD_FIRST" = "true" ]; then
-            if ! build_and_push_images "$DEPLOYMENT_MODE"; then
+            if ! build_images "$DEPLOYMENT_MODE"; then
                 log_error "镜像构建失败，部署终止"
                 exit 1
             fi
