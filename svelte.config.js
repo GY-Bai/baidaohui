@@ -6,7 +6,10 @@ import sveltePreprocess from 'svelte-preprocess';
 const config = {
   preprocess: sveltePreprocess(),
   kit: {
-    adapter: adapter(),
+    adapter: adapter({
+      // 指定输出目录为 build，匹配 wrangler.toml 中的配置
+      output: 'build'
+    }),
     alias: {
       $lib: 'src/lib'
     },

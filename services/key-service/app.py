@@ -13,7 +13,6 @@ import requests
 import time
 from collections import defaultdict
 from threading import Lock
-import hvac  # HashiCorp Vault client
 from cryptography.fernet import Fernet
 import base64
 import re
@@ -29,11 +28,8 @@ CORS(app, supports_credentials=True)
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/baidaohui')
 JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret-key')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
-# Vault配置（可选，如果不使用Vault则为None）
-VAULT_URL = os.getenv('VAULT_URL')
-VAULT_TOKEN = os.getenv('VAULT_TOKEN')
-VAULT_MOUNT_POINT = os.getenv('VAULT_MOUNT_POINT', 'secret')
-VAULT_ENCRYPTION_KEY = os.getenv('VAULT_ENCRYPTION_KEY')
+# 本地加密配置
+ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
 PAYMENT_SERVICE_URL = os.getenv('PAYMENT_SERVICE_URL', 'http://payment-service:5006')
 ECOMMERCE_POLLER_URL = os.getenv('ECOMMERCE_POLLER_URL', 'http://ecommerce-poller:3000')
 
@@ -57,31 +53,25 @@ except Exception as e:
     logger.error(f"MongoDB 连接失败: {e}")
     raise
 
-# Vault 客户端初始化
-vault_client = None
-if VAULT_URL and VAULT_TOKEN:
-    try:
-        vault_client = hvac.Client(url=VAULT_URL, token=VAULT_TOKEN)
-        if vault_client.is_authenticated():
-            logger.info("Vault 连接成功")
-        else:
-            logger.warning("Vault 认证失败")
-            vault_client = None
-    except Exception as e:
-        logger.error(f"Vault 连接失败: {e}")
-        vault_client = None
-
-# 本地加密密钥（当Vault不可用时的备选方案）
+# 本地加密密钥初始化
 local_cipher = None
-if VAULT_ENCRYPTION_KEY:
+if ENCRYPTION_KEY:
     try:
         # 确保密钥是32字节的base64编码
-        key_bytes = VAULT_ENCRYPTION_KEY.encode()[:32].ljust(32, b'0')
+        key_bytes = ENCRYPTION_KEY.encode()[:32].ljust(32, b'0')
         encoded_key = base64.urlsafe_b64encode(key_bytes)
         local_cipher = Fernet(encoded_key)
         logger.info("本地加密初始化成功")
     except Exception as e:
         logger.error(f"本地加密初始化失败: {e}")
+else:
+    # 如果没有提供加密密钥，生成一个临时密钥
+    try:
+        temp_key = Fernet.generate_key()
+        local_cipher = Fernet(temp_key)
+        logger.warning("使用临时生成的加密密钥，重启后将无法解密现有数据")
+    except Exception as e:
+        logger.error(f"临时加密密钥生成失败: {e}")
 
 def check_rate_limit(user_id, is_sensitive=False):
     """检查API速率限制"""
@@ -150,90 +140,37 @@ def check_auth():
     
     return payload, None, None
 
-def store_secret_in_vault(key_id, secret_value):
-    """在Vault中存储密钥"""
-    if not vault_client:
-        logger.warning("Vault不可用，使用本地加密存储")
-        return encrypt_key_local(secret_value)
-    
-    try:
-        secret_path = f"{VAULT_MOUNT_POINT}/data/api-keys/{key_id}"
-        secret_data = {
-            'data': {
-                'secret_key': secret_value,
-                'created_at': datetime.utcnow().isoformat(),
-                'service': 'key-service'
-            }
-        }
-        
-        response = vault_client.secrets.kv.v2.create_or_update_secret(
-            path=f"api-keys/{key_id}",
-            secret=secret_data['data'],
-            mount_point=VAULT_MOUNT_POINT
-        )
-        
-        logger.info(f"密钥 {key_id} 已存储到Vault")
-        return f"vault:{key_id}"
-        
-    except Exception as e:
-        logger.error(f"Vault存储失败: {e}")
-        # 回退到本地加密
-        return encrypt_key_local(secret_value)
-
-def retrieve_secret_from_vault(vault_reference):
-    """从Vault中检索密钥"""
-    if not vault_reference.startswith('vault:'):
-        # 本地加密的密钥
-        return decrypt_key_local(vault_reference)
-    
-    if not vault_client:
-        logger.error("Vault不可用，无法检索密钥")
-        return None
-    
-    try:
-        key_id = vault_reference.replace('vault:', '')
-        response = vault_client.secrets.kv.v2.read_secret_version(
-            path=f"api-keys/{key_id}",
-            mount_point=VAULT_MOUNT_POINT
-        )
-        
-        return response['data']['data']['secret_key']
-        
-    except Exception as e:
-        logger.error(f"Vault检索失败: {e}")
-        return None
-
-def encrypt_key_local(key_value):
-    """本地加密密钥"""
+def encrypt_secret_key(secret_value):
+    """加密密钥"""
     if not local_cipher:
-        # 简单的哈希方式（不可逆）
+        # 如果加密不可用，使用哈希方式（不可逆）
         salt = secrets.token_hex(16)
-        encrypted = hashlib.pbkdf2_hmac('sha256', key_value.encode(), salt.encode(), 100000)
+        encrypted = hashlib.pbkdf2_hmac('sha256', secret_value.encode(), salt.encode(), 100000)
         return f"hash:{salt}:{encrypted.hex()}"
     
     try:
-        encrypted = local_cipher.encrypt(key_value.encode())
-        return f"local:{encrypted.decode()}"
+        encrypted = local_cipher.encrypt(secret_value.encode())
+        return f"encrypted:{encrypted.decode()}"
     except Exception as e:
-        logger.error(f"本地加密失败: {e}")
+        logger.error(f"密钥加密失败: {e}")
         return None
 
-def decrypt_key_local(encrypted_reference):
-    """本地解密密钥"""
+def decrypt_secret_key(encrypted_reference):
+    """解密密钥"""
     if encrypted_reference.startswith('hash:'):
-        # 哈希方式存储的密钥无法解密
+        # 哈希方式存储的密钥无法解密，返回脱敏版本
         parts = encrypted_reference.split(':', 2)
         if len(parts) >= 3:
             return f"****{parts[2][-8:]}"
         return "****encrypted"
     
-    if encrypted_reference.startswith('local:') and local_cipher:
+    if encrypted_reference.startswith('encrypted:') and local_cipher:
         try:
-            encrypted_data = encrypted_reference.replace('local:', '')
+            encrypted_data = encrypted_reference.replace('encrypted:', '')
             decrypted = local_cipher.decrypt(encrypted_data.encode())
             return decrypted.decode()
         except Exception as e:
-            logger.error(f"本地解密失败: {e}")
+            logger.error(f"密钥解密失败: {e}")
             return None
     
     return None
@@ -476,19 +413,19 @@ def create_key():
         result = api_keys.insert_one(key_doc)
         key_id = str(result.inserted_id)
         
-        # 使用Vault存储密钥
-        vault_reference = store_secret_in_vault(key_id, secret_key)
-        if not vault_reference:
-            # 如果存储失败，删除记录
+        # 使用本地加密存储密钥
+        secret_key_encrypted = encrypt_secret_key(secret_key)
+        if not secret_key_encrypted:
+            # 如果加密失败，删除记录
             api_keys.delete_one({'_id': result.inserted_id})
             return jsonify({'error': '密钥存储失败'}), 500
         
-        # 更新记录，添加Vault引用
+        # 更新记录，添加加密后的密钥
         api_keys.update_one(
             {'_id': result.inserted_id},
             {
                 '$set': {
-                    'vault_reference': vault_reference,
+                    'secret_key_encrypted': secret_key_encrypted,
                     'secret_key_original': secret_key  # 临时保存用于脱敏显示
                 }
             }
@@ -549,7 +486,7 @@ def update_key(key_id):
             if not new_secret_key.startswith('sk_'):
                 return jsonify({'error': '无效的 Stripe 密钥格式'}), 400
             update_fields['secret_key_original'] = new_secret_key
-            update_fields['secret_key_encrypted'] = encrypt_key(new_secret_key)
+            update_fields['secret_key_encrypted'] = encrypt_secret_key(new_secret_key)
             update_fields['test_status'] = 'pending'  # 重置测试状态
         
         if 'publishable_key' in data:
@@ -759,12 +696,12 @@ def reveal_key(key_id):
         elif user_role not in ['Seller', 'Master', 'admin']:
             return jsonify({'error': '权限不足'}), 403
         
-        # 从Vault或本地存储获取密钥
-        vault_reference = key_record.get('vault_reference')
+        # 从本地存储获取密钥
         secret_key = None
+        secret_key_encrypted = key_record.get('secret_key_encrypted')
         
-        if vault_reference:
-            secret_key = retrieve_secret_from_vault(vault_reference)
+        if secret_key_encrypted:
+            secret_key = decrypt_secret_key(secret_key_encrypted)
         else:
             # 兼容旧数据
             secret_key = key_record.get('secret_key_original')
