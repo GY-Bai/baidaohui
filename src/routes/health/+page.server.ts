@@ -27,16 +27,39 @@ export const load = async () => {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
       
       try {
+        // 检测是否在Cloudflare Worker环境中
+        const isCloudflareWorker = typeof globalThis.caches !== 'undefined' && typeof globalThis.Request !== 'undefined';
+        
+        const headers: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Connection': 'keep-alive',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'cross-site'
+        };
+
+        // 如果在Cloudflare Worker环境，添加特殊头信息
+        if (isCloudflareWorker) {
+          headers['CF-Worker'] = 'true';
+          headers['CF-Ray'] = Math.random().toString(36).substring(7);
+          headers['X-Forwarded-For'] = '127.0.0.1';
+          headers['CF-Connecting-IP'] = '127.0.0.1';
+        }
+        
         const response = await fetch(url, {
           method: 'GET',
           signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; Health-Check/1.0)',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Encoding': 'gzip, deflate',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive'
-          }
+          headers,
+          // 在Cloudflare Worker中禁用某些选项
+          ...(isCloudflareWorker ? {} : {
+            redirect: 'follow',
+            referrerPolicy: 'no-referrer'
+          })
         });
         
         clearTimeout(timeoutId);
@@ -107,6 +130,15 @@ export const load = async () => {
           // HTTP错误状态，尝试获取错误信息
           try {
             const errorText = await response.text();
+            // 检查是否是Cloudflare错误页面
+            if (errorText.includes('<!DOCTYPE html>') && errorText.includes('Cloudflare')) {
+              return { 
+                status: 'error', 
+                error: `CF拦截(${response.status}): 请求被Cloudflare防火墙阻止`, 
+                response_time: responseTime,
+                http_status: response.status
+              };
+            }
             return { 
               status: 'error', 
               error: `HTTP ${response.status}${errorText ? `: ${errorText.substring(0, 50)}` : ''}`, 
@@ -187,7 +219,7 @@ export const load = async () => {
         api_base_url: apiBaseUrl ? '已配置' : '未设置'
       },
       build_info: {
-        version: '2.2.1',
+        version: '2.2.2',
         mode,
         is_dev: isDev,
         is_prod: isProd,
@@ -203,8 +235,14 @@ export const load = async () => {
         user_agent: 'Health Check System',
         deployment_env: 'Cloudflare Pages',
         last_check: timestamp,
-        request_user_agent: 'Mozilla/5.0 (compatible; Health-Check/1.0)',
+        request_user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         api_base_url: apiBaseUrl,
+        is_cloudflare_worker: typeof globalThis.caches !== 'undefined' && typeof globalThis.Request !== 'undefined',
+        runtime_info: {
+          has_caches: typeof globalThis.caches !== 'undefined',
+          has_request: typeof globalThis.Request !== 'undefined',
+          user_agent_sent: 'Chrome/120 (Windows)'
+        },
         test_urls: {
           auth_service: `${apiBaseUrl}/auth/health`,
           sso_service: `${apiBaseUrl}/sso/health`,
