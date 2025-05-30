@@ -179,20 +179,7 @@ check_env_file() {
     
     log_success "找到环境变量文件: $env_file"
     
-    # 检查关键环境变量
-    source "$env_file"
-    
-    if [ -z "$OPENROUTER_API_KEY" ]; then
-        log_warning "⚠️  OPENROUTER_API_KEY 未设置，AI代理服务可能无法正常工作"
-    else
-        log_success "✅ OPENROUTER_API_KEY 已设置"
-    fi
-    
-    if [ -z "$MONGODB_URI" ]; then
-        log_warning "⚠️  MONGODB_URI 未设置"
-    else
-        log_success "✅ MONGODB_URI 已设置"
-    fi
+
     
     echo ""
 }
