@@ -88,12 +88,12 @@ check_env_file() {
 
 # 定义所有13个服务
 get_all_services() {
-    echo "auth-service sso-service chat-service fortune-service ecommerce-api-service payment-service invite-service key-service email-service ecommerce-poller static-api-service r2-sync-service exchange-rate-updater"
+    echo "auth-service sso-service chat-service fortune-service ecommerce-api-service payment-service invite-service key-service email-service ecommerce-poller static-api-service r2-sync-service exchange-rate-updater ai-proxy-service"
 }
 
 # 定义圣何塞VPS服务（高性能服务）
 get_san_jose_services() {
-    echo "auth-service sso-service chat-service ecommerce-api-service payment-service invite-service key-service static-api-service"
+    echo "auth-service sso-service chat-service ecommerce-api-service payment-service invite-service key-service static-api-service ai-proxy-service"
 }
 
 # 定义水牛城VPS服务（后台处理服务）
@@ -116,6 +116,7 @@ get_service_port() {
         "email-service") echo "5008" ;;
         "static-api-service") echo "5010" ;;
         "r2-sync-service") echo "5011" ;;
+        "ai-proxy-service") echo "5012" ;;
         "ecommerce-poller") echo "" ;; # 内部服务，无端口映射
         "exchange-rate-updater") echo "" ;; # 内部服务，无端口映射
         *) echo "" ;;
@@ -137,6 +138,7 @@ get_service_description() {
         "email-service") echo "邮件发送服务" ;;
         "static-api-service") echo "静态API服务" ;;
         "r2-sync-service") echo "R2数据同步服务" ;;
+        "ai-proxy-service") echo "AI代理服务" ;;
         "ecommerce-poller") echo "电商数据轮询服务" ;;
         "exchange-rate-updater") echo "汇率更新服务" ;;
         *) echo "未知服务" ;;
@@ -248,7 +250,7 @@ show_vps_selection() {
     echo -e "${CYAN}1. 圣何塞 VPS (${SAN_JOSE_IP})${NC}"
     echo "   • 内存: ${SAN_JOSE_MEMORY}, CPU: 2核"
     echo "   • 服务: $(get_san_jose_services | wc -w)个高性能服务"
-    echo "   • 功能: 认证、SSO、聊天、电商API、支付、邀请、密钥、静态API"
+    echo "   • 功能: 认证、SSO、聊天、电商API、支付、邀请、密钥、静态API、AI代理服务"
     echo ""
     echo -e "${CYAN}2. 水牛城 VPS (${BUFFALO_IP})${NC}"
     echo "   • 内存: ${BUFFALO_MEMORY}, CPU: 1核"
@@ -358,7 +360,8 @@ show_memory_planning() {
         echo "  - Key Service:        192M"
         echo "  - Static API Service: 128M"
         echo "  - Redis:              256M"
-        echo "  - 系统预留:           ~372M"
+        echo "  - AI Proxy Service:   256M"
+        echo "  - 系统预留:           ~116M"
     fi
     
     if [ "$target_vps" = "buffalo" ] || [ "$target_vps" = "both" ]; then
@@ -404,7 +407,7 @@ stop_vps_services() {
     docker rm -f $(docker ps -aq) 2>/dev/null || true
     
     # 第四步：按名称强制删除可能残留的容器
-    local all_service_names="auth-service sso-service chat-service ecommerce-service payment-service invite-service key-service static-api-service fortune-service email-service ecommerce-poller r2-sync-service exchange-rate-updater baidaohui-redis baidaohui-nginx redis nginx"
+    local all_service_names="auth-service sso-service chat-service ecommerce-service payment-service invite-service key-service static-api-service fortune-service email-service ecommerce-poller r2-sync-service exchange-rate-updater baidaohui-redis baidaohui-nginx redis nginx ai-proxy-service"
     
     log_info "清理特定服务容器..."
     for container_name in $all_service_names; do
