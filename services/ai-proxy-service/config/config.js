@@ -12,8 +12,8 @@ const config = {
   openRouter: {
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENROUTER_API_KEY,
-    defaultModel: process.env.DEFAULT_MODEL || 'anthropic/claude-3-sonnet',
-    fallbackModels: (process.env.FALLBACK_MODELS || 'openai/gpt-4,openai/gpt-3.5-turbo').split(',')
+    defaultModel: process.env.DEFAULT_MODEL || 'deepseek/deepseek-r1-0528:free',
+    fallbackModels: (process.env.FALLBACK_MODELS || 'meta-llama/llama-3.3-8b-instruct:free,google/gemini-2.0-flash-exp:free').split(',')
   },
   
   // 数据库配置
@@ -24,8 +24,8 @@ const config = {
   
   // 限制配置
   limits: {
-    rateLimit: parseInt(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE) || 60,
-    maxTokens: parseInt(process.env.MAX_TOKENS_PER_REQUEST) || 4000,
+    rateLimit: parseInt(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE) || 5,
+    maxTokens: parseInt(process.env.MAX_TOKENS_PER_REQUEST) || 8000,
     requestTimeout: parseInt(process.env.REQUEST_TIMEOUT_MS) || 120000
   },
   
@@ -35,6 +35,7 @@ const config = {
     allowedOrigins: [
       'https://www.baidaohui.com',
       'https://fan.baidaohui.com',
+      'https://api.baidaohui.com',
       'https://member.baidaohui.com',
       'https://master.baidaohui.com',
       'https://firstmate.baidaohui.com',
