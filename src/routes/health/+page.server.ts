@@ -6,10 +6,8 @@ export const load = async () => {
     const viteAppUrl = import.meta.env.VITE_APP_URL;
     const nodeEnv = import.meta.env.NODE_ENV || import.meta.env.MODE;
     
-    // 后端API配置
-    const ssoServiceUrl = import.meta.env.VITE_SSO_SERVICE_URL || 'http://107.172.87.113/api/sso';
-    const authServiceUrl = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://107.172.87.113/api/auth';
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://107.172.87.113/api';
+    // 统一API基础URL
+    const apiBaseUrl = 'https://api.baidaohui.com';
     
     // 构建信息
     const mode = import.meta.env.MODE || 'unknown';
@@ -28,14 +26,18 @@ export const load = async () => {
       { name: '电商服务（ecommerce-service）', url: `${apiBaseUrl}/ecommerce/health` },
       { name: '邀请服务（invite-service）', url: `${apiBaseUrl}/invite/health` },
       { name: '支付服务（payment-service）', url: `${apiBaseUrl}/payment/health` },
-      { name: '密钥服务（key-service）', url: `${apiBaseUrl}/key/health` },
+      { name: '密钥服务（key-service）', url: `${apiBaseUrl}/keys/health` },
       { name: '静态API服务（static-api-service）', url: `${apiBaseUrl}/static/health` }
     ];
 
     const buffaloServices = [
-      { name: '算命服务（fortune-service）', url: 'http://216.144.233.104:5007/health' },
-      { name: '邮件服务（email-service）', url: 'http://216.144.233.104:5008/health' },
-      { name: 'R2同步服务（r2-sync-service）', url: 'http://216.144.233.104:5011/health' }
+      { name: '算命服务（fortune-service）', url: `${apiBaseUrl}/fortune/health` },
+      { name: '邮件服务（email-service）', url: `${apiBaseUrl}/email/health` },
+      { name: 'R2同步服务（r2-sync-service）', url: `${apiBaseUrl}/r2-sync/health` }
+    ];
+
+    const aiServices = [
+      { name: 'AI代理服务（ai-proxy-service）', url: `${apiBaseUrl}/v1/health` }
     ];
 
     return {
@@ -44,12 +46,10 @@ export const load = async () => {
         supabase_key: viteSupabaseKey ? '已设置' : '未设置',
         app_url: viteAppUrl || '未设置',
         node_env: nodeEnv || '未设置',
-        sso_service_url: ssoServiceUrl ? '已配置' : '未设置',
-        auth_service_url: authServiceUrl ? '已配置' : '未设置',
-        api_base_url: apiBaseUrl ? '已配置' : '未设置'
+        api_base_url: apiBaseUrl
       },
       build_info: {
-        version: '2.3.0',
+        version: '2.4.0',
         mode,
         is_dev: isDev,
         is_prod: isProd,
@@ -59,14 +59,16 @@ export const load = async () => {
       },
       service_config: {
         san_jose_services: sanJoseServices,
-        buffalo_services: buffaloServices
+        buffalo_services: buffaloServices,
+        ai_services: aiServices
       },
       debug_info: {
         user_agent: 'Health Check System',
         deployment_env: 'Cloudflare Pages',
         last_check: timestamp,
-        testing_mode: 'Client-side (User Browser)',
-        browser_request_note: '健康检查请求将从用户浏览器发出，绕过Cloudflare Worker限制'
+        testing_mode: 'Client-side via API Gateway',
+        api_gateway: 'https://api.baidaohui.com',
+        cors_note: '通过API网关统一CORS配置，解决跨域问题'
       }
     };
 

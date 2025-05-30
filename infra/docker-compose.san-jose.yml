@@ -7,18 +7,20 @@ networks:
 services:
   # Redis缓存服务 - 无需密码的本地Redis
   redis:
-    image: redis:alpine
-    container_name: baidaohui-redis
-    command: redis-server --appendonly yes
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - baidaohui-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
   # API网关 - Nginx反向代理
   nginx:
@@ -48,26 +50,22 @@ services:
 
   # 认证服务
   auth-service:
-    image: baidaohui-auth-service:latest
+    image: baidaohui/auth-service:latest
     container_name: auth-service
     ports:
       - "5001:5001"
     environment:
-      # 外部API配置 - 从.env文件读取
-      - MONGODB_URI=${MONGODB_URI}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      # 内部配置 - Docker中自动配置
       - NODE_ENV=production
       - PORT=5001
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
-      - SSO_SERVICE_URL=http://sso-service:5002
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - MONGODB_URI=${MONGODB_URI}
     depends_on:
       - redis
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -77,26 +75,21 @@ services:
 
   # SSO统一认证服务
   sso-service:
-    image: baidaohui-sso-service:latest
+    image: baidaohui/sso-service:latest
     container_name: sso-service
     ports:
       - "5002:5002"
     environment:
-      # 外部API配置
-      - MONGODB_URI=${MONGODB_URI}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      # 内部配置
       - NODE_ENV=production
       - PORT=5002
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
-      - DOMAIN=baidaohui.com
-      - CORS_ORIGINS=https://baidaohui.com
+      - JWT_SECRET=${JWT_SECRET}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
     depends_on:
       - redis
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -106,28 +99,21 @@ services:
 
   # 聊天服务
   chat-service:
-    image: baidaohui-chat-service:latest
+    image: baidaohui/chat-service:latest
     container_name: chat-service
     ports:
       - "5003:5003"
     environment:
-      # 外部API配置
-      - MONGODB_URI=${MONGODB_URI}
-      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
-      - R2_SECRET_KEY=${R2_SECRET_KEY}
-      - R2_BUCKET=${R2_BUCKET}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      # 内部配置
       - NODE_ENV=production
       - PORT=5003
+      - MONGODB_URI=${MONGODB_URI}
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
-      - CHAT_HISTORY_LIMIT=100
-      - PRIVATE_CHAT_ENABLED=true
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - redis
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -137,27 +123,23 @@ services:
 
   # 电商API服务
   ecommerce-service:
-    image: baidaohui-ecommerce-api-service:latest
+    image: baidaohui/ecommerce-api-service:latest
     container_name: ecommerce-service
     ports:
       - "5004:5004"
     environment:
-      # 外部API配置
+      - NODE_ENV=production
+      - PORT=5004
       - MONGODB_URI=${MONGODB_URI}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
       - R2_ENDPOINT=${R2_ENDPOINT}
-      # 内部配置
-      - NODE_ENV=production
-      - PORT=5004
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
-      - PRODUCT_CACHE_TTL=300
     depends_on:
       - redis
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -167,22 +149,18 @@ services:
 
   # 支付服务
   payment-service:
-    image: baidaohui-payment-service:latest
+    image: baidaohui/payment-service:latest
     container_name: payment-service
     ports:
       - "5008:5008"
     environment:
-      # 外部API配置
-      - MONGODB_URI=${MONGODB_URI}
-      # 内部配置
       - NODE_ENV=production
       - PORT=5008
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
-      - FRONTEND_URL=https://baidaohui.com
-      - FORTUNE_SERVICE_URL=http://216.144.233.104:5007
-      # Stripe密钥从MongoDB动态读取
+      - MONGODB_URI=${MONGODB_URI}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -192,19 +170,18 @@ services:
 
   # 邀请服务
   invite-service:
-    image: baidaohui-invite-service:latest
+    image: baidaohui/invite-service:latest
     container_name: invite-service
     ports:
       - "5006:5006"
     environment:
-      # 外部API配置
-      - MONGODB_URI=${MONGODB_URI}
-      # 内部配置
       - NODE_ENV=production
       - PORT=5006
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -214,19 +191,18 @@ services:
 
   # 密钥管理服务
   key-service:
-    image: baidaohui-key-service:latest
+    image: baidaohui/key-service:latest
     container_name: key-service
     ports:
       - "5009:5009"
     environment:
-      # 外部API配置
-      - MONGODB_URI=${MONGODB_URI}
-      # 内部配置
       - NODE_ENV=production
       - PORT=5009
-      - JWT_SECRET=${JWT_SECRET:-auto-generated-jwt-secret}
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -236,27 +212,23 @@ services:
 
   # 静态API缓存服务
   static-api-service:
-    image: baidaohui-static-api-service:latest
+    image: baidaohui/static-api-service:latest
     container_name: static-api-service
     ports:
       - "5010:5010"
     environment:
-      # 外部API配置
+      - NODE_ENV=production
+      - PORT=5010
       - MONGODB_URI=${MONGODB_URI}
       - R2_ACCESS_KEY=${R2_ACCESS_KEY}
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
       - R2_ENDPOINT=${R2_ENDPOINT}
-      # 内部配置
-      - NODE_ENV=production
-      - PORT=5010
-      - REDIS_URL=redis://redis:6379
-      - CACHE_TTL=300
-      - MEMORY_LIMIT=128
     depends_on:
       - redis
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -264,5 +236,37 @@ services:
         reservations:
           memory: 64M
 
+  # AI代理服务
+  ai-proxy-service:
+    image: baidaohui/ai-proxy-service:latest
+    container_name: ai-proxy-service
+    ports:
+      - "5012:5012"
+    environment:
+      - NODE_ENV=production
+      - AI_PROXY_PORT=5012
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+      - DEFAULT_MODEL=${DEFAULT_AI_MODEL:-anthropic/claude-3-sonnet}
+      - FALLBACK_MODELS=${FALLBACK_AI_MODELS:-openai/gpt-4,openai/gpt-3.5-turbo}
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=60
+      - MAX_TOKENS_PER_REQUEST=4000
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
 volumes:
-  redis_data: 
+  redis_data:
+
+networks:
+  baidaohui-san-jose:
+    name: baidaohui-san-jose 
