@@ -142,15 +142,17 @@
       if (result.errorType === 'timeout') {
         return `⏰ 超时 (${result.responseTime}ms)`;
       } else if (result.errorType === 'connection_refused') {
-        return `🚫 连接被拒绝 (${result.responseTime}ms)`;
+        return `🚫 服务离线 (${result.responseTime}ms)`;
       } else if (result.errorType === 'dns_error') {
         return `🌐 DNS解析失败 (${result.responseTime}ms)`;
-      } else if (result.httpStatus === 403) {
+      } else if (result.errorType === 'forbidden') {
         return `🚫 访问被禁止 (${result.responseTime}ms)`;
-      } else if (result.httpStatus === 404) {
-        return `❓ 服务未找到 (${result.responseTime}ms)`;
-      } else if (result.httpStatus && result.httpStatus >= 500) {
-        return `💥 服务器错误 (HTTP ${result.httpStatus}, ${result.responseTime}ms)`;
+      } else if (result.errorType === 'not_found') {
+        return `❓ 端点未找到 (${result.responseTime}ms)`;
+      } else if (result.errorType === 'server_error') {
+        return `💥 服务器错误 (HTTP ${result.httpStatus || '5xx'}, ${result.responseTime}ms)`;
+      } else if (result.errorType === 'connection_reset') {
+        return `🔌 连接重置 (${result.responseTime}ms)`;
       } else {
         return `🔴 异常 (${result.errorMessage || 'Unknown error'}, ${result.responseTime}ms)`;
       }

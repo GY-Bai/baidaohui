@@ -15,6 +15,8 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
+    networks:
+      - baidaohui-network
     deploy:
       resources:
         limits:
@@ -24,23 +26,28 @@ services:
 
   # API网关 - Nginx反向代理
   nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
+    image: nginx:alpine
     container_name: baidaohui-nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      - ./nginx/api.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/logs:/var/log/nginx
+      - ./ssl:/etc/ssl:ro
     depends_on:
       - auth-service
       - sso-service
       - chat-service
-      - ecommerce-service
+      - ecommerce-api-service
+      - invite-service
       - payment-service
+      - key-service
+      - static-api-service
+      - ai-proxy-service
     networks:
       - baidaohui-network
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -66,6 +73,11 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
@@ -90,6 +102,11 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
@@ -114,6 +131,11 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
@@ -122,9 +144,9 @@ services:
           memory: 256M
 
   # 电商API服务
-  ecommerce-service:
+  ecommerce-api-service:
     image: baidaohui/ecommerce-api-service:latest
-    container_name: ecommerce-service
+    container_name: ecommerce-api-service
     ports:
       - "5004:5004"
     environment:
@@ -140,33 +162,17 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
           memory: 384M
         reservations:
           memory: 192M
-
-  # 支付服务
-  payment-service:
-    image: baidaohui/payment-service:latest
-    container_name: payment-service
-    ports:
-      - "5008:5008"
-    environment:
-      - NODE_ENV=production
-      - PORT=5008
-      - MONGODB_URI=${MONGODB_URI}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-    networks:
-      - baidaohui-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
 
   # 邀请服务
   invite-service:
@@ -182,12 +188,43 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
           memory: 192M
         reservations:
           memory: 96M
+
+  # 支付服务
+  payment-service:
+    image: baidaohui/payment-service:latest
+    container_name: payment-service
+    ports:
+      - "5008:5008"
+    environment:
+      - NODE_ENV=production
+      - PORT=5008
+      - MONGODB_URI=${MONGODB_URI}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+    networks:
+      - baidaohui-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
   # 密钥管理服务
   key-service:
@@ -203,6 +240,11 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
@@ -229,6 +271,11 @@ services:
     networks:
       - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
@@ -247,16 +294,23 @@ services:
       - AI_PROXY_PORT=5012
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-      - DEFAULT_MODEL=${DEFAULT_AI_MODEL:-anthropic/claude-3-sonnet}
-      - FALLBACK_MODELS=${FALLBACK_AI_MODELS:-openai/gpt-4,openai/gpt-3.5-turbo}
-      - RATE_LIMIT_REQUESTS_PER_MINUTE=60
-      - MAX_TOKENS_PER_REQUEST=4000
+      - DEFAULT_MODEL=${DEFAULT_AI_MODEL:-deepseek/deepseek-r1-0528:free}
+      - FALLBACK_MODELS=${FALLBACK_AI_MODELS:-meta-llama/llama-3.3-8b-instruct:free,google/gemini-2.0-flash-exp:free}
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=5
+      - MAX_TOKENS_PER_REQUEST=8000
       - MONGODB_URI=${MONGODB_URI}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - redis
+    networks:
+      - baidaohui-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5012/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:

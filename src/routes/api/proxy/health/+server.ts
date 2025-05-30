@@ -2,117 +2,117 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ url, fetch }) => {
+  const serviceUrl = url.searchParams.get('url');
+  
+  if (!serviceUrl) {
+    return json({
+      status: 'error',
+      errorMessage: 'Missing service URL parameter',
+      responseTime: 0
+    }, { status: 400 });
+  }
+
+  const startTime = Date.now();
+  
   try {
-    // 从查询参数获取目标服务URL
-    const targetUrl = url.searchParams.get('url');
+    // 设置10秒超时
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     
-    if (!targetUrl) {
-      return json(
-        { 
-          status: 'error', 
-          message: 'Missing target URL parameter' 
-        }, 
-        { status: 400 }
-      );
-    }
-
-    // 验证目标URL是否为允许的服务器
-    const allowedHosts = [
-      'api.baidaohui.com',
-      '107.172.87.113',
-      '216.144.233.104'
-    ];
-
-    const urlObj = new URL(targetUrl);
-    const isAllowed = allowedHosts.some(host => 
-      urlObj.hostname === host || 
-      urlObj.hostname.endsWith(host)
-    );
-
-    if (!isAllowed) {
-      return json(
-        { 
-          status: 'error', 
-          message: 'Target URL not allowed' 
-        }, 
-        { status: 403 }
-      );
-    }
-
-    // 发起代理请求
-    const startTime = Date.now();
+    const response = await fetch(serviceUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'BaiDaoHui-Health-Checker/1.0',
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      signal: controller.signal
+    });
     
-    try {
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'BaiDaoHui-Health-Check/1.0',
-          'Accept': 'application/json, text/plain, */*',
-          'Cache-Control': 'no-cache'
-        }
-      });
-
-      const responseTime = Date.now() - startTime;
-      const responseText = await response.text();
-
-      // 尝试解析JSON响应
-      let responseData;
+    clearTimeout(timeoutId);
+    const responseTime = Date.now() - startTime;
+    
+    if (response.ok) {
       try {
-        responseData = JSON.parse(responseText);
-      } catch {
-        responseData = { raw: responseText };
+        const data = await response.json();
+        return json({
+          status: 'healthy',
+          responseTime,
+          httpStatus: response.status,
+          data: data
+        });
+      } catch (parseError) {
+        // 如果不是JSON响应，但状态码是200，仍然认为服务正常
+        return json({
+          status: 'healthy',
+          responseTime,
+          httpStatus: response.status,
+          data: { message: 'Service responded successfully but with non-JSON content' }
+        });
       }
-
-      // 转换Headers为普通对象
-      const responseHeaders: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-
-      return json({
-        status: response.ok ? 'healthy' : 'error',
-        httpStatus: response.status,
-        responseTime: responseTime,
-        data: responseData,
-        headers: responseHeaders
-      });
-
-    } catch (fetchError: any) {
-      const responseTime = Date.now() - startTime;
-      
-      let errorType = 'unknown';
-      let errorMessage = fetchError.message || 'Unknown error';
-
-      if (fetchError.name === 'AbortError' || fetchError.message?.includes('timeout')) {
-        errorType = 'timeout';
-        errorMessage = 'Request timeout (5s)';
-      } else if (fetchError.message?.includes('ECONNREFUSED')) {
-        errorType = 'connection_refused';
-        errorMessage = 'Connection refused';
-      } else if (fetchError.message?.includes('ENOTFOUND')) {
-        errorType = 'dns_error';
-        errorMessage = 'DNS resolution failed';
-      } else if (fetchError.message?.includes('CORS')) {
-        errorType = 'cors_error';
-        errorMessage = 'CORS policy blocked request';
-      }
-
+    } else {
       return json({
         status: 'error',
-        errorType: errorType,
-        errorMessage: errorMessage,
-        responseTime: responseTime,
-        httpStatus: 0
+        responseTime,
+        httpStatus: response.status,
+        errorType: getErrorType(response.status),
+        errorMessage: `HTTP ${response.status} ${response.statusText}`
       });
     }
-
+    
   } catch (error: any) {
-    return json(
-      { 
-        status: 'error', 
-        message: 'Proxy server error: ' + error.message 
-      }, 
-      { status: 500 }
-    );
+    const responseTime = Date.now() - startTime;
+    
+    if (error.name === 'AbortError') {
+      return json({
+        status: 'error',
+        responseTime,
+        errorType: 'timeout',
+        errorMessage: 'Request timeout (10s)'
+      });
+    }
+    
+    if (error.code === 'ECONNREFUSED') {
+      return json({
+        status: 'error',
+        responseTime,
+        errorType: 'connection_refused',
+        errorMessage: 'Connection refused - service may be down'
+      });
+    }
+    
+    if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN') {
+      return json({
+        status: 'error',
+        responseTime,
+        errorType: 'dns_error',
+        errorMessage: 'DNS resolution failed'
+      });
+    }
+    
+    if (error.code === 'ECONNRESET') {
+      return json({
+        status: 'error',
+        responseTime,
+        errorType: 'connection_reset',
+        errorMessage: 'Connection reset by peer'
+      });
+    }
+    
+    return json({
+      status: 'error',
+      responseTime,
+      errorType: 'network_error',
+      errorMessage: error.message || 'Unknown network error'
+    });
   }
-}; 
+};
+
+function getErrorType(status: number): string {
+  if (status === 403) return 'forbidden';
+  if (status === 404) return 'not_found';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'server_error';
+  if (status >= 400) return 'client_error';
+  return 'unknown_error';
+} 
