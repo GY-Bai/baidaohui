@@ -2,26 +2,22 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const NodeCache = require('node-cache');
-const redis = require('redis');
 const winston = require('winston');
 const dotenv = require('dotenv');
+const axios = require('axios');
 
 // 加载环境变量
 dotenv.config();
 
-// 导入模块
-const authMiddleware = require('./middleware/auth');
-const rateLimitMiddleware = require('./middleware/rateLimit');
-const chatController = require('./controllers/chat');
-const modelsController = require('./controllers/models');
-const keysController = require('./controllers/keys');
-const statsController = require('./controllers/stats');
-const configManager = require('./config/config');
-
 // 创建Express应用
 const app = express();
 const PORT = process.env.AI_PROXY_PORT || 5012;
+
+// 固定API Key配置
+const FIXED_API_KEY = 'wzj5788@gmail.com';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'deepseek/deepseek-r1-0528:free';
 
 // 配置日志
 const logger = winston.createLogger({
@@ -33,8 +29,6 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'ai-proxy-service' },
   transports: [
-    new winston.transports.File({ filename: '/var/log/ai-proxy-error.log', level: 'error' }),
-    new winston.transports.File({ filename: '/var/log/ai-proxy-combined.log' }),
     new winston.transports.Console({
       format: winston.format.simple()
     })
@@ -51,17 +45,15 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// 中间件配置
+// 中间件配置 - 允许所有来源
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
 app.use(cors({
-  origin: ['https://www.baidaohui.com', 'https://fan.baidaohui.com', 'https://member.baidaohui.com', 
-           'https://master.baidaohui.com', 'https://firstmate.baidaohui.com', 'https://seller.baidaohui.com',
-           'http://localhost:5173'],
-  credentials: true,
+  origin: '*', // 允许所有来源
+  credentials: false, // 不需要凭据
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
@@ -69,10 +61,10 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 全局速率限制
+// 全局速率限制 - 放宽限制
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分钟
-  max: 1000, // 最多1000次请求
+  max: 10000, // 最多10000次请求
   message: {
     error: 'Too many requests',
     message: 'Rate limit exceeded. Please try again later.',
@@ -103,6 +95,42 @@ app.use((req, res, next) => {
   next();
 });
 
+// 简化的API Key验证中间件
+const validateApiKey = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: {
+        message: 'You didn\'t provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY).',
+        type: 'invalid_request_error',
+        param: null,
+        code: 'missing_api_key'
+      }
+    });
+  }
+
+  const apiKey = authHeader.substring(7); // 移除 'Bearer ' 前缀
+  
+  // 检查是否是固定的API Key
+  if (apiKey !== FIXED_API_KEY) {
+    return res.status(401).json({
+      error: {
+        message: 'Incorrect API key provided. Please contact admin for the correct API key.',
+        type: 'invalid_request_error',
+        param: null,
+        code: 'invalid_api_key'
+      }
+    });
+  }
+
+  // 将API Key信息添加到请求对象
+  req.apiKey = apiKey;
+  req.userId = 'fixed-user';
+  
+  next();
+};
+
 // 健康检查接口
 app.get('/health', (req, res) => {
   res.json({
@@ -111,7 +139,11 @@ app.get('/health', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    memory: process.memoryUsage()
+    memory: process.memoryUsage(),
+    config: {
+      defaultModel: DEFAULT_MODEL,
+      openrouterConnected: !!OPENROUTER_API_KEY
+    }
   });
 });
 
@@ -124,26 +156,282 @@ app.get('/v1/health', (req, res) => {
   });
 });
 
-// API Key管理接口（仅管理员）
-app.use('/admin/keys', authMiddleware.requireAdmin, keysController);
+// 模型列表接口
+app.get('/v1/models', validateApiKey, (req, res) => {
+  try {
+    const models = [
+      {
+        id: 'gpt-4',
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: 'openai'
+      },
+      {
+        id: 'gpt-4-turbo',
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: 'openai'
+      },
+      {
+        id: 'gpt-3.5-turbo',
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: 'openai'
+      },
+      {
+        id: 'claude-3-sonnet',
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: 'anthropic'
+      },
+      {
+        id: 'deepseek-r1',
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: 'deepseek'
+      }
+    ];
 
-// 统计和监控接口（仅管理员）
-app.use('/admin/stats', authMiddleware.requireAdmin, statsController);
+    res.json({
+      object: 'list',
+      data: models
+    });
 
-// OpenAI兼容接口
-app.use('/v1/models', authMiddleware.validateApiKey, modelsController);
-app.use('/v1/chat/completions', 
-  authMiddleware.validateApiKey, 
-  rateLimitMiddleware.perKeyLimit,
-  chatController.completions
-);
+    logger.info('Models list requested', {
+      userId: req.userId,
+      modelCount: models.length
+    });
 
-// 流式聊天接口
-app.use('/v1/chat/completions', 
-  authMiddleware.validateApiKey, 
-  rateLimitMiddleware.perKeyLimit,
-  chatController.streamCompletions
-);
+  } catch (error) {
+    logger.error('Models list error:', error);
+    res.status(500).json({
+      error: {
+        message: 'Internal server error',
+        type: 'api_error',
+        code: 'internal_error'
+      }
+    });
+  }
+});
+
+// 聊天完成接口
+app.post('/v1/chat/completions', validateApiKey, async (req, res) => {
+  try {
+    const { messages, model, stream = false, ...otherParams } = req.body;
+
+    // 验证必需参数
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        error: {
+          message: 'Missing or invalid messages parameter',
+          type: 'invalid_request_error',
+          param: 'messages',
+          code: 'missing_messages'
+        }
+      });
+    }
+
+    // 重写模型为默认模型
+    const targetModel = DEFAULT_MODEL;
+    
+    // 构建OpenRouter请求
+    const openRouterPayload = {
+      model: targetModel,
+      messages: messages,
+      stream: stream,
+      ...otherParams,
+      transforms: ["middle-out"],
+      route: "fallback"
+    };
+
+    // 记录请求日志
+    logger.info('Chat completion request', {
+      userId: req.userId,
+      originalModel: model,
+      targetModel: targetModel,
+      messageCount: messages.length,
+      stream: stream
+    });
+
+    if (stream) {
+      return handleStreamResponse(req, res, openRouterPayload);
+    } else {
+      return handleNormalResponse(req, res, openRouterPayload);
+    }
+
+  } catch (error) {
+    logger.error('Chat completion error:', error);
+    res.status(500).json({
+      error: {
+        message: 'Internal server error',
+        type: 'api_error',
+        code: 'internal_error'
+      }
+    });
+  }
+});
+
+// 处理非流式响应
+const handleNormalResponse = async (req, res, openRouterPayload) => {
+  try {
+    const response = await axios.post(
+      `${OPENROUTER_BASE_URL}/chat/completions`,
+      openRouterPayload,
+      {
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://api.baidaohui.com',
+          'X-Title': 'BaiDaoHui AI Proxy'
+        },
+        timeout: 120000
+      }
+    );
+
+    // 返回OpenAI格式的响应
+    res.json({
+      id: response.data.id || `chatcmpl-${Date.now()}`,
+      object: 'chat.completion',
+      created: response.data.created || Math.floor(Date.now() / 1000),
+      model: req.body.model || DEFAULT_MODEL,
+      choices: response.data.choices,
+      usage: response.data.usage,
+      system_fingerprint: response.data.system_fingerprint
+    });
+
+  } catch (error) {
+    handleOpenRouterError(error, res);
+  }
+};
+
+// 处理流式响应
+const handleStreamResponse = async (req, res, openRouterPayload) => {
+  try {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+
+    const response = await axios.post(
+      `${OPENROUTER_BASE_URL}/chat/completions`,
+      { ...openRouterPayload, stream: true },
+      {
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://api.baidaohui.com',
+          'X-Title': 'BaiDaoHui AI Proxy'
+        },
+        responseType: 'stream',
+        timeout: 120000
+      }
+    );
+
+    response.data.on('data', (chunk) => {
+      const lines = chunk.toString().split('\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          
+          if (data === '[DONE]') {
+            res.write('data: [DONE]\n\n');
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            
+            // 重写模型名称
+            if (parsed.model) {
+              parsed.model = req.body.model || DEFAULT_MODEL;
+            }
+
+            res.write(`data: ${JSON.stringify(parsed)}\n\n`);
+          } catch (parseError) {
+            logger.warn('Parse error in stream:', parseError);
+          }
+        }
+      }
+    });
+
+    response.data.on('end', () => {
+      res.end();
+    });
+
+    response.data.on('error', (error) => {
+      logger.error('Stream error:', error);
+      res.write(`data: {"error": {"message": "Stream error", "type": "api_error"}}\n\n`);
+      res.end();
+    });
+
+  } catch (error) {
+    handleOpenRouterError(error, res);
+  }
+};
+
+// 处理OpenRouter错误
+const handleOpenRouterError = (error, res) => {
+  logger.error('OpenRouter API error:', {
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data
+  });
+
+  if (error.response) {
+    const status = error.response.status;
+    const data = error.response.data;
+
+    if (status === 400) {
+      return res.status(400).json({
+        error: {
+          message: data.error?.message || 'Invalid request to AI service',
+          type: 'invalid_request_error',
+          code: 'bad_request'
+        }
+      });
+    }
+
+    if (status === 401) {
+      return res.status(500).json({
+        error: {
+          message: 'AI service authentication failed',
+          type: 'api_error',
+          code: 'upstream_auth_error'
+        }
+      });
+    }
+
+    if (status === 429) {
+      return res.status(429).json({
+        error: {
+          message: 'AI service rate limit exceeded',
+          type: 'rate_limit_error',
+          code: 'upstream_rate_limit'
+        }
+      });
+    }
+
+    if (status >= 500) {
+      return res.status(502).json({
+        error: {
+          message: 'AI service temporarily unavailable',
+          type: 'api_error',
+          code: 'upstream_error'
+        }
+      });
+    }
+  }
+
+  res.status(500).json({
+    error: {
+      message: 'Failed to connect to AI service',
+      type: 'api_error',
+      code: 'network_error'
+    }
+  });
+};
 
 // 错误处理中间件
 app.use((error, req, res, next) => {
@@ -156,37 +444,6 @@ app.use((error, req, res, next) => {
     headers: req.headers
   });
 
-  if (error.name === 'ValidationError') {
-    return res.status(400).json({
-      error: {
-        message: 'Invalid request data',
-        type: 'invalid_request_error',
-        details: error.message
-      }
-    });
-  }
-
-  if (error.name === 'UnauthorizedError') {
-    return res.status(401).json({
-      error: {
-        message: 'Invalid API key',
-        type: 'invalid_request_error',
-        code: 'invalid_api_key'
-      }
-    });
-  }
-
-  if (error.name === 'RateLimitError') {
-    return res.status(429).json({
-      error: {
-        message: 'Rate limit exceeded',
-        type: 'requests_limit_exceeded',
-        code: 'rate_limit_exceeded'
-      }
-    });
-  }
-
-  // 通用服务器错误
   res.status(500).json({
     error: {
       message: 'Internal server error',
@@ -212,7 +469,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`AI Proxy Service listening on port ${PORT}`, {
     port: PORT,
     env: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    apiKey: FIXED_API_KEY,
+    defaultModel: DEFAULT_MODEL
   });
 });
 

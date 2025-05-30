@@ -86,19 +86,19 @@ check_env_file() {
     log_success "环境变量文件检查通过"
 }
 
-# 定义所有13个服务
+# 获取所有服务列表
 get_all_services() {
-    echo "auth-service sso-service chat-service fortune-service ecommerce-api-service payment-service invite-service key-service email-service ecommerce-poller static-api-service r2-sync-service exchange-rate-updater ai-proxy-service"
+    echo "$(get_san_jose_services) $(get_buffalo_services)"
 }
 
-# 定义圣何塞VPS服务（高性能服务）
+# 获取圣何塞VPS服务列表
 get_san_jose_services() {
-    echo "auth-service sso-service chat-service ecommerce-api-service payment-service invite-service key-service static-api-service ai-proxy-service"
+    echo "auth-service sso-service chat-service ecommerce-api-service invite-service payment-service key-service static-api-service ai-proxy-service"
 }
 
-# 定义水牛城VPS服务（后台处理服务）
+# 获取水牛城VPS服务列表
 get_buffalo_services() {
-    echo "fortune-service email-service ecommerce-poller r2-sync-service exchange-rate-updater"
+    echo "fortune-service email-service r2-sync-service"
 }
 
 # 获取服务端口映射

@@ -1,18 +1,18 @@
 export const load = async () => {
   try {
-    // 获取所有环境变量
-    const viteSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const viteSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const viteAppUrl = import.meta.env.VITE_APP_URL;
-    const nodeEnv = import.meta.env.NODE_ENV || import.meta.env.MODE;
+    // 获取所有环境变量 - 兼容Cloudflare Pages和本地开发
+    const viteSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const viteSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    const viteAppUrl = import.meta.env.VITE_APP_URL || process.env.VITE_APP_URL;
+    const nodeEnv = import.meta.env.NODE_ENV || import.meta.env.MODE || process.env.NODE_ENV || 'development';
     
     // 统一API基础URL
     const apiBaseUrl = 'https://api.baidaohui.com';
     
     // 构建信息
-    const mode = import.meta.env.MODE || 'unknown';
-    const isDev = import.meta.env.DEV || false;
-    const isProd = import.meta.env.PROD || false;
+    const mode = import.meta.env.MODE || process.env.NODE_ENV || 'development';
+    const isDev = import.meta.env.DEV || mode === 'development';
+    const isProd = import.meta.env.PROD || mode === 'production';
     const isSSR = import.meta.env.SSR || false;
     
     const timestamp = new Date().toISOString();
@@ -68,16 +68,33 @@ export const load = async () => {
         last_check: timestamp,
         testing_mode: 'Client-side via API Gateway',
         api_gateway: 'https://api.baidaohui.com',
-        cors_note: '通过API网关统一CORS配置，解决跨域问题'
+        cors_note: '通过API网关统一CORS配置，解决跨域问题',
+        dns_status: 'api.baidaohui.com → 107.172.87.113 (圣何塞VPS)'
       }
     };
 
   } catch (error) {
-    console.error('Health check error:', error);
+    console.error('Health check load error:', error);
     return {
       error: '健康检查系统异常',
       message: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      env_check: {
+        supabase_url: '加载失败',
+        supabase_key: '加载失败',
+        app_url: '加载失败',
+        node_env: 'development',
+        api_base_url: 'https://api.baidaohui.com'
+      },
+      build_info: {
+        version: '2.4.0',
+        mode: 'error',
+        is_dev: true,
+        is_prod: false,
+        is_ssr: false,
+        timestamp: new Date().toISOString(),
+        cache_buster: Date.now()
+      }
     };
   }
 }; 
