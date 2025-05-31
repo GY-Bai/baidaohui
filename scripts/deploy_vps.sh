@@ -363,13 +363,11 @@ fix_nginx_and_ai_proxy() {
     }
     
     log_info "重建AI代理服务镜像..."
-    if [ -d "services/ai-proxy-service" ]; then
-        cd services/ai-proxy-service
-        docker build -t baidaohui/ai-proxy-service:latest . || {
-            log_error "AI代理服务镜像构建失败"
-            exit 1
-        }
-        cd ../../
+    if build_service_image "ai-proxy-service"; then
+        log_success "AI代理服务镜像构建成功"
+    else
+        log_error "AI代理服务镜像构建失败"
+        exit 1
     fi
     
     # 停止所有服务
