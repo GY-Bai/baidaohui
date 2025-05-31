@@ -58,7 +58,7 @@ services:
 
   # 认证服务
   auth-service:
-    image: baidaohui/auth-service:latest
+    image: baidaohui-auth-service:latest
     container_name: auth-service
     ports:
       - "5001:5001"
@@ -88,7 +88,7 @@ services:
 
   # SSO统一认证服务
   sso-service:
-    image: baidaohui/sso-service:latest
+    image: baidaohui-sso-service:latest
     container_name: sso-service
     ports:
       - "5002:5002"
@@ -117,7 +117,7 @@ services:
 
   # 聊天服务
   chat-service:
-    image: baidaohui/chat-service:latest
+    image: baidaohui-chat-service:latest
     container_name: chat-service
     ports:
       - "5003:5003"
@@ -146,7 +146,7 @@ services:
 
   # 电商API服务
   ecommerce-api-service:
-    image: baidaohui/ecommerce-api-service:latest
+    image: baidaohui-ecommerce-api-service:latest
     container_name: ecommerce-api-service
     ports:
       - "5005:5004"
@@ -177,7 +177,7 @@ services:
 
   # 邀请服务
   invite-service:
-    image: baidaohui/invite-service:latest
+    image: baidaohui-invite-service:latest
     container_name: invite-service
     ports:
       - "5006:5006"
@@ -203,7 +203,7 @@ services:
 
   # 支付服务
   payment-service:
-    image: baidaohui/payment-service:latest
+    image: baidaohui-payment-service:latest
     container_name: payment-service
     ports:
       - "5008:5008"
@@ -229,7 +229,7 @@ services:
 
   # 密钥管理服务
   key-service:
-    image: baidaohui/key-service:latest
+    image: baidaohui-key-service:latest
     container_name: key-service
     ports:
       - "5013:5009"
@@ -255,7 +255,7 @@ services:
 
   # 静态API缓存服务
   static-api-service:
-    image: baidaohui/static-api-service:latest
+    image: baidaohui-static-api-service:latest
     container_name: static-api-service
     ports:
       - "5010:5010"
