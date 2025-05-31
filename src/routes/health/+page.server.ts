@@ -18,12 +18,12 @@ export const load = async () => {
     const timestamp = new Date().toISOString();
     const cacheBuster = Date.now();
 
-    // 服务配置（将在客户端使用）
+    // 服务配置（将在客户端使用）- 修复路径匹配nginx配置和后端端口
     const sanJoseServices = [
       { name: '认证服务（auth-service）', url: `${apiBaseUrl}/auth/health` },
       { name: '单点登录服务（sso-service）', url: `${apiBaseUrl}/sso/health` },
       { name: '聊天服务（chat-service）', url: `${apiBaseUrl}/chat/health` },
-      { name: '电商服务（ecommerce-api-service）', url: `${apiBaseUrl}/api/products/health` },
+      { name: '电商服务（ecommerce-api-service）', url: `${apiBaseUrl}/ecommerce/health` },
       { name: '邀请服务（invite-service）', url: `${apiBaseUrl}/invite/health` },
       { name: '支付服务（payment-service）', url: `${apiBaseUrl}/payment/health` },
       { name: '密钥服务（key-service）', url: `${apiBaseUrl}/keys/health` },
@@ -49,7 +49,7 @@ export const load = async () => {
         api_base_url: apiBaseUrl
       },
       build_info: {
-        version: '2.4.0',
+        version: '2.4.1',
         mode,
         is_dev: isDev,
         is_prod: isProd,
@@ -69,7 +69,13 @@ export const load = async () => {
         testing_mode: 'Client-side via API Gateway',
         api_gateway: 'https://api.baidaohui.com',
         cors_note: '通过API网关统一CORS配置，解决跨域问题',
-        dns_status: 'api.baidaohui.com → 107.172.87.113 (圣何塞VPS)'
+        dns_status: 'api.baidaohui.com → 107.172.87.113 (圣何塞VPS)',
+        port_mapping: {
+          'ecommerce-api-service': '5005:5004 (外部5005→内部5004)',
+          'key-service': '5013:5009 (外部5013→内部5009)',
+          'static-api-service': '5010:5010',
+          'ai-proxy-service': '5012:5012'
+        }
       }
     };
 
@@ -87,7 +93,7 @@ export const load = async () => {
         api_base_url: 'https://api.baidaohui.com'
       },
       build_info: {
-        version: '2.4.0',
+        version: '2.4.1',
         mode: 'error',
         is_dev: true,
         is_prod: false,
