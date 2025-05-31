@@ -23,7 +23,7 @@ export const load = async () => {
       { name: '认证服务（auth-service）', url: `${apiBaseUrl}/auth/health` },
       { name: '单点登录服务（sso-service）', url: `${apiBaseUrl}/sso/health` },
       { name: '聊天服务（chat-service）', url: `${apiBaseUrl}/chat/health` },
-      { name: '电商服务（ecommerce-api-service）', url: `${apiBaseUrl}/ecommerce/health` },
+      { name: '电商服务（通过产品API）', url: `${apiBaseUrl}/api/products` },
       { name: '邀请服务（invite-service）', url: `${apiBaseUrl}/invite/health` },
       { name: '支付服务（payment-service）', url: `${apiBaseUrl}/payment/health` },
       { name: '密钥服务（key-service）', url: `${apiBaseUrl}/keys/health` },
