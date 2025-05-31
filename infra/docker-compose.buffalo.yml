@@ -66,7 +66,7 @@ services:
     image: baidaohui-ecommerce-poller:latest
     container_name: ecommerce-poller
     ports:
-      - "5004:5004"
+      - "3000:5004"
     environment:
       # 外部API配置
       - MONGODB_URI=${MONGODB_URI}

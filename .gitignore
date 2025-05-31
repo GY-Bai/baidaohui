@@ -39,3 +39,13 @@ Thumbs.db
 
 # 日志文件
 *.log
+*.pem 
+*.key
+*.crt
+*.csr
+*.p12
+*.p8
+*.p7b
+*.p7c
+*.p7m
+*.p7s

@@ -1,3 +1,6 @@
+
+
+
 # 百刀会子目录架构迁移 - Cursor 开发规则
 
 ## 🎯 迁移目标
@@ -265,12 +268,8 @@ const routes = {
 {/await}
 ```
 
-### 静态资源优化
-- 图片使用WebP格式和懒加载
-- CSS/JS使用压缩和缓存
-- 字体文件本地化
+因为本地有两个branch，而你使用git push origin HEAD:main，导致数据没同步成功，版本甚至回退了，请你使用git push -u origin upgrade/svelte5:main，确保之前的修改都同步成功，确保nas拉取正常
+使用ssh bgy@107.172.87.113 + “命令”来在VPS上执行命令，之后使用GitHub完成本机数据推送到圣何塞VPS
 
----
 
-**遵循这些规则可以确保迁移过程顺利，减少bug和性能问题。**
-**如有疑问，请参考迁移计划文档：`docs/subdirectory-migration-plan.md`** 
+
