@@ -23,21 +23,21 @@ export const load = async () => {
       { name: '认证服务（auth-service）', url: `${apiBaseUrl}/auth/health` },
       { name: '单点登录服务（sso-service）', url: `${apiBaseUrl}/sso/health` },
       { name: '聊天服务（chat-service）', url: `${apiBaseUrl}/chat/health` },
-      { name: '电商服务（ecommerce-service）', url: `${apiBaseUrl}/ecommerce/health` },
+      { name: '电商服务（ecommerce-api-service）', url: `${apiBaseUrl}/api/products/health` },
       { name: '邀请服务（invite-service）', url: `${apiBaseUrl}/invite/health` },
       { name: '支付服务（payment-service）', url: `${apiBaseUrl}/payment/health` },
       { name: '密钥服务（key-service）', url: `${apiBaseUrl}/keys/health` },
-      { name: '静态API服务（static-api-service）', url: `${apiBaseUrl}/static/health` }
+      { name: '静态API服务（static-api-service）', url: `${apiBaseUrl}/api/stats/health` }
     ];
 
     const buffaloServices = [
       { name: '算命服务（fortune-service）', url: `${apiBaseUrl}/fortune/health` },
       { name: '邮件服务（email-service）', url: `${apiBaseUrl}/email/health` },
-      { name: 'R2同步服务（r2-sync-service）', url: `${apiBaseUrl}/r2-sync/health` }
+      { name: 'R2同步服务（r2-sync-service）', url: `${apiBaseUrl}/sync/health` }
     ];
 
     const aiServices = [
-      { name: 'AI代理服务（ai-proxy-service）', url: `${apiBaseUrl}/v1/health` }
+      { name: 'AI代理服务（ai-proxy-service）', url: `${apiBaseUrl}/ai/health` }
     ];
 
     return {

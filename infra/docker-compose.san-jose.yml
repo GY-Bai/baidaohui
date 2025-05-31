@@ -286,7 +286,7 @@ services:
 
   # AI代理服务
   ai-proxy-service:
-    image: baidaohui/ai-proxy-service:latest
+    image: baidaohui-ai-proxy-service:latest
     container_name: ai-proxy-service
     ports:
       - "5012:5012"

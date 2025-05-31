@@ -109,10 +109,10 @@ get_service_port() {
         "sso-service") echo "5002" ;;
         "chat-service") echo "5003" ;;
         "fortune-service") echo "5007" ;;
-        "ecommerce-api-service") echo "5004" ;;
+        "ecommerce-api-service") echo "5005" ;;
         "payment-service") echo "5008" ;;
         "invite-service") echo "5006" ;;
-        "key-service") echo "5009" ;;
+        "key-service") echo "5013" ;;
         "email-service") echo "5008" ;;
         "static-api-service") echo "5010" ;;
         "r2-sync-service") echo "5011" ;;

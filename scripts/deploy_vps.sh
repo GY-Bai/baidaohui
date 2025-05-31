@@ -213,31 +213,10 @@ build_images() {
             log_error "Nginx 镜像构建失败"
             failed_services+=("nginx")
         fi
-        
-        # 构建AI代理服务镜像
-        log_info "构建 AI代理服务镜像..."
-        if [ -d "services/ai-proxy-service" ]; then
-            cd services/ai-proxy-service
-            if docker build -t baidaohui/ai-proxy-service:latest .; then
-                log_success "AI代理服务镜像构建成功"
-                ((success_count++))
-            else
-                log_error "AI代理服务镜像构建失败"
-                failed_services+=("ai-proxy-service")
-            fi
-            cd ../../
-        else
-            log_warning "AI代理服务目录不存在，跳过构建"
-        fi
     fi
     
-    # 构建其他服务镜像
+    # 构建所有服务镜像
     for service in $services_to_build; do
-        # 跳过ai-proxy-service，已经单独处理过
-        if [ "$service" = "ai-proxy-service" ]; then
-            continue
-        fi
-        
         if build_service_image "$service"; then
             ((success_count++))
         else
@@ -246,12 +225,9 @@ build_images() {
     done
     
     local total_services=$(echo $services_to_build | wc -w)
-    # 如果包含nginx和ai-proxy，总数加2
+    # 如果包含nginx，总数加1
     if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
         ((total_services++)) # nginx
-        if [ -d "services/ai-proxy-service" ]; then
-            ((total_services++)) # ai-proxy
-        fi
     fi
     
     log_info "镜像构建完成: $success_count/$total_services"
