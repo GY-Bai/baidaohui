@@ -8,6 +8,7 @@
 
   let loading = true;
   let authenticated = false;
+  let activeTab = 'chat'; // 默认显示悄悄话
 
   onMount(async () => {
     // 使用客户端路由守卫
@@ -19,86 +20,344 @@
     await signOut();
   }
 
-  let activeTab = 'chat';
-
   const tabs = [
-    { id: 'chat', name: '私信', icon: '💬' },
-    { id: 'fortune', name: '算命', icon: '🔮' },
-    { id: 'ecommerce', name: '带货', icon: '🛍️' },
-    { id: 'profile', name: '个人', icon: '👤' }
+    { 
+      id: 'chat', 
+      name: '悄悄话', 
+      icon: '💬',
+      description: '教主的独家分享和内幕消息'
+    },
+    { 
+      id: 'fortune', 
+      name: '算命申请', 
+      icon: '🔮',
+      description: '申请教主为您进行专业算命服务'
+    },
+    { 
+      id: 'ecommerce', 
+      name: '好物推荐', 
+      icon: '🛍️',
+      description: '发现教主推荐的优质商品'
+    },
+    { 
+      id: 'logout', 
+      name: '退出登录', 
+      icon: '🚪',
+      description: '安全退出当前账户'
+    }
   ];
 
   function setActiveTab(tabId) {
+    if (tabId === 'logout') {
+      handleSignOut();
+      return;
+    }
     activeTab = tabId;
+  }
+
+  function getTabTitle() {
+    const tab = tabs.find(t => t.id === activeTab);
+    return tab ? tab.name : '粉丝专区';
   }
 </script>
 
 <svelte:head>
-  <title>粉丝专区 - 百刀会</title>
+  <title>{getTabTitle()} - 百刀会</title>
 </svelte:head>
 
 {#if loading}
-  <div class="min-h-screen flex items-center justify-center">
-    <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-      <p class="text-gray-600">正在验证身份...</p>
+  <div class="loading-screen">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <p>正在验证身份...</p>
     </div>
   </div>
 {:else if authenticated}
-  <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100">
-    <nav class="bg-white shadow-sm border-b">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center">
-            <h1 class="text-xl font-semibold text-gray-900">百刀会 - 粉丝专区</h1>
+  <div class="app-container">
+    <!-- 顶部标题栏 -->
+    <header class="app-header">
+      <div class="header-content">
+        <h1 class="app-title">百刀会 - 粉丝专区</h1>
+        <div class="user-badge">Fan</div>
+      </div>
+    </header>
+
+    <!-- 主内容区域 -->
+    <main class="main-content">
+      <div class="content-wrapper">
+        {#if activeTab === 'chat'}
+          <div class="content-section">
+            <div class="section-header">
+              <h2>💬 教主悄悄话</h2>
+              <p>获取教主的独家分享和内幕消息</p>
+            </div>
+            <Chat />
           </div>
-          <div class="flex items-center space-x-4">
-            <button
-              on:click={handleSignOut}
-              class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-            >
-              退出登录
-            </button>
+        {:else if activeTab === 'fortune'}
+          <div class="content-section">
+            <div class="section-header">
+              <h2>🔮 算命申请</h2>
+              <p>申请教主为您进行专业算命服务</p>
+            </div>
+            <Fortune />
           </div>
-        </div>
+        {:else if activeTab === 'ecommerce'}
+          <div class="content-section">
+            <div class="section-header">
+              <h2>🛍️ 好物推荐</h2>
+              <p>发现教主推荐的优质商品</p>
+            </div>
+            <Ecommerce />
+          </div>
+        {/if}
+      </div>
+    </main>
+
+    <!-- 底部Dock栏 -->
+    <nav class="dock-bar">
+      <div class="dock-container">
+        {#each tabs as tab}
+          <button
+            class="dock-item {activeTab === tab.id ? 'active' : ''}"
+            on:click={() => setActiveTab(tab.id)}
+            title={tab.description}
+          >
+            <div class="dock-icon">{tab.icon}</div>
+            <span class="dock-label">{tab.name}</span>
+          </button>
+        {/each}
       </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-      <div class="px-4 py-6 sm:px-0">
-        <div class="border-4 border-dashed border-gray-200 rounded-lg p-8 text-center">
-          <div class="mb-6">
-            <h2 class="text-3xl font-bold text-gray-900 mb-2">🌟 欢迎来到粉丝专区！</h2>
-            <p class="text-lg text-gray-600">这里是专属于粉丝的特殊空间</p>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-            <div class="bg-white p-6 rounded-lg shadow-md">
-              <div class="text-purple-600 text-4xl mb-4">💬</div>
-              <h3 class="text-xl font-semibold mb-2">教主悄悄话</h3>
-              <p class="text-gray-600">获取教主的独家分享和内幕消息</p>
-            </div>
-            
-            <div class="bg-white p-6 rounded-lg shadow-md">
-              <div class="text-pink-600 text-4xl mb-4">🔮</div>
-              <h3 class="text-xl font-semibold mb-2">算命申请</h3>
-              <p class="text-gray-600">申请教主为您进行专业算命服务</p>
-            </div>
-            
-            <div class="bg-white p-6 rounded-lg shadow-md">
-              <div class="text-blue-600 text-4xl mb-4">🛍️</div>
-              <h3 class="text-xl font-semibold mb-2">好物推荐</h3>
-              <p class="text-gray-600">发现教主推荐的优质商品</p>
-            </div>
-          </div>
-          
-          <div class="mt-8 p-4 bg-purple-100 rounded-lg">
-            <p class="text-purple-800">
-              <strong>粉丝特权：</strong>享受基础内容访问权限，参与社区讨论，获取定期更新
-            </p>
-          </div>
-        </div>
+    <!-- 粉丝特权提示 -->
+    {#if activeTab === 'chat'}
+      <div class="privilege-banner">
+        <p><strong>粉丝特权：</strong>享受基础内容访问权限，参与社区讨论，获取定期更新</p>
       </div>
-    </main>
+    {/if}
   </div>
-{/if} 
+{/if}
+
+<style>
+  .loading-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .loading-content {
+    text-align: center;
+    color: white;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px auto;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .app-container {
+    min-height: 100vh;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-header {
+    background: white;
+    border-bottom: 1px solid #dbdbdb;
+    padding: 12px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-content {
+    max-width: 935px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .app-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #262626;
+    margin: 0;
+  }
+
+  .user-badge {
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .main-content {
+    flex: 1;
+    padding: 20px 16px 80px 16px; /* 底部留空给dock栏 */
+    overflow-y: auto;
+  }
+
+  .content-wrapper {
+    max-width: 614px;
+    margin: 0 auto;
+  }
+
+  .content-section {
+    background: white;
+    border: 1px solid #dbdbdb;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .section-header {
+    padding: 20px;
+    border-bottom: 1px solid #efefef;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-align: center;
+  }
+
+  .section-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  .section-header p {
+    margin: 0;
+    font-size: 16px;
+    opacity: 0.9;
+  }
+
+  .dock-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #dbdbdb;
+    padding: 8px 0;
+    z-index: 1000;
+  }
+
+  .dock-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    max-width: 614px;
+    margin: 0 auto;
+  }
+
+  .dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    min-width: 70px;
+  }
+
+  .dock-item:hover {
+    background: #f5f5f5;
+    transform: translateY(-2px);
+  }
+
+  .dock-item.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+
+  .dock-item.active .dock-icon {
+    transform: scale(1.2);
+  }
+
+  .dock-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+    transition: transform 0.2s ease;
+  }
+
+  .dock-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .privilege-banner {
+    position: fixed;
+    top: 70px;
+    left: 16px;
+    right: 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 14px;
+    z-index: 90;
+    animation: slideDown 0.3s ease;
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* 移动端优化 */
+  @media (max-width: 768px) {
+    .app-title {
+      font-size: 20px;
+    }
+
+    .dock-item {
+      min-width: 60px;
+      padding: 6px 8px;
+    }
+
+    .dock-icon {
+      font-size: 20px;
+    }
+
+    .dock-label {
+      font-size: 10px;
+    }
+
+    .section-header h2 {
+      font-size: 24px;
+    }
+
+    .section-header p {
+      font-size: 14px;
+    }
+  }
+</style> 
