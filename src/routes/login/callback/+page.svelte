@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { supabase, getSession, redirectToRolePath } from '$lib/auth';
+  import { handleAuthCallback, redirectToRolePath } from '$lib/auth';
 
   export let data;
 
@@ -11,24 +11,26 @@
 
   onMount(async () => {
     try {
-      // 优先检查是否已有现有会话（用户可能已经登录成功）
-      console.log('回调页面：检查现有会话...');
-      let session = await getSession();
+      console.log('回调页面：开始处理认证回调...');
+      
+      // 使用专门的回调处理函数
+      const session = await handleAuthCallback();
       
       if (session) {
-        console.log('回调页面：发现现有会话，角色:', session.role);
-        console.log('回调页面：立即重定向到角色页面');
+        console.log('回调页面：成功获取会话，角色:', session.role);
+        console.log('回调页面：重定向到角色页面');
         redirectToRolePath(session.role);
         return;
       }
 
-      // 如果有授权码，尝试交换会话
+      // 如果没有会话，尝试使用服务端提供的授权码
       if (data.code) {
         console.log('回调页面：使用授权码交换会话...');
+        const { supabase } = await import('$lib/auth');
         const { error: authError } = await supabase.auth.exchangeCodeForSession(data.code);
         
         if (authError) {
-          console.error('回调页面：Supabase认证错误:', authError);
+          console.error('回调页面：授权码交换失败:', authError);
           error = '认证失败: ' + authError.message;
           setTimeout(() => {
             goto('/login?error=auth_failed&message=' + encodeURIComponent(error));
@@ -37,25 +39,23 @@
         }
 
         // 重新获取会话
-        console.log('回调页面：重新获取会话...');
-        session = await getSession();
+        const newSession = await handleAuthCallback();
+        if (newSession) {
+          console.log('回调页面：授权码交换成功，角色:', newSession.role);
+          redirectToRolePath(newSession.role);
+          return;
+        }
       }
 
-      // 检查最终会话状态
-      if (session) {
-        console.log('回调页面：登录成功，角色:', session.role);
-        console.log('回调页面：执行最终重定向');
-        redirectToRolePath(session.role);
-      } else {
-        // 没有会话且没有授权码，可能用户直接访问了回调页面
-        console.log('回调页面：无有效会话，返回登录页面');
-        setTimeout(() => {
-          goto('/login?error=no_session&message=' + encodeURIComponent('未找到有效登录会话'));
-        }, 1500);
-      }
+      // 如果还是没有会话，返回登录页
+      console.log('回调页面：无法获取有效会话，返回登录页面');
+      setTimeout(() => {
+        goto('/login?error=no_session&message=' + encodeURIComponent('未找到有效登录会话'));
+      }, 1500);
+      
     } catch (err) {
       error = '登录过程中出现错误';
-      console.error('回调页面：登录回调处理错误:', err);
+      console.error('回调页面：处理错误:', err);
       setTimeout(() => {
         goto('/login?error=callback_error&message=' + encodeURIComponent(error));
       }, 2000);

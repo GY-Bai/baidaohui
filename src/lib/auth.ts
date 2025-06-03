@@ -100,6 +100,36 @@ export async function getSession(): Promise<User | null> {
   }
 }
 
+// 处理URL片段中的会话（用于OAuth回调）
+export async function handleAuthCallback(): Promise<User | null> {
+  if (!browser || !checkEnvironmentVariables()) {
+    return null;
+  }
+
+  try {
+    // 检查URL是否包含认证片段
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    
+    if (accessToken) {
+      console.log('检测到URL中的access_token，等待Supabase处理...');
+      
+      // 等待Supabase处理URL片段
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 清理URL（移除片段）
+      const cleanUrl = window.location.pathname + window.location.search;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+
+    // 获取处理后的会话
+    return await getSession();
+  } catch (error) {
+    console.error('处理认证回调失败:', error);
+    return null;
+  }
+}
+
 // 获取Supabase访问令牌
 export async function getAccessToken(): Promise<string | null> {
   if (!checkEnvironmentVariables()) {

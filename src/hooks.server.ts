@@ -11,25 +11,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   const path = url.pathname;
 
-  // 允许的公共路径：登录、健康检查、API、认证回调
-  const publicPaths = ['/login', '/health', '/api', '/auth'];
-  
-  if (publicPaths.some(publicPath => path.startsWith(publicPath))) {
-    return resolve(event);
-  }
-
   // 根路径重定向到登录页
   if (path === '/') {
     throw redirect(302, '/login');
   }
 
-  // 角色页面路径（/fan, /member, /master, /firstmate, /seller）
-  // 暂时都重定向到登录页，让客户端处理认证
-  const rolePaths = ['/fan', '/member', '/master', '/firstmate', '/seller'];
-  if (rolePaths.some(rolePath => path.startsWith(rolePath))) {
-    throw redirect(302, '/login');
-  }
-
-  // 其他未知路径也重定向到登录页
-  throw redirect(302, '/login');
+  // 允许所有路径通过，让客户端处理认证
+  // 这样角色页面可以正常加载，认证检查在客户端的 onMount 中进行
+  return resolve(event);
 };

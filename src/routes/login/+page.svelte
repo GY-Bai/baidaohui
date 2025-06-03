@@ -11,9 +11,14 @@
   let error = data?.error || '';
   let message = data?.message || '';
   let canvas;
+  let sessionChecked = false; // 防止重复检查会话
 
   onMount(async () => {
     try {
+      // 防止重复检查
+      if (sessionChecked) return;
+      sessionChecked = true;
+      
       // 检查URL参数中的错误信息
       const currentPage = get(page);
       const urlError = currentPage.url.searchParams.get('error');
@@ -37,19 +42,21 @@
 
       // 检查是否已登录，如果已登录则重定向到对应角色页面
       try {
-        console.log('检查现有登录状态...');
+        console.log('登录页面：检查现有登录状态...');
         const session = await getSession();
         if (session) {
-          console.log('发现现有会话，用户已登录，角色:', session.role);
-          console.log('立即重定向到角色页面...');
-          // 立即重定向，不需要延迟
-          redirectToRolePath(session.role);
+          console.log('登录页面：发现现有会话，角色:', session.role);
+          console.log('登录页面：重定向到角色页面');
+          // 添加延迟避免与其他重定向冲突
+          setTimeout(() => {
+            redirectToRolePath(session.role);
+          }, 200);
           return;
         } else {
-          console.log('未发现现有会话，用户未登录');
+          console.log('登录页面：未发现现有会话，用户未登录');
         }
       } catch (err) {
-        console.log('检查登录状态时出错（这是正常的）:', err.message);
+        console.log('登录页面：检查登录状态时出错（这是正常的）:', err.message);
         // 不要显示错误给用户，只是跳过检查
       }
 
