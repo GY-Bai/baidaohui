@@ -143,13 +143,19 @@ async function authenticateUser(req, res, next) {
 
 // 智能身份验证中间件（优先使用Supabase SSO）
 async function smartAuthenticate(req, res, next) {
-  // 优先尝试 Supabase SSO
-  const supabaseToken = req.cookies?.['sb-access-token'];
+  // 优先尝试 Supabase SSO（从 Authorization header）
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authenticateSupabase(req, res, next);
+  }
+  
+  // 尝试从 Cookie 获取 Supabase token
+  const supabaseToken = req.cookies?.['sb-access-token'] || req.cookies?.['access_token'];
   if (supabaseToken) {
     return authenticateSupabase(req, res, next);
   }
   
-  // 回退到传统JWT
+  // 最后回退到传统JWT（向后兼容）
   return authenticateUser(req, res, next);
 }
 

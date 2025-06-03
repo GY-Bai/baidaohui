@@ -44,7 +44,7 @@ export const rolePaths: Record<UserRole, string> = {
   Seller: '/seller'
 };
 
-// Google登录
+// Google登录 - 纯Supabase实现
 export async function signInWithGoogle() {
   if (!checkEnvironmentVariables()) {
     throw new Error('Supabase configuration is missing');
@@ -66,7 +66,7 @@ export async function signInWithGoogle() {
   }
 }
 
-// 获取当前会话
+// 获取当前会话 - 纯Supabase实现
 export async function getSession(): Promise<User | null> {
   if (!checkEnvironmentVariables()) {
     console.error('Supabase configuration is missing');
@@ -94,7 +94,7 @@ export async function getSession(): Promise<User | null> {
   }
 }
 
-// 获取访问令牌
+// 获取Supabase访问令牌
 export async function getAccessToken(): Promise<string | null> {
   if (!checkEnvironmentVariables()) {
     console.error('Supabase configuration is missing');
@@ -111,7 +111,7 @@ export async function getAccessToken(): Promise<string | null> {
   }
 }
 
-// 登出
+// 登出 - 纯Supabase实现
 export async function signOut() {
   if (!checkEnvironmentVariables()) {
     console.error('Supabase configuration is missing');
@@ -131,7 +131,7 @@ export async function signOut() {
   }
 }
 
-// 简化的客户端路由守卫（不依赖VPS）
+// 简化的客户端路由守卫
 export async function clientSideRouteGuard(expectedRole: UserRole): Promise<boolean> {
   if (!browser) return true;
   
@@ -205,12 +205,6 @@ export function formatCurrency(amount: number, currency: string = 'CAD'): string
     style: 'currency',
     currency: currency
   }).format(amount);
-}
-
-// 临时的API调用函数，返回错误信息（VPS服务已解耦）
-export async function apiCall(endpoint: string, options: RequestInit = {}) {
-  console.warn('API调用已禁用，VPS服务已解耦:', endpoint);
-  throw new Error('VPS服务暂时不可用，请稍后再试');
 }
 
 // 客户端角色验证和重定向

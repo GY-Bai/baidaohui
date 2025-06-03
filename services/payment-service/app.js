@@ -67,7 +67,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 验证用户身份的中间件
+// 验证用户身份的中间件 - 支持Supabase和自定义JWT
 function authenticateUser(req, res, next) {
   try {
     const token = req.cookies?.access_token || req.headers.authorization?.split(' ')[1];
@@ -76,7 +76,26 @@ function authenticateUser(req, res, next) {
       return res.status(401).json({ error: '未登录' });
     }
 
-    const payload = jwt.verify(token, JWT_SECRET);
+    // 尝试多种JWT密钥验证（优先Supabase）
+    const secrets = [
+      process.env.SUPABASE_JWT_SECRET, // Supabase JWT密钥（优先）
+      JWT_SECRET // 自定义JWT密钥（备用）
+    ].filter(Boolean);
+
+    let payload = null;
+    for (const secret of secrets) {
+      try {
+        payload = jwt.verify(token, secret);
+        break; // 验证成功，跳出循环
+      } catch (error) {
+        continue; // 尝试下一个密钥
+      }
+    }
+
+    if (!payload) {
+      return res.status(401).json({ error: '无效的Token' });
+    }
+
     req.user = payload;
     next();
   } catch (error) {

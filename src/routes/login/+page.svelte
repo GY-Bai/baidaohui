@@ -21,9 +21,11 @@
       
       if (urlError) {
         error = urlError;
+        console.log('URL错误参数:', urlError);
       }
       if (urlMessage) {
         message = decodeURIComponent(urlMessage);
+        console.log('URL消息参数:', message);
       }
 
       // 检查环境变量是否存在
@@ -35,13 +37,20 @@
 
       // 检查是否已登录，如果已登录则重定向到对应角色页面
       try {
+        console.log('检查现有登录状态...');
         const session = await getSession();
         if (session) {
-          redirectToRolePath(session.role);
+          console.log('发现现有会话，用户已登录，角色:', session.role);
+          // 给用户一点时间看到当前页面，然后重定向
+          setTimeout(() => {
+            redirectToRolePath(session.role);
+          }, 1000);
           return;
+        } else {
+          console.log('未发现现有会话，用户未登录');
         }
       } catch (err) {
-        console.log('检查登录状态失败:', err);
+        console.log('检查登录状态时出错（这是正常的）:', err.message);
         // 不要显示错误给用户，只是跳过检查
       }
 

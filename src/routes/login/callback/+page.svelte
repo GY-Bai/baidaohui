@@ -11,28 +11,44 @@
 
   onMount(async () => {
     try {
-      // 处理Supabase OAuth回调
-      const { error: authError } = await supabase.auth.exchangeCodeForSession(data.code);
+      // 优先检查是否已有现有会话（用户可能已经登录成功）
+      console.log('检查现有会话...');
+      let session = await getSession();
       
-      if (authError) {
-        console.error('Supabase认证错误:', authError);
-        error = '认证失败: ' + authError.message;
-        setTimeout(() => {
-          goto('/login');
-        }, 2000);
+      if (session) {
+        console.log('发现现有会话，角色:', session.role);
+        redirectToRolePath(session.role);
         return;
       }
 
-      // 认证成功，获取用户会话并重定向
-      const session = await getSession();
+      // 如果有授权码，尝试交换会话
+      if (data.code) {
+        console.log('使用授权码交换会话...');
+        const { error: authError } = await supabase.auth.exchangeCodeForSession(data.code);
+        
+        if (authError) {
+          console.error('Supabase认证错误:', authError);
+          error = '认证失败: ' + authError.message;
+          setTimeout(() => {
+            goto('/login');
+          }, 2000);
+          return;
+        }
+
+        // 重新获取会话
+        session = await getSession();
+      }
+
+      // 检查最终会话状态
       if (session) {
         console.log('登录成功，角色:', session.role);
         redirectToRolePath(session.role);
       } else {
-        error = '获取用户信息失败，请重试';
+        // 没有会话且没有授权码，可能用户直接访问了回调页面
+        console.log('无有效会话，返回登录页面');
         setTimeout(() => {
           goto('/login');
-        }, 2000);
+        }, 1500);
       }
     } catch (err) {
       error = '登录过程中出现错误';
@@ -70,6 +86,14 @@
       <h2 class="text-2xl font-semibold text-red-900 mb-2">登录失败</h2>
       <p class="text-red-600 mb-4">{error}</p>
       <p class="text-gray-600">正在返回登录页面...</p>
+    {:else}
+      <div class="mb-4">
+        <svg class="h-12 w-12 text-yellow-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+        </svg>
+      </div>
+      <h2 class="text-2xl font-semibold text-gray-900 mb-2">正在重定向...</h2>
+      <p class="text-gray-600">正在返回登录页面</p>
     {/if}
   </div>
 </div> 

@@ -578,199 +578,23 @@ auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/callback', methods=['POST'])
 def oauth_callback():
-    """处理OAuth回调"""
-    try:
-        data = request.get_json()
-        code = data.get('code')
-        state = data.get('state')
-        redirect_uri = data.get('redirect_uri')
-        
-        if not code:
-            return jsonify({'error': 'missing_code', 'message': '缺少授权码'}), 400
-        
-        # 使用授权码换取访问令牌
-        token_url = f"{SUPABASE_URL}/auth/v1/token"
-        token_data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': redirect_uri
-        }
-        
-        headers = {
-            'apikey': SUPABASE_SERVICE_KEY,
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
-        
-        response = requests.post(token_url, data=token_data, headers=headers)
-        
-        if not response.ok:
-            logger.error(f"获取访问令牌失败: {response.text}")
-            return jsonify({'error': 'token_exchange_failed', 'message': '获取访问令牌失败'}), 400
-        
-        token_info = response.json()
-        access_token = token_info.get('access_token')
-        
-        if not access_token:
-            return jsonify({'error': 'no_access_token', 'message': '未获取到访问令牌'}), 400
-        
-        # 使用访问令牌获取用户信息
-        user_url = f"{SUPABASE_URL}/auth/v1/user"
-        user_headers = {
-            'apikey': SUPABASE_SERVICE_KEY,
-            'Authorization': f'Bearer {access_token}'
-        }
-        
-        user_response = requests.get(user_url, headers=user_headers)
-        
-        if not user_response.ok:
-            logger.error(f"获取用户信息失败: {user_response.text}")
-            return jsonify({'error': 'user_info_failed', 'message': '获取用户信息失败'}), 400
-        
-        user_data = user_response.json()
-        
-        # 同步用户信息到本地数据库
-        from user_sync import user_sync_service
-        
-        try:
-            # 同步用户信息
-            synced_user = user_sync_service.sync_user_from_oauth(user_data, 'google')
-            
-            # 使用同步后的用户信息
-            user_id = synced_user['_id']  # 使用本地用户ID
-            email = synced_user['email']
-            role = synced_user['role']
-            nickname = synced_user['nickname']
-            
-            logger.info(f"用户同步成功: {email} (角色: {role})")
-            
-        except Exception as sync_error:
-            logger.error(f"用户同步失败: {str(sync_error)}")
-            # 降级处理：使用OAuth原始数据
-            user_id = user_data.get('id')
-            email = user_data.get('email')
-            user_metadata = user_data.get('user_metadata', {})
-            role = user_metadata.get('role', 'Fan')
-            nickname = user_metadata.get('nickname', email.split('@')[0] if email else 'User')
-        
-        # 生成JWT令牌
-        jwt_payload = {
-            'sub': user_id,
-            'email': email,
-            'role': role,
-            'nickname': nickname,
-            'iat': datetime.utcnow(),
-            'exp': datetime.utcnow() + timedelta(days=7)
-        }
-        
-        jwt_token = jwt.encode(jwt_payload, JWT_SECRET, algorithm='HS256')
-        
-        # 返回用户信息和JWT令牌
-        return jsonify({
-            'user': {
-                'id': user_id,
-                'email': email,
-                'role': role,
-                'nickname': nickname
-            },
-            'access_token': jwt_token,
-            'target_domain': ROLE_SUBDOMAINS.get(role)
-        })
-        
-    except Exception as e:
-        logger.error(f"OAuth回调处理失败: {str(e)}")
-        return jsonify({'error': 'callback_failed', 'message': 'OAuth回调处理失败'}), 500
+    """处理OAuth回调 - 已弃用，现在使用Supabase原生认证"""
+    logger.warning("已弃用的OAuth回调接口被调用")
+    return jsonify({
+        'error': 'deprecated',
+        'message': '此接口已弃用，前端现在直接使用Supabase原生认证',
+        'recommendation': '请使用Supabase的exchangeCodeForSession方法'
+    }), 410
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """处理Google OAuth登录"""
-    try:
-        data = request.get_json()
-        access_token = data.get('access_token')
-        
-        if not access_token:
-            return jsonify({'error': '缺少access_token'}), 400
-        
-        # 验证Supabase token
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'apikey': SUPABASE_SERVICE_KEY
-        }
-        
-        response = requests.get(f'{SUPABASE_URL}/auth/v1/user', headers=headers)
-        
-        if response.status_code != 200:
-            return jsonify({'error': '无效的token'}), 401
-        
-        user_data = response.json()
-        user_id = user_data['id']
-        email = user_data['email']
-        
-        # 获取用户角色信息
-        profile_response = requests.get(
-            f'{SUPABASE_URL}/rest/v1/profiles?id=eq.{user_id}',
-            headers={
-                'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
-                'apikey': SUPABASE_SERVICE_KEY
-            }
-        )
-        
-        role = 'Fan'  # 默认角色
-        if profile_response.status_code == 200:
-            profiles = profile_response.json()
-            if profiles:
-                role = profiles[0].get('role', 'Fan')
-        
-        # 生成跨域JWT
-        payload = {
-            'sub': user_id,
-            'email': email,
-            'role': role,
-            'iat': datetime.utcnow(),
-            'exp': datetime.utcnow() + timedelta(days=7)
-        }
-        
-        jwt_token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
-        
-        # 确定重定向URL
-        subdomain_map = {
-            'Fan': 'fan',
-            'Member': 'member', 
-            'Master': 'master',
-            'Firstmate': 'firstmate',
-            'Seller': 'seller'
-        }
-        
-        subdomain = subdomain_map.get(role, 'fan')
-        redirect_url = f'https://{subdomain}.{DOMAIN}'
-        
-        # 设置跨域Cookie
-        response = make_response(jsonify({
-            'success': True,
-            'user': {
-                'id': user_id,
-                'email': email,
-                'role': role
-            },
-            'redirect_url': redirect_url
-        }))
-        
-        # 设置HttpOnly Cookie，支持跨子域
-        response.set_cookie(
-            'access_token',
-            jwt_token,
-            max_age=7*24*60*60,  # 7天
-            httponly=True,
-            secure=True,
-            samesite='Lax',
-            domain=f'.{DOMAIN}'  # 跨子域
-        )
-        
-        logger.info(f'用户登录成功: {email} ({role})')
-        return response
-        
-    except Exception as e:
-        logger.error(f'登录失败: {str(e)}')
-        return jsonify({'error': '登录失败'}), 500
+    """处理Google OAuth登录 - 已弃用，现在使用Supabase原生认证"""
+    logger.warning("已弃用的登录接口被调用")
+    return jsonify({
+        'error': 'deprecated',
+        'message': '此接口已弃用，前端现在直接使用Supabase原生认证',
+        'recommendation': '请使用Supabase的signInWithOAuth方法'
+    }), 410
 
 @auth_bp.route('/validate', methods=['GET'])
 def validate_token():
