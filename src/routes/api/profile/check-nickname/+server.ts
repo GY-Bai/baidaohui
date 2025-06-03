@@ -9,11 +9,14 @@ export const GET: RequestHandler = async ({ url, fetch }) => {
       return json({ error: '昵称不能为空' }, { status: 400 });
     }
 
+    // 使用统一的API网关域名
+    const apiBaseUrl = 'https://api.baidaohui.com';
+    
     // 转发到后端服务（添加超时保护）
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(`${import.meta.env.AUTH_SERVICE_URL || import.meta.env.VITE_AUTH_SERVICE_URL || 'http://107.172.87.113:5001'}/api/profile/check-nickname?nickname=${encodeURIComponent(nickname)}`, {
+    const response = await fetch(`${apiBaseUrl}/auth/api/profile/check-nickname?nickname=${encodeURIComponent(nickname)}`, {
       signal: controller.signal
     });
     

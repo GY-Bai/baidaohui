@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 
-const EMAIL_SERVICE_URL = import.meta.env.EMAIL_SERVICE_URL || import.meta.env.VITE_EMAIL_SERVICE_URL || 'http://216.144.233.104:5008';
+// 使用统一的API网关域名
+const apiBaseUrl = 'https://api.baidaohui.com';
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
     try {
@@ -14,30 +15,27 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 邮件发送可能需要更长时间
         
-        const response = await fetch(`${EMAIL_SERVICE_URL}/email/send-custom`, {
+        const response = await fetch(`${apiBaseUrl}/email/send-custom`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 ...(accessToken && { 'Authorization': `Bearer ${accessToken}` })
             },
-            body: JSON.stringify({
-                ...data,
-                jwt_token: accessToken // 传递JWT用于获取用户邮箱
-            }),
+            body: JSON.stringify(data),
             signal: controller.signal
         });
         
         clearTimeout(timeoutId);
-        const result = await response.json();
         
         if (!response.ok) {
-            return json({ error: result.error || '邮件发送失败' }, { status: response.status });
+            const error = await response.json();
+            return json(error, { status: response.status });
         }
-        
+
+        const result = await response.json();
         return json(result);
-        
     } catch (error) {
-        console.error('邮件发送代理失败:', error);
-        return json({ error: '邮件服务不可用' }, { status: 500 });
+        console.error('邮件发送失败:', error);
+        return json({ error: '邮件服务暂时不可用' }, { status: 500 });
     }
 }; 

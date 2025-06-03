@@ -2,7 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { fly, scale } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
-  import { focusTrap } from '$lib/utils/focus-trap';
+  import { trapFocus } from '$lib/utils/focus-trap';
   
   export let items: Array<{
     label: string;

@@ -476,7 +476,6 @@
               on:activityClick={handleActivityClick}
             />
           </Card>
-        </div>
       {/if}
     </main>
   </div>

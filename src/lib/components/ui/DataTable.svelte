@@ -331,11 +331,9 @@
                   style="text-align: {column.align || 'left'}"
                 >
                   <div class="cell-content">
-                    {#if column.slot}
-                      <slot name={column.slot} {row} {column} value={getNestedValue(row, column.key)} />
-                    {:else}
+                    <slot name="cell" {row} {column} value={getNestedValue(row, column.key)}>
                       {@html renderCellValue(column, row)}
-                    {/if}
+                    </slot>
                   </div>
                 </td>
               {/each}

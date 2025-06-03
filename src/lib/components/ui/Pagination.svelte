@@ -146,7 +146,6 @@
         <Button
           variant="outline"
           size={size === 'small' ? 'xs' : size === 'large' ? 'md' : 'sm'}
-          {disabled}
           on:click={handlePrevPage}
           disabled={disabled || !canGoPrev}
         >
@@ -169,7 +168,6 @@
         <Button
           variant="outline"
           size={size === 'small' ? 'xs' : size === 'large' ? 'md' : 'sm'}
-          {disabled}
           on:click={handleNextPage}
           disabled={disabled || !canGoNext}
         >

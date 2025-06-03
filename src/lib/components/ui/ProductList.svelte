@@ -57,60 +57,50 @@
     </div>
   {:else}
     <div class="product-list" class:compact={showCompactMode}>
-      {#each products as product, index (product.id)}
+      {#each products as product, index}
+        {@const stockStatus = getStockStatus(product.stock)}
         <article 
           class="product-item"
           class:compact={showCompactMode}
-          style="animation-delay: {index * 50}ms;"
+          style="animation-delay: {index * 0.1}s"
           on:click={() => handleProductClick(product)}
-          on:keypress={(e) => e.key === 'Enter' && handleProductClick(product)}
           role="button"
           tabindex="0"
+          on:keydown={(e) => e.key === 'Enter' && handleProductClick(product)}
         >
           <!-- 商品图片 -->
           <div class="product-image">
-            {#if product.images && product.images.length > 0}
-              <img 
-                src={product.images[0]} 
-                alt={product.name}
-                loading="lazy"
-              />
-            {:else}
-              <div class="image-placeholder">
-                <span class="placeholder-icon">📦</span>
+            <img 
+              src={product.images?.[0] || '/placeholder-product.jpg'} 
+              alt={product.title}
+              loading="lazy"
+            />
+            {#if product.badge}
+              <div class="product-badge {product.badge.type}">
+                {product.badge.text}
               </div>
-            {/if}
-            
-            {#if product.discount}
-              <div class="discount-badge">
-                -{product.discount}%
-              </div>
-            {/if}
-            
-            {#if product.isHot}
-              <div class="hot-badge">🔥</div>
             {/if}
           </div>
           
           <!-- 商品信息 -->
           <div class="product-info">
             <div class="product-header">
-              <h3 class="product-name">{product.name}</h3>
-              <div class="product-badges">
-                {#if product.isNew}
-                  <Badge variant="blue" size="xs">新品</Badge>
-                {/if}
-                {#if product.isBestSeller}
-                  <Badge variant="gold" size="xs">热销</Badge>
-                {/if}
-              </div>
+              <h3 class="product-title">{product.title}</h3>
+              {#if product.store}
+                <div class="store-info">
+                  <span class="store-name">{product.store.name}</span>
+                  {#if product.store.verified}
+                    <span class="verified-badge">✓</span>
+                  {/if}
+                </div>
+              {/if}
             </div>
             
             {#if !showCompactMode && product.description}
               <p class="product-description">{product.description}</p>
             {/if}
             
-            <div class="product-details">
+            <div class="product-pricing">
               <div class="price-section">
                 <span class="current-price">{formatPrice(product.price)}</span>
                 {#if product.originalPrice && product.originalPrice > product.price}
@@ -119,7 +109,6 @@
               </div>
               
               <div class="stock-info">
-                {@const stockStatus = getStockStatus(product.stock)}
                 <Badge variant={stockStatus.variant} size="xs">
                   {stockStatus.text}
                 </Badge>
@@ -389,7 +378,7 @@
     gap: 12px;
   }
   
-  .product-name {
+  .product-title {
     font-size: 16px;
     font-weight: 600;
     color: #111827;
@@ -398,14 +387,24 @@
     flex: 1;
   }
   
-  .product-item.compact .product-name {
+  .product-item.compact .product-title {
     font-size: 14px;
   }
   
-  .product-badges {
+  .store-info {
     display: flex;
+    align-items: center;
     gap: 4px;
-    flex-shrink: 0;
+  }
+  
+  .store-name {
+    font-size: 12px;
+    color: #6b7280;
+  }
+  
+  .verified-badge {
+    font-size: 12px;
+    color: #6b7280;
   }
   
   .product-description {
@@ -419,7 +418,7 @@
     overflow: hidden;
   }
   
-  .product-details {
+  .product-pricing {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -613,7 +612,7 @@
       height: 80px;
     }
     
-    .product-name {
+    .product-title {
       font-size: 14px;
     }
     

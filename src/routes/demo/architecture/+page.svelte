@@ -605,7 +605,7 @@
                 value="option1"
                 label="选项一"
                 description="这是第一个选项的描述"
-                bind:checked={radioValue === 'option1'}
+                checked={radioValue === 'option1'}
                 on:change={() => radioValue = 'option1'}
               />
               <Radio
@@ -615,7 +615,7 @@
                 label="选项二"
                 description="这是第二个选项的描述"
                 variant="success"
-                bind:checked={radioValue === 'option2'}
+                checked={radioValue === 'option2'}
                 on:change={() => radioValue = 'option2'}
               />
               <Radio
@@ -626,7 +626,7 @@
                 description="这是第三个选项的描述"
                 variant="warning"
                 size="lg"
-                bind:checked={radioValue === 'option3'}
+                checked={radioValue === 'option3'}
                 on:change={() => radioValue = 'option3'}
               />
             </div>
