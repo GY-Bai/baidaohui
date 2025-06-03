@@ -41,10 +41,9 @@
         const session = await getSession();
         if (session) {
           console.log('发现现有会话，用户已登录，角色:', session.role);
-          // 给用户一点时间看到当前页面，然后重定向
-          setTimeout(() => {
-            redirectToRolePath(session.role);
-          }, 1000);
+          console.log('立即重定向到角色页面...');
+          // 立即重定向，不需要延迟
+          redirectToRolePath(session.role);
           return;
         } else {
           console.log('未发现现有会话，用户未登录');

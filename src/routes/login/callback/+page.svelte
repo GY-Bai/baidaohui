@@ -12,49 +12,52 @@
   onMount(async () => {
     try {
       // 优先检查是否已有现有会话（用户可能已经登录成功）
-      console.log('检查现有会话...');
+      console.log('回调页面：检查现有会话...');
       let session = await getSession();
       
       if (session) {
-        console.log('发现现有会话，角色:', session.role);
+        console.log('回调页面：发现现有会话，角色:', session.role);
+        console.log('回调页面：立即重定向到角色页面');
         redirectToRolePath(session.role);
         return;
       }
 
       // 如果有授权码，尝试交换会话
       if (data.code) {
-        console.log('使用授权码交换会话...');
+        console.log('回调页面：使用授权码交换会话...');
         const { error: authError } = await supabase.auth.exchangeCodeForSession(data.code);
         
         if (authError) {
-          console.error('Supabase认证错误:', authError);
+          console.error('回调页面：Supabase认证错误:', authError);
           error = '认证失败: ' + authError.message;
           setTimeout(() => {
-            goto('/login');
+            goto('/login?error=auth_failed&message=' + encodeURIComponent(error));
           }, 2000);
           return;
         }
 
         // 重新获取会话
+        console.log('回调页面：重新获取会话...');
         session = await getSession();
       }
 
       // 检查最终会话状态
       if (session) {
-        console.log('登录成功，角色:', session.role);
+        console.log('回调页面：登录成功，角色:', session.role);
+        console.log('回调页面：执行最终重定向');
         redirectToRolePath(session.role);
       } else {
         // 没有会话且没有授权码，可能用户直接访问了回调页面
-        console.log('无有效会话，返回登录页面');
+        console.log('回调页面：无有效会话，返回登录页面');
         setTimeout(() => {
-          goto('/login');
+          goto('/login?error=no_session&message=' + encodeURIComponent('未找到有效登录会话'));
         }, 1500);
       }
     } catch (err) {
       error = '登录过程中出现错误';
-      console.error('登录回调处理错误:', err);
+      console.error('回调页面：登录回调处理错误:', err);
       setTimeout(() => {
-        goto('/login');
+        goto('/login?error=callback_error&message=' + encodeURIComponent(error));
       }, 2000);
     } finally {
       loading = false;

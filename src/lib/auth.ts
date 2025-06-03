@@ -51,10 +51,16 @@ export async function signInWithGoogle() {
   }
   
   try {
+    // 构建回调URL，确保与Supabase配置一致
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const redirectUrl = `${baseUrl}/login/callback`;
+    
+    console.log('Google登录重定向URL:', redirectUrl);
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/login/callback`
+        redirectTo: redirectUrl
       }
     });
     
@@ -166,9 +172,19 @@ export async function clientSideRouteGuard(expectedRole: UserRole): Promise<bool
 
 // 根据角色重定向到对应路径
 export function redirectToRolePath(role: UserRole) {
-  if (browser) {
-    const path = rolePaths[role];
+  if (!browser) {
+    console.log('非浏览器环境，跳过重定向');
+    return;
+  }
+  
+  const path = rolePaths[role];
+  console.log(`重定向到角色页面: ${role} -> ${path}`);
+  
+  if (path) {
     goto(path);
+  } else {
+    console.error(`未找到角色 ${role} 对应的路径`);
+    goto('/login');
   }
 }
 
