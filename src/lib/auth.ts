@@ -72,7 +72,7 @@ export async function signInWithGoogle() {
   }
 }
 
-// 获取当前会话 - 纯Supabase实现
+// 获取当前会话 - 强制从数据库查询最新角色
 export async function getSession(): Promise<User | null> {
   if (!checkEnvironmentVariables()) {
     console.error('Supabase configuration is missing');
@@ -85,17 +85,42 @@ export async function getSession(): Promise<User | null> {
     if (error) throw error;
     if (!session) return null;
 
-    // 从用户元数据获取角色信息，默认为Fan
-    const role = session.user.user_metadata?.role || 'Fan';
+    console.log('🔍 获取到Supabase会话，用户ID:', session.user.id);
+
+    // 🚀 关键修改：总是从public.profiles表查询最新角色
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, nickname')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) {
+      console.error('❌ 查询用户角色失败:', profileError);
+      // 如果查询失败，使用默认角色，但记录错误
+      console.warn('⚠️ 使用默认角色 Fan，原因:', profileError.message);
+    }
+
+    const currentRole = profile?.role || 'Fan';
+    const userMetadataRole = session.user.user_metadata?.role || 'Fan';
     
+    // 🔍 调试日志：对比数据库角色和metadata角色
+    if (currentRole !== userMetadataRole) {
+      console.log(`🔄 角色不同步检测：`);
+      console.log(`   数据库角色: ${currentRole}`);
+      console.log(`   Metadata角色: ${userMetadataRole}`);
+      console.log(`   ✅ 使用数据库角色: ${currentRole}`);
+    } else {
+      console.log(`✅ 角色同步正常: ${currentRole}`);
+    }
+
     return {
       id: session.user.id,
       email: session.user.email || '',
-      role: role as UserRole,
-      nickname: session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
+      role: currentRole as UserRole, // 🎯 使用数据库中的最新角色
+      nickname: profile?.nickname || session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
     };
   } catch (error) {
-    console.error('获取会话失败:', error);
+    console.error('❌ 获取会话失败:', error);
     return null;
   }
 }
@@ -112,7 +137,7 @@ export async function handleAuthCallback(): Promise<User | null> {
     const accessToken = hashParams.get('access_token');
     
     if (accessToken) {
-      console.log('检测到URL中的access_token，等待Supabase处理...');
+      console.log('🔍 检测到URL中的access_token，等待Supabase处理...');
       
       // 等待Supabase处理URL片段
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -122,10 +147,23 @@ export async function handleAuthCallback(): Promise<User | null> {
       window.history.replaceState({}, document.title, cleanUrl);
     }
 
-    // 获取处理后的会话
-    return await getSession();
+    // 🚀 关键改进：获取处理后的会话（现在会查询最新角色）
+    console.log('🔄 OAuth回调：开始获取最新用户角色...');
+    const user = await getSession();
+    
+    if (user) {
+      console.log(`✅ OAuth回调：成功获取用户会话`);
+      console.log(`   用户ID: ${user.id}`);
+      console.log(`   邮箱: ${user.email}`);
+      console.log(`   角色: ${user.role}`);
+      console.log(`   昵称: ${user.nickname || '未设置'}`);
+    } else {
+      console.log('⚠️ OAuth回调：未能获取用户会话');
+    }
+
+    return user;
   } catch (error) {
-    console.error('处理认证回调失败:', error);
+    console.error('❌ 处理认证回调失败:', error);
     return null;
   }
 }
@@ -167,34 +205,48 @@ export async function signOut() {
   }
 }
 
-// 简化的客户端路由守卫
-export async function clientSideRouteGuard(expectedRole: UserRole): Promise<boolean> {
-  if (!browser) return true;
-  
+// 客户端路由守卫 - 增强角色验证
+export async function clientSideRouteGuard(requiredRole?: UserRole): Promise<boolean> {
+  if (!browser) {
+    console.log('⚠️ 非浏览器环境，跳过客户端路由守卫');
+    return false;
+  }
+
   try {
+    console.log(`🛡️ 客户端路由守卫：检查访问权限`);
+    console.log(`   当前页面: ${window.location.pathname}`);
+    console.log(`   要求角色: ${requiredRole || '任意'}`);
+    
+    // 🚀 获取最新的用户会话（现在会查询数据库中的最新角色）
     const user = await getSession();
     
     if (!user) {
-      // 未登录，重定向到登录页
+      console.log('❌ 客户端路由守卫：用户未登录，重定向到登录页');
       goto('/login');
       return false;
     }
-    
-    if (user.role !== expectedRole) {
-      // 角色不匹配，重定向到对应角色页面
+
+    console.log(`✅ 客户端路由守卫：用户已登录`);
+    console.log(`   用户ID: ${user.id}`);
+    console.log(`   邮箱: ${user.email}`);
+    console.log(`   当前角色: ${user.role}`);
+
+    // 🎯 如果指定了必需角色，进行角色验证
+    if (requiredRole && user.role !== requiredRole) {
+      console.log(`🚫 客户端路由守卫：角色不匹配`);
+      console.log(`   当前角色: ${user.role}`);
+      console.log(`   要求角色: ${requiredRole}`);
+      console.log(`🔄 重定向到正确的角色页面...`);
+      
+      // 重定向到用户实际角色对应的页面
       redirectToRolePath(user.role);
       return false;
     }
-    
-    // 检查是否在正确的路径
-    if (!isCorrectPath(expectedRole)) {
-      redirectToRolePath(expectedRole);
-      return false;
-    }
-    
+
+    console.log(`✅ 客户端路由守卫：访问权限验证通过`);
     return true;
   } catch (error) {
-    console.error('角色验证失败:', error);
+    console.error('❌ 客户端路由守卫：验证过程出错:', error);
     goto('/login');
     return false;
   }
@@ -203,17 +255,27 @@ export async function clientSideRouteGuard(expectedRole: UserRole): Promise<bool
 // 根据角色重定向到对应路径
 export function redirectToRolePath(role: UserRole) {
   if (!browser) {
-    console.log('非浏览器环境，跳过重定向');
+    console.log('⚠️ 非浏览器环境，跳过重定向');
     return;
   }
   
   const path = rolePaths[role];
-  console.log(`重定向到角色页面: ${role} -> ${path}`);
+  console.log(`🎯 重定向到角色页面:`);
+  console.log(`   当前角色: ${role}`);
+  console.log(`   目标路径: ${path}`);
+  console.log(`   当前路径: ${window.location.pathname}`);
   
   if (path) {
+    // 检查是否已经在正确的页面
+    if (window.location.pathname === path) {
+      console.log('✅ 已在正确页面，无需重定向');
+      return;
+    }
+    
+    console.log(`🚀 执行重定向: ${window.location.pathname} -> ${path}`);
     goto(path);
   } else {
-    console.error(`未找到角色 ${role} 对应的路径`);
+    console.error(`❌ 未找到角色 ${role} 对应的路径，重定向到登录页`);
     goto('/login');
   }
 }
@@ -341,4 +403,130 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
     console.error('API调用错误:', error);
     throw error;
   }
+}
+
+// 强制刷新用户角色（用于管理员修改角色后的同步）
+export async function refreshUserRole(): Promise<User | null> {
+  if (!browser || !checkEnvironmentVariables()) {
+    return null;
+  }
+
+  try {
+    console.log('🔄 强制刷新用户角色...');
+    
+    // 首先检查是否有有效会话
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error || !session) {
+      console.log('⚠️ 没有有效会话，无法刷新角色');
+      return null;
+    }
+
+    // 强制从数据库重新查询角色（跳过任何缓存）
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, nickname')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) {
+      console.error('❌ 强制刷新角色失败:', profileError);
+      return null;
+    }
+
+    const newRole = profile.role || 'Fan';
+    const oldRole = session.user.user_metadata?.role || 'Fan';
+
+    console.log(`🔍 角色刷新结果:`);
+    console.log(`   用户ID: ${session.user.id}`);
+    console.log(`   原角色: ${oldRole}`);
+    console.log(`   新角色: ${newRole}`);
+
+    if (newRole !== oldRole) {
+      console.log(`🎯 检测到角色变更: ${oldRole} -> ${newRole}`);
+      console.log(`🚀 准备重定向到新角色页面...`);
+      
+      // 重定向到新角色页面
+      setTimeout(() => {
+        redirectToRolePath(newRole as UserRole);
+      }, 100);
+    } else {
+      console.log(`✅ 角色无变化: ${newRole}`);
+    }
+
+    return {
+      id: session.user.id,
+      email: session.user.email || '',
+      role: newRole as UserRole,
+      nickname: profile.nickname || session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
+    };
+  } catch (error) {
+    console.error('❌ 强制刷新用户角色失败:', error);
+    return null;
+  }
+}
+
+// 角色变更监听器（可在页面中使用）
+export function startRoleChangeListener(intervalMs: number = 30000): () => void {
+  if (!browser) {
+    console.log('⚠️ 非浏览器环境，无法启动角色监听器');
+    return () => {};
+  }
+
+  let currentRole: string | null = null;
+  let intervalId: NodeJS.Timeout;
+
+  const checkRoleChange = async () => {
+    try {
+      const user = await getSession();
+      
+      if (!user) {
+        // 用户已登出
+        if (currentRole) {
+          console.log('👋 角色监听器：检测到用户登出');
+          goto('/login');
+        }
+        currentRole = null;
+        return;
+      }
+
+      // 初始化当前角色
+      if (currentRole === null) {
+        currentRole = user.role;
+        console.log(`🎯 角色监听器：初始化角色 ${currentRole}`);
+        return;
+      }
+
+      // 检查角色是否变更
+      if (user.role !== currentRole) {
+        console.log(`🔄 角色监听器：检测到角色变更 ${currentRole} -> ${user.role}`);
+        currentRole = user.role;
+        
+        // 检查当前页面是否匹配新角色
+        const currentPath = window.location.pathname;
+        const expectedPath = rolePaths[user.role as UserRole];
+        
+        if (currentPath !== expectedPath) {
+          console.log(`🚀 角色监听器：重定向到新角色页面 ${expectedPath}`);
+          redirectToRolePath(user.role as UserRole);
+        }
+      }
+    } catch (error) {
+      console.error('❌ 角色监听器：检查角色变更失败:', error);
+    }
+  };
+
+  // 立即执行一次检查
+  checkRoleChange();
+
+  // 设置定期检查
+  intervalId = setInterval(checkRoleChange, intervalMs);
+  console.log(`🔄 角色监听器：已启动，检查间隔 ${intervalMs}ms`);
+
+  // 返回清理函数
+  return () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      console.log('🛑 角色监听器：已停止');
+    }
+  };
 } 
