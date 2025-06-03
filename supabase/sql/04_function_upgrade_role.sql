@@ -173,6 +173,7 @@ CREATE OR REPLACE FUNCTION public.batch_upgrade_roles(
 RETURNS JSONB AS $$
 DECLARE
     current_user_id UUID;
+    current_user_role TEXT;
     success_count INTEGER := 0;
     failed_count INTEGER := 0;
     results JSONB[] := '{}';
@@ -183,8 +184,11 @@ BEGIN
     -- 获取当前用户ID
     current_user_id := auth.uid();
     
+    -- 获取当前用户角色（修复递归问题）
+    current_user_role := COALESCE(auth.jwt() ->> 'role', 'Fan');
+    
     -- 检查权限：只有 Master 和 Firstmate 可以批量升级
-    IF NOT public.has_role(ARRAY['Master', 'Firstmate']) THEN
+    IF current_user_role NOT IN ('Master', 'Firstmate') THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'insufficient_permissions',
@@ -303,13 +307,17 @@ CREATE OR REPLACE FUNCTION public.downgrade_role(
 RETURNS JSONB AS $$
 DECLARE
     current_user_id UUID;
+    current_user_role TEXT;
     target_user_record public.profiles%ROWTYPE;
 BEGIN
     -- 获取当前用户ID
     current_user_id := auth.uid();
     
+    -- 获取当前用户角色（修复递归问题）
+    current_user_role := COALESCE(auth.jwt() ->> 'role', 'Fan');
+    
     -- 检查权限：只有 Master 可以降级角色
-    IF NOT public.has_role(ARRAY['Master']) THEN
+    IF current_user_role != 'Master' THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'insufficient_permissions',
@@ -417,9 +425,14 @@ RETURNS TABLE (
     performed_by UUID,
     performed_at TIMESTAMPTZ
 ) AS $$
+DECLARE
+    current_user_role TEXT;
 BEGIN
+    -- 获取当前用户角色（修复递归问题）
+    current_user_role := COALESCE(auth.jwt() ->> 'role', 'Fan');
+    
     -- 检查权限：只有管理员或查看自己的历史
-    IF NOT (public.is_admin() OR target_user_id = auth.uid()) THEN
+    IF NOT (current_user_role IN ('Master', 'Firstmate') OR target_user_id = auth.uid()) THEN
         RAISE EXCEPTION 'insufficient_permissions';
     END IF;
     

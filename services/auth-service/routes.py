@@ -1068,3 +1068,179 @@ def get_master_stats():
     except Exception as e:
         logger.error(f"获取Master统计数据失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
+
+@auth_bp.route('/sync-role', methods=['POST'])
+def sync_user_role():
+    """强制同步用户角色（从Supabase到MongoDB）"""
+    try:
+        # 验证JWT token
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({'error': '缺少认证token'}), 401
+        
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        current_user_id = payload['sub']
+        current_user_role = payload['role']
+        
+        data = request.get_json()
+        target_user_id = data.get('userId')
+        force_sync = data.get('forceSync', False)
+        
+        if not target_user_id:
+            return jsonify({'error': '缺少用户ID'}), 400
+        
+        # 权限检查：只能同步自己的角色，或者Master可以同步所有用户
+        if current_user_id != target_user_id and current_user_role != 'Master':
+            return jsonify({'error': '无权限执行此操作'}), 403
+        
+        # 从Supabase获取最新的用户角色
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+        
+        if not supabase_url or not supabase_key:
+            return jsonify({'error': 'Supabase配置缺失'}), 500
+        
+        headers = {
+            'apikey': supabase_key,
+            'Authorization': f'Bearer {supabase_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # 获取Supabase中的用户角色
+        response = requests.get(
+            f'{supabase_url}/rest/v1/profiles?id=eq.{target_user_id}&select=role,email,nickname',
+            headers=headers
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"从Supabase获取用户信息失败: {response.text}")
+            return jsonify({'error': 'Supabase查询失败'}), 500
+        
+        profiles = response.json()
+        if not profiles:
+            return jsonify({'error': '用户不存在'}), 404
+        
+        supabase_profile = profiles[0]
+        supabase_role = supabase_profile.get('role', 'Fan')
+        user_email = supabase_profile.get('email', '')
+        user_nickname = supabase_profile.get('nickname', '')
+        
+        # 更新MongoDB中的用户角色
+        from user_sync import user_sync_service
+        
+        if user_sync_service.users_collection:
+            # 先检查用户是否存在于MongoDB
+            mongo_user = user_sync_service.users_collection.find_one({"_id": target_user_id})
+            
+            if mongo_user:
+                # 更新现有用户的角色
+                update_result = user_sync_service.users_collection.update_one(
+                    {"_id": target_user_id},
+                    {
+                        "$set": {
+                            "role": supabase_role,
+                            "email": user_email,
+                            "nickname": user_nickname,
+                            "updated_at": datetime.utcnow(),
+                            "last_role_sync": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                if update_result.modified_count > 0:
+                    logger.info(f"成功同步用户角色: {user_email} -> {supabase_role}")
+                    
+                    # 如果是当前用户，生成新的JWT token
+                    if current_user_id == target_user_id:
+                        new_payload = {
+                            'sub': target_user_id,
+                            'email': user_email,
+                            'role': supabase_role,
+                            'nickname': user_nickname,
+                            'iat': datetime.utcnow(),
+                            'exp': datetime.utcnow() + timedelta(days=7)
+                        }
+                        
+                        new_token = jwt.encode(new_payload, JWT_SECRET, algorithm='HS256')
+                        
+                        response = make_response(jsonify({
+                            'success': True,
+                            'message': '角色同步成功',
+                            'user': {
+                                'id': target_user_id,
+                                'email': user_email,
+                                'role': supabase_role,
+                                'nickname': user_nickname
+                            },
+                            'token_updated': True
+                        }))
+                        
+                        # 设置新的token cookie
+                        response.set_cookie(
+                            'access_token',
+                            new_token,
+                            max_age=7*24*60*60,
+                            httponly=True,
+                            secure=True,
+                            samesite='Lax',
+                            domain=f'.{DOMAIN}'
+                        )
+                        
+                        return response
+                    else:
+                        return jsonify({
+                            'success': True,
+                            'message': '角色同步成功',
+                            'user': {
+                                'id': target_user_id,
+                                'email': user_email,
+                                'role': supabase_role,
+                                'nickname': user_nickname
+                            }
+                        })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'message': '角色无需更新',
+                        'user': {
+                            'id': target_user_id,
+                            'email': user_email,
+                            'role': supabase_role,
+                            'nickname': user_nickname
+                        }
+                    })
+            else:
+                # 用户在MongoDB中不存在，创建新用户记录
+                new_user = {
+                    "_id": target_user_id,
+                    "email": user_email,
+                    "nickname": user_nickname,
+                    "role": supabase_role,
+                    "status": "active",
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                    "last_role_sync": datetime.utcnow(),
+                    "source": "supabase_sync"
+                }
+                
+                user_sync_service.users_collection.insert_one(new_user)
+                logger.info(f"为Supabase用户创建MongoDB记录: {user_email} -> {supabase_role}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': '用户创建并同步成功',
+                    'user': {
+                        'id': target_user_id,
+                        'email': user_email,
+                        'role': supabase_role,
+                        'nickname': user_nickname
+                    }
+                })
+        else:
+            return jsonify({'error': 'MongoDB连接失败'}), 500
+        
+    except jwt.InvalidTokenError:
+        return jsonify({'error': '无效的token'}), 401
+    except Exception as e:
+        logger.error(f"角色同步失败: {str(e)}")
+        return jsonify({'error': f'同步失败: {str(e)}'}), 500

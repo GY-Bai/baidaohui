@@ -22,25 +22,19 @@ CREATE POLICY "Users can update own profile" ON public.profiles
     USING (auth.uid() = id);
 
 -- 策略3：Master 和 Firstmate 可以查看所有 profiles
+-- 修复递归问题：使用 auth.jwt() 直接获取角色信息，避免查询 profiles 表
 CREATE POLICY "Master and Firstmate can view all profiles" ON public.profiles
     FOR SELECT
     USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND role IN ('Master', 'Firstmate')
-        )
+        COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate')
     );
 
 -- 策略4：Master 和 Firstmate 可以更新其他用户的角色
+-- 修复递归问题：使用 auth.jwt() 直接获取角色信息
 CREATE POLICY "Master and Firstmate can update user roles" ON public.profiles
     FOR UPDATE
     USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND role IN ('Master', 'Firstmate')
-        )
+        COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate')
     );
 
 -- 策略5：系统可以插入新的 profile（用于注册触发器）
@@ -53,25 +47,18 @@ CREATE POLICY "System can insert profiles" ON public.profiles
 -- ========================================
 
 -- 策略1：Master 和 Firstmate 可以查看所有邀请链接
+-- 修复递归问题：使用 auth.jwt() 直接获取角色信息
 CREATE POLICY "Master and Firstmate can view all invite links" ON public.invite_links
     FOR SELECT
     USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND role IN ('Master', 'Firstmate')
-        )
+        COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate')
     );
 
 -- 策略2：Master 和 Firstmate 可以创建邀请链接
 CREATE POLICY "Master and Firstmate can create invite links" ON public.invite_links
     FOR INSERT
     WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND role IN ('Master', 'Firstmate')
-        )
+        COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate')
         AND created_by = auth.uid()
     );
 
@@ -79,11 +66,7 @@ CREATE POLICY "Master and Firstmate can create invite links" ON public.invite_li
 CREATE POLICY "Master and Firstmate can update own invite links" ON public.invite_links
     FOR UPDATE
     USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND role IN ('Master', 'Firstmate')
-        )
+        COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate')
         AND created_by = auth.uid()
     );
 
@@ -91,11 +74,7 @@ CREATE POLICY "Master and Firstmate can update own invite links" ON public.invit
 CREATE POLICY "Master and Firstmate can delete own invite links" ON public.invite_links
     FOR DELETE
     USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND role IN ('Master', 'Firstmate')
-        )
+        COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate')
         AND created_by = auth.uid()
     );
 
@@ -113,35 +92,69 @@ CREATE POLICY "Authenticated users can view valid invite links" ON public.invite
 -- 创建安全函数
 -- ========================================
 
--- 创建获取当前用户角色的函数
+-- 创建获取当前用户角色的函数（修复递归问题）
 CREATE OR REPLACE FUNCTION public.get_current_user_role()
 RETURNS TEXT AS $$
 BEGIN
-    RETURN (
-        SELECT role
-        FROM public.profiles
-        WHERE id = auth.uid()
-    );
+    -- 直接从 JWT token 获取角色，避免查询 profiles 表
+    RETURN COALESCE(auth.jwt() ->> 'role', 'Fan');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 创建检查用户权限的函数
+-- 创建检查用户权限的函数（修复递归问题）
 CREATE OR REPLACE FUNCTION public.has_role(required_roles TEXT[])
 RETURNS BOOLEAN AS $$
+DECLARE
+    current_role TEXT;
 BEGIN
-    RETURN (
-        SELECT role = ANY(required_roles)
-        FROM public.profiles
-        WHERE id = auth.uid()
-    );
+    -- 直接从 JWT token 获取角色，避免查询 profiles 表
+    current_role := COALESCE(auth.jwt() ->> 'role', 'Fan');
+    RETURN current_role = ANY(required_roles);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 创建检查是否为管理员的函数
+-- 创建检查是否为管理员的函数（修复递归问题）
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
     RETURN public.has_role(ARRAY['Master', 'Firstmate']);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 创建安全的用户信息查询函数（避免 RLS 递归）
+CREATE OR REPLACE FUNCTION public.get_user_profile_safe(user_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+    result JSONB;
+    current_role TEXT;
+BEGIN
+    -- 获取当前用户角色
+    current_role := COALESCE(auth.jwt() ->> 'role', 'Fan');
+    
+    -- 检查权限：用户只能查看自己的信息，或者管理员可以查看所有用户
+    IF auth.uid() != user_id AND current_role NOT IN ('Master', 'Firstmate') THEN
+        RETURN jsonb_build_object(
+            'error', 'insufficient_permissions',
+            'message', '权限不足'
+        );
+    END IF;
+    
+    -- 绕过 RLS 查询用户信息
+    SELECT jsonb_build_object(
+        'id', id,
+        'email', email,
+        'role', role,
+        'nickname', nickname,
+        'avatar_url', avatar_url,
+        'city', city,
+        'notification_email', notification_email,
+        'created_at', created_at,
+        'updated_at', updated_at
+    ) INTO result
+    FROM public.profiles
+    WHERE id = user_id;
+    
+    RETURN COALESCE(result, jsonb_build_object('error', 'user_not_found'));
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -162,10 +175,10 @@ GROUP BY role;
 -- 为视图添加 RLS
 ALTER VIEW public.user_stats SET (security_barrier = true);
 
--- 创建视图的 RLS 策略
+-- 创建视图的 RLS 策略（修复递归问题）
 CREATE POLICY "Only admins can view user stats" ON public.user_stats
     FOR SELECT
-    USING (public.is_admin());
+    USING (COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate'));
 
 -- 创建邀请链接统计视图
 CREATE OR REPLACE VIEW public.invite_link_stats AS
@@ -183,10 +196,10 @@ GROUP BY type, created_by;
 -- 为邀请链接统计视图添加 RLS
 ALTER VIEW public.invite_link_stats SET (security_barrier = true);
 
--- 创建邀请链接统计视图的 RLS 策略
+-- 创建邀请链接统计视图的 RLS 策略（修复递归问题）
 CREATE POLICY "Only admins can view invite link stats" ON public.invite_link_stats
     FOR SELECT
-    USING (public.is_admin());
+    USING (COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate'));
 
 -- ========================================
 -- 创建审计日志表
@@ -215,10 +228,10 @@ CREATE INDEX idx_audit_logs_created_at ON public.audit_logs(created_at);
 -- 启用审计日志表的 RLS
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- 审计日志的 RLS 策略：只有管理员可以查看
+-- 审计日志的 RLS 策略：只有管理员可以查看（修复递归问题）
 CREATE POLICY "Only admins can view audit logs" ON public.audit_logs
     FOR SELECT
-    USING (public.is_admin());
+    USING (COALESCE(auth.jwt() ->> 'role', 'Fan') IN ('Master', 'Firstmate'));
 
 -- 系统可以插入审计日志
 CREATE POLICY "System can insert audit logs" ON public.audit_logs

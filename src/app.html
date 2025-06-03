@@ -3,10 +3,30 @@
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>百刀会</title>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover" class="bg-gray-50">
 		<div style="display: contents">%sveltekit.body%</div>
+		
+		<!-- 开发模式下加载测试工具 -->
+		<script>
+			if (window.location.hostname === 'localhost' || window.location.hostname.includes('dev')) {
+				// 动态加载角色同步工具
+				import('/src/lib/roleSync.ts').then(module => {
+					console.log('🎯 角色同步工具已加载');
+				}).catch(err => {
+					console.warn('角色同步工具加载失败:', err);
+				});
+				
+				// 动态加载UI测试工具
+				import('/src/lib/uiTester.ts').then(module => {
+					console.log('🧪 UI测试工具已加载');
+				}).catch(err => {
+					console.warn('UI测试工具加载失败:', err);
+				});
+			}
+		</script>
 	</body>
 </html> 
