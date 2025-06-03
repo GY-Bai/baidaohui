@@ -445,7 +445,7 @@ show_all_service_status() {
             echo -e "  健康检查: ${RED}❌ 异常${NC}"
         fi
         
-        if curl -s -f -H "Authorization: Bearer wzj5788@gmail.com" http://localhost:5012/v1/models >/dev/null 2>&1; then
+        if curl -s -f -H "Authorization: Bearer wjz5788@gmail.com" http://localhost:5012/v1/models >/dev/null 2>&1; then
             echo -e "  API认证: ${GREEN}✅ 正常${NC}"
         else
             echo -e "  API认证: ${RED}❌ 异常${NC}"
@@ -606,7 +606,7 @@ main() {
                 if [ "$DEPLOYMENT_MODE" = "san-jose" ] || [ "$DEPLOYMENT_MODE" = "both" ]; then
                     echo ""
                     log_info "🤖 AI代理服务信息:"
-                    echo "  • API Key: wzj5788@gmail.com"
+                    echo "  • API Key: wjz5788@gmail.com"
                     echo "  • 本地端点: http://localhost:5012"
                     echo "  • 网关端点: https://api.baidaohui.com/v1/"
                     echo "  • 测试命令: ./scripts/test-ai-proxy.sh"

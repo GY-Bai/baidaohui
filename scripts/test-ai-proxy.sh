@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # 配置
 API_BASE="https://api.baidaohui.com"
 LOCAL_BASE="http://localhost:5012"
-API_KEY="wzj5788@gmail.com"
+API_KEY="wjz5788@gmail.com"
 
 echo -e "${BLUE}🧪 AI代理服务测试${NC}"
 echo "=================================="

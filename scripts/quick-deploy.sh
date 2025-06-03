@@ -142,7 +142,7 @@ verify_deployment() {
     fi
     
     # 测试API Key认证
-    if curl -s -f -H "Authorization: Bearer wzj5788@gmail.com" http://localhost:5012/v1/models >/dev/null; then
+    if curl -s -f -H "Authorization: Bearer wjz5788@gmail.com" http://localhost:5012/v1/models >/dev/null; then
         echo -e "  API Key认证: ${GREEN}✅ 正常${NC}"
     else
         echo -e "  API Key认证: ${RED}❌ 异常${NC}"
@@ -168,8 +168,8 @@ show_access_info() {
     echo "  聊天完成: https://api.baidaohui.com/v1/chat/completions"
     echo ""
     echo -e "${YELLOW}认证信息:${NC}"
-    echo "  API Key: wzj5788@gmail.com"
-    echo "  使用方法: Authorization: Bearer wzj5788@gmail.com"
+    echo "  API Key: wjz5788@gmail.com"
+    echo "  使用方法: Authorization: Bearer wjz5788@gmail.com"
     echo ""
     echo -e "${YELLOW}健康检查面板:${NC}"
     echo "  前端页面: https://www.baidaohui.com/health"

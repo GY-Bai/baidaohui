@@ -285,6 +285,9 @@ services:
 
   # AI代理服务
   ai-proxy-service:
+    build:
+      context: ../services/ai-proxy-service    # 指向 ai-proxy-service 的路径
+      dockerfile: Dockerfile
     image: baidaohui-ai-proxy-service:latest
     container_name: ai-proxy-service
     ports:
@@ -294,7 +297,8 @@ services:
       - AI_PROXY_PORT=5012
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-      - DEFAULT_MODEL=${DEFAULT_AI_MODEL:-deepseek/deepseek-r1-0528:free}
+      - DEFAULT_MODEL=${DEFAULT_AI_MODEL}
+      - FIXED_API_KEY=${FIXED_API_KEY}
     networks:
       - baidaohui-network
     restart: unless-stopped

@@ -14,7 +14,7 @@ const app = express();
 const PORT = process.env.AI_PROXY_PORT || 5012;
 
 // 固定API Key配置
-const FIXED_API_KEY = 'wzj5788@gmail.com';
+const FIXED_API_KEY = process.env.FIXED_API_KEY
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'deepseek/deepseek-r1-0528:free';
