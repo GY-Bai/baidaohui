@@ -1,7 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  import Button from './Button.svelte';
-  import Badge from './Badge.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
   
   export let isOpen = false;
   export let amount = 0;

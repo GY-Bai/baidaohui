@@ -1,58 +1,45 @@
-import Mailjet from 'node-mailjet';
-
-// Mailjet配置
-const MJ_APIKEY_PUBLIC = process.env.MJ_APIKEY_PUBLIC;
-const MJ_APIKEY_PRIVATE = process.env.MJ_APIKEY_PRIVATE;
-const FROM_EMAIL = process.env.FROM_EMAIL;
-const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || FROM_EMAIL;
-
-// 初始化Mailjet客户端
-const mailjet = Mailjet.apiConnect(MJ_APIKEY_PUBLIC, MJ_APIKEY_PRIVATE);
+/**
+ * 邮件发送工具 - 通过后端API发送邮件
+ * 重构说明：移除了直接使用node-mailjet的逻辑，改为调用后端/api/email/send端点
+ * 这样可以避免在前端暴露敏感的API密钥，提高安全性
+ */
 
 /**
- * 使用Mailjet发送邮件
+ * 通过后端API发送邮件
  * @param {string} to - 收件人邮箱
  * @param {string} subject - 邮件主题
  * @param {string} text - 纯文本内容
- * @param {string} html - HTML内容（可选）
+ * @param {string|null} html - HTML内容（可选）
  * @returns {Promise<boolean>} 发送是否成功
  */
 export async function sendMail(to, subject, text, html = null) {
   try {
-    const messageData = {
-      From: {
-        Email: FROM_EMAIL,
-        Name: '百刀会通知'
-      },
-      To: [{ Email: to }],
-      Subject: subject,
-      TextPart: text,
-      ReplyTo: {
-        Email: REPLY_TO_EMAIL,
-        Name: '百刀会客服'
-      }
+    const emailData = {
+      to,
+      subject,
+      text,
+      ...(html && { html })
     };
 
-    // 如果提供了HTML内容，添加到邮件中
-    if (html) {
-      messageData.HTMLPart = html;
-    }
+    const response = await fetch('/api/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(emailData)
+    });
 
-    const result = await mailjet
-      .post('send', { version: 'v3.1' })
-      .request({
-        Messages: [messageData],
-      });
-
-    if (result.response.status === 200) {
-      console.log('邮件发送成功:', to);
+    if (response.ok) {
+      const result = await response.json();
+      console.log('邮件发送请求成功发送到后端:', to);
       return true;
     } else {
-      console.error('Mailjet API错误:', result.response.status, result.response.statusText);
+      const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+      console.error('后端邮件发送API错误:', response.status, errorData.message);
       return false;
     }
   } catch (error) {
-    console.error('邮件发送失败:', error);
+    console.error('调用邮件发送API失败:', error);
     return false;
   }
 }

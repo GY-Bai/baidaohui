@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Button from '$lib/components/ui/Button.svelte';
-  import FortuneRequestItem from '$lib/components/ui/FortuneRequestItem.svelte';
-  import FortuneRequestForm from '$lib/components/ui/FortuneRequestForm.svelte';
-  import PaymentChoiceModal from '$lib/components/ui/PaymentChoiceModal.svelte';
-  import QueuePositionCard from '$lib/components/ui/QueuePositionCard.svelte';
+  import FortuneRequestItem from '$lib/components/business/FortuneRequestItem.svelte';
+  import CreateFortuneModal from '$lib/components/business/CreateFortuneModal.svelte';
+  import PaymentChoiceModal from '$lib/components/business/PaymentChoiceModal.svelte';
+  import QueuePositionCard from '$lib/components/business/QueuePositionCard.svelte';
   
   // 状态管理
   let showCreateModal = false;
@@ -223,7 +223,7 @@
 </script>
 
 <svelte:head>
-  <title>算命服务 - 百道慧</title>
+  <title>算命服务 - 百刀会</title>
 </svelte:head>
 
 <div class="fortune-view">
@@ -302,7 +302,7 @@
 </div>
 
 <!-- 新建/编辑申请模态框 -->
-<FortuneRequestForm
+<CreateFortuneModal
   isOpen={showCreateModal}
   initialData={selectedRequest}
   on:submit={handleFortuneSubmit}

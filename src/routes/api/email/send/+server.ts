@@ -15,7 +15,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 邮件发送可能需要更长时间
         
-        const response = await fetch(`${apiBaseUrl}/email/send-custom`, {
+        const response = await fetch(`${apiBaseUrl}/email/send`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

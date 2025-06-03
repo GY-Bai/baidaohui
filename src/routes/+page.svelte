@@ -58,7 +58,7 @@
 </script>
 
 <svelte:head>
-  <title>百道慧 - 智能算命平台</title>
+  <title>百刀会 - 智能算命平台</title>
   <meta name="description" content="专业的在线算命和电商平台，为您提供精准的运势预测和开运商品。" />
 </svelte:head>
 
@@ -67,13 +67,13 @@
     <!-- 应用Logo和标题 -->
     <header class="app-header">
       <div class="app-logo">🔮</div>
-      <h1 class="app-title">百道慧</h1>
+      <h1 class="app-title">百刀会</h1>
       <p class="app-subtitle">智能算命 · 精准预测 · 开运商城</p>
     </header>
     
     <!-- 登录表单 -->
     <div class="login-form">
-      <h2 class="form-title">欢迎使用百道慧</h2>
+      <h2 class="form-title">欢迎使用百刀会</h2>
       <p class="form-subtitle">选择您的角色体验不同功能</p>
       
       <!-- 角色选择 -->

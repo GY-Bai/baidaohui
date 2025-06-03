@@ -1,7 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  import Avatar from './Avatar.svelte';
-  import Badge from './Badge.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
   
   export let message = {};
   export let isOwn = false;

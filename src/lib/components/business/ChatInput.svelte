@@ -1,6 +1,6 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
-  import Button from './Button.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   
   export let placeholder = '输入消息...';
   export let disabled = false;

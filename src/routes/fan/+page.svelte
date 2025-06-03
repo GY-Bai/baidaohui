@@ -143,7 +143,7 @@
 </script>
 
 <svelte:head>
-  <title>百道慧 - Fan用户专区</title>
+  <title>百刀会 - Fan用户专区</title>
 </svelte:head>
 
 {#if loading}

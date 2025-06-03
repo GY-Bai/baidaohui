@@ -236,7 +236,7 @@
 </script>
 
 <svelte:head>
-  <title>组件架构演示 - 百道慧</title>
+  <title>组件架构演示 - 百刀会</title>
 </svelte:head>
 
 <div class="architecture-demo">

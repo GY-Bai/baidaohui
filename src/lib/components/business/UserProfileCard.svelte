@@ -1,9 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import Avatar from './Avatar.svelte';
-  import Badge from './Badge.svelte';
-  import Button from './Button.svelte';
-  import OnlineStatusIndicator from './OnlineStatusIndicator.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import OnlineStatusIndicator from '$lib/components/business/OnlineStatusIndicator.svelte';
   
   export let user = {
     id: '',

@@ -10,6 +10,7 @@ import redis
 from functools import wraps
 import os
 import urllib.parse
+from websocket import register_websocket_handlers # 导入WebSocket处理函数
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -83,6 +84,9 @@ def get_current_user():
 @app.route('/health')
 def health():
     return jsonify({'status': 'healthy'})
+
+# 注册WebSocket处理程序
+register_websocket_handlers(socketio, db, redis_client, logger)
 
 # 获取聊天成员列表
 @app.route('/api/chat/members')

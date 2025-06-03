@@ -19,7 +19,7 @@
 </script>
 
 <svelte:head>
-  <title>个人中心 - 百道慧</title>
+  <title>个人中心 - 百刀会</title>
 </svelte:head>
 
 <div class="profile-view">

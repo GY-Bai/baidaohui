@@ -1,8 +1,8 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  import Loading from './Loading.svelte';
-  import Button from './Button.svelte';
-  import Badge from './Badge.svelte';
+  import Loading from '$lib/components/ui/Loading.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
   
   export let products = [];
   export let loading = false;

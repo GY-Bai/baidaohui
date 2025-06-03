@@ -211,6 +211,8 @@ services:
       - PORT=5008
       - MONGODB_URI=${MONGODB_URI}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - FORTUNE_SERVICE_URL=http://216.144.233.104:5007  # 替换为布法罗 VPS IP
+      - EMAIL_SERVICE_URL=http://216.144.233.104:5008  # 替换为布法罗 VPS IP
     networks:
       - baidaohui-network
     restart: unless-stopped
@@ -237,6 +239,8 @@ services:
       - PORT=5009
       - MONGODB_URI=${MONGODB_URI}
       - JWT_SECRET=${JWT_SECRET}
+      - PAYMENT_SERVICE_URL=http://payment-service:5008
+      - ECOMMERCE_POLLER_URL=http://216.144.233.104:5004
     networks:
       - baidaohui-network
     restart: unless-stopped

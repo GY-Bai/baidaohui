@@ -59,7 +59,7 @@
 </script>
 
 <svelte:head>
-  <title>百道慧 - Fan用户</title>
+  <title>百刀会 - Fan用户</title>
 </svelte:head>
 
 <div class="fan-layout">

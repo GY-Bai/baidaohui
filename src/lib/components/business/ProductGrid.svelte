@@ -1,8 +1,8 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  import ProductCard from './ProductCard.svelte';
-  import Loading from './Loading.svelte';
-  import Button from './Button.svelte';
+  import ProductCard from '$lib/components/ui/ProductCard.svelte';
+  import Loading from '$lib/components/ui/Loading.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   
   export let products = [];
   export let loading = false;

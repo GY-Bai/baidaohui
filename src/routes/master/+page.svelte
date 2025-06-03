@@ -3,21 +3,29 @@
   import { clientSideRouteGuard, signOut } from '$lib/auth';
   
   // 导入新的UI组件
-  import UserProfileDropdown from '$lib/components/ui/UserProfileDropdown.svelte';
-  import OnlineStatusIndicator from '$lib/components/ui/OnlineStatusIndicator.svelte';
+  import UserProfileDropdown from '$lib/components/business/UserProfileDropdown.svelte';
+  import OnlineStatusIndicator from '$lib/components/business/OnlineStatusIndicator.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
-  import InviteLinkGenerator from '$lib/components/ui/InviteLinkGenerator.svelte';
-  import ApiKeyManager from '$lib/components/ui/ApiKeyManager.svelte';
-  import ActivityLogList from '$lib/components/ui/ActivityLogList.svelte';
+  import InviteLinkGenerator from '$lib/components/business/InviteLinkGenerator.svelte';
+  import ApiKeyManager from '$lib/components/business/ApiKeyManager.svelte';
+  import ActivityLogList from '$lib/components/business/ActivityLogList.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import DataTable from '$lib/components/ui/DataTable.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import DatePicker from '$lib/components/ui/DatePicker.svelte';
+  import Drawer from '$lib/components/ui/Drawer.svelte';
 
   let loading = true;
   let authenticated = false;
   let activeTab = 'invite'; // 默认显示邀请链接
   let showDropdown = false;
+
+  // 新组件状态
+  let startDate: string = '';
+  let endDate: string = '';
+  let isOrderDetailsDrawerOpen: boolean = false;
+  let currentOrderDetails: any = null;
 
   // 模拟用户数据
   const masterUser = {
@@ -29,7 +37,7 @@
     status: 'online',
     verified: true,
     role: 'Master',
-    bio: '百道慧创始人，专业算命师',
+    bio: '百刀会创始人，专业算命师',
     location: '北京市',
     joinDate: '2020-01-01',
     stats: {
@@ -42,7 +50,7 @@
   // 模拟组织数据
   const organization = {
     id: '1',
-    name: '百道慧',
+    name: '百刀会',
     domain: 'https://baidaohui.com'
   };
 
@@ -249,23 +257,13 @@
     console.log('正在导出日志...');
   }
 
-  // 处理用户菜单事件
-  function handleMenuClick(event) {
-    const item = event.detail.item;
-    if (item.id === 'logout') {
-      handleSignOut();
-    } else {
-      console.log('点击菜单:', item.label);
-    }
-  }
-
-  function handleStatusChange(event) {
-    console.log('状态变更:', event.detail.status);
-  }
-
   // 处理算命订单操作
   function handleOrderAction(orderId, action) {
     console.log(`对订单 ${orderId} 执行操作: ${action}`);
+    if (action === 'view') {
+      currentOrderDetails = mockFortuneOrders.find(order => order.id === orderId);
+      isOrderDetailsDrawerOpen = true;
+    }
   }
 
   function getStatusBadgeVariant(status) {
@@ -286,10 +284,24 @@
       default: return 'secondary';
     }
   }
+
+  // 处理用户菜单事件
+  function handleMenuClick(event) {
+    const item = event.detail.item;
+    if (item.id === 'logout') {
+      handleSignOut();
+    } else {
+      console.log('点击菜单:', item.label);
+    }
+  }
+
+  function handleStatusChange(event) {
+    console.log('状态变更:', event.detail.status);
+  }
 </script>
 
 <svelte:head>
-  <title>{getTabTitle()} - 百道慧管理控制台</title>
+  <title>{getTabTitle()} - 百刀会管理控制台</title>
 </svelte:head>
 
 {#if loading}
@@ -364,6 +376,13 @@
         <div class="content-section">
           <Card variant="elevated">
             <h2 slot="header">🔮 算命订单管理</h2>
+
+            <div class="filter-bar flex space-x-4 mb-4">
+              <DatePicker bind:value={startDate} label="开始日期" placeholder="YYYY-MM-DD" />
+              <DatePicker bind:value={endDate} label="结束日期" placeholder="YYYY-MM-DD" />
+              <!-- 其他筛选条件，例如Select和CheckboxSwitch，可以继续在此处添加 -->
+              <Button on:click={() => console.log('筛选订单', { startDate, endDate })}>筛选</Button>
+            </div>
             
             <DataTable
               data={mockFortuneOrders}
@@ -404,6 +423,22 @@
               </svelte:fragment>
             </DataTable>
           </Card>
+
+          <Drawer bind:isOpen={isOrderDetailsDrawerOpen} position="right" width="w-1/3" on:close={() => isOrderDetailsDrawerOpen = false}>
+            {#if currentOrderDetails}
+              <h3 class="text-xl font-bold mb-4">订单详情: {currentOrderDetails.id}</h3>
+              <p><strong>用户:</strong> {currentOrderDetails.user}</p>
+              <p><strong>金额:</strong> {currentOrderDetails.amount}</p>
+              <p><strong>优先级:</strong> {currentOrderDetails.priority}</p>
+              <p><strong>状态:</strong> {currentOrderDetails.status}</p>
+              <p><strong>描述:</strong> {currentOrderDetails.description}</p>
+              <p><strong>创建时间:</strong> {currentOrderDetails.createdAt}</p>
+              <p><strong>剩余修改次数:</strong> {currentOrderDetails.remainingModifications}</p>
+              <Button on:click={() => isOrderDetailsDrawerOpen = false} class="mt-4">关闭</Button>
+            {:else}
+              <p>没有可用的订单详情。</p>
+            {/if}
+          </Drawer>
         </div>
         
       {:else if activeTab === 'ecommerce'}
@@ -762,7 +797,17 @@
     }
 
     .tab.active {
-      background: #374151;
+      background: #111827;
+    }
+
+    .content-section .card {
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+    .content-section h2,
+    .content-section h3 {
+      color: #f9fafb;
     }
 
     .stat-card {
@@ -770,10 +815,7 @@
       border-color: #4b5563;
     }
 
-    .stat-card h3 {
-      color: #d1d5db;
-    }
-
+    .stat-card h3,
     .stat-number {
       color: #f9fafb;
     }
@@ -781,9 +823,13 @@
     .chat-controls h3 {
       color: #f9fafb;
     }
+
+    .button {
+      /* Adjust button styles for dark mode if needed */
+    }
   }
 
-  /* 无障碍支持 */
+  /* 减少动画模式 */
   @media (prefers-reduced-motion: reduce) {
     .loading-spinner {
       animation: none;
@@ -791,18 +837,6 @@
 
     .tab {
       transition: none;
-    }
-  }
-
-  /* 打印样式 */
-  @media print {
-    .master-header,
-    .top-tabs {
-      display: none;
-    }
-
-    .master-content {
-      padding: 0;
     }
   }
 </style> 

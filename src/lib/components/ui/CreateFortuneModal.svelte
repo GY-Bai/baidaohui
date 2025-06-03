@@ -392,7 +392,7 @@
                       <div class="contact-icon">💬</div>
                       <div class="contact-info">
                         <div class="contact-label">平台内联系</div>
-                        <div class="contact-desc">通过百道慧平台内消息系统</div>
+                        <div class="contact-desc">通过百刀会平台内消息系统</div>
                       </div>
                     </div>
                   </label>

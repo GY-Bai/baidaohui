@@ -1,8 +1,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import Progress from './Progress.svelte';
-  import Button from './Button.svelte';
+  import Progress from '$lib/components/ui/Progress.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   
   export let position = 1;
   export let totalQueue = 10;

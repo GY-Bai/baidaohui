@@ -1,11 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import Button from './Button.svelte';
-  import Input from './Input.svelte';
-  import Select from './Select.svelte';
-  import Card from './Card.svelte';
-  import Badge from './Badge.svelte';
-  import Toast from './Toast.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Toast from '$lib/components/ui/Toast.svelte';
   
   export let organization = {
     id: '',

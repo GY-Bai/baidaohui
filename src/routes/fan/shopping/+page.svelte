@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import ProductGrid from '$lib/components/ui/ProductGrid.svelte';
-  import ProductList from '$lib/components/ui/ProductList.svelte';
-  import ImagePreviewModal from '$lib/components/ui/ImagePreviewModal.svelte';
+  import ProductGrid from '$lib/components/business/ProductGrid.svelte';
+  import ProductList from '$lib/components/business/ProductList.svelte';
+  import ImagePreviewModal from '$lib/components/business/ImagePreviewModal.svelte';
   import TabNavigation from '$lib/components/ui/TabNavigation.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -314,7 +314,7 @@
 </script>
 
 <svelte:head>
-  <title>购物商城 - 百道慧</title>
+  <title>购物商城 - 百刀会</title>
 </svelte:head>
 
 <div class="shopping-view">

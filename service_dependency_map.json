@@ -1,0 +1,320 @@
+{
+  "mongodb": {
+    "docker_compose_file": "infra/docker-compose.yml",
+    "depends_on": [],
+    "ports": ["27017:27017"],
+    "env_files": [],
+    "code_path": "",
+    "routes": [],
+    "nginx_upstreams": [],
+    "db_dependency": false,
+    "cross_vps_endpoints": []
+  },
+  "redis": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": [],
+    "ports": ["6379:6379"],
+    "env_files": [],
+    "code_path": "",
+    "routes": [],
+    "nginx_upstreams": [],
+    "db_dependency": false,
+    "cross_vps_endpoints": []
+  },
+  "nginx": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": [
+      "auth-service",
+      "sso-service",
+      "chat-service",
+      "ecommerce-api-service",
+      "invite-service",
+      "payment-service",
+      "key-service",
+      "static-api-service",
+      "ai-proxy-service"
+    ],
+    "ports": ["80:80", "443:443"],
+    "env_files": [],
+    "code_path": "",
+    "routes": [],
+    "nginx_upstreams": [
+      "location /health -> self",
+      "location /api/auth/ -> auth-service:5001/auth/",
+      "location /api/sso/ -> sso-service:5002/sso/",
+      "location /api/chat/ -> chat-service:5003/api/chat/",
+      "location /api/messages/ -> chat-service:5003/api/messages/",
+      "location /api/ecommerce/ -> ecommerce-api-service:5005/api/",
+      "location /api/products -> static-api-service:5010/api/products",
+      "location /api/stats -> static-api-service:5010/api/stats",
+      "location /api/health -> static-api-service:5010/health",
+      "location /api/exchange-rates -> static-api-service:5010/api/exchange-rates",
+      "location /invite/ -> invite-service:5006/",
+      "location /api/payment/ -> payment-service:5008/payment/",
+      "location /api/keys/ -> key-service:5009/keys/",
+      "location /ai/ -> ai-proxy-service:5012/",
+      "location /v1/ -> ai-proxy-service:5012/api/v1/",
+      "location /api/fortune/ -> 216.144.233.104:5007/fortune/",
+      "location /api/email/ -> 216.144.233.104:5008/",
+      "location /sync/ -> 216.144.233.104:5011/"
+    ],
+    "db_dependency": false,
+    "cross_vps_endpoints": [
+      "http://216.144.233.104:5007 (Fortune Service)",
+      "http://216.144.233.104:5004 (E-commerce Poller)",
+      "http://216.144.233.104:5008 (Email Service)",
+      "http://216.144.233.104:5011 (R2 Sync Service)"
+    ]
+  },
+  "auth-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": ["redis"],
+    "ports": ["5001:5001"],
+    "env_files": [],
+    "code_path": "./services/auth-service",
+    "routes": [
+      "./services/auth-service/auth_routes_v2.py",
+      "./services/auth-service/routes_updated.py",
+      "./services/auth-service/routes.py"
+    ],
+    "nginx_upstreams": [
+      "upstream block: auth_service",
+      "location /api/auth/ -> auth-service:5001/auth/",
+      "location /api/profile/stats -> auth-service:5001/profile/stats",
+      "location /api/profile/update -> auth-service:5001/profile/update",
+      "location /api/user/stats -> auth-service:5001/user/stats"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST", "PUT"],
+    "websocket_support": false
+  },
+  "sso-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": ["redis"],
+    "ports": ["5002:5002"],
+    "env_files": [],
+    "code_path": "./services/sso-service",
+    "routes": ["./services/sso-service/routes.py"],
+    "nginx_upstreams": [
+      "upstream block: sso_service",
+      "location /sso/ -> sso_service:5002"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST"]
+  },
+  "chat-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": ["redis"],
+    "ports": ["5003:5003"],
+    "env_files": [],
+    "code_path": "./services/chat-service",
+    "routes": [
+      "./services/chat-service/app.py",
+      "./services/chat-service/websocket.py"
+    ],
+    "nginx_upstreams": [
+      "upstream block: chat_service",
+      "location /api/chat/ -> chat-service:5003/api/chat/",
+      "location /api/messages/ -> chat-service:5003/api/messages/"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST"],
+    "websocket_support": true,
+    "websocket_events": [
+      "connect",
+      "disconnect", 
+      "send_message",
+      "join_room",
+      "leave_room",
+      "typing_start",
+      "typing_stop",
+      "message_read"
+    ]
+  },
+  "fortune-service": {
+    "docker_compose_file": "infra/docker-compose.buffalo.yml",
+    "depends_on": [],
+    "ports": ["5007:5007"],
+    "env_files": [],
+    "code_path": "./services/fortune-service",
+    "routes": ["./services/fortune-service/app.py"],
+    "nginx_upstreams": [
+      "upstream block: fortune_service",
+      "location /fortune/ -> fortune_service:5007"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": ["http://107.172.87.113:5008 (Payment Service)"],
+    "request_methods": ["GET", "POST"]
+  },
+  "email-service": {
+    "docker_compose_file": "infra/docker-compose.buffalo.yml",
+    "depends_on": [],
+    "ports": ["5008:5008"],
+    "env_files": [],
+    "code_path": "./services/email-service",
+    "routes": [
+      "./services/email-service/routes.py",
+      "./services/email-service/app.py"
+    ],
+    "nginx_upstreams": [
+      "upstream block: email_service",
+      "location /email/ -> email_service:5008"
+    ],
+    "db_dependency": false,
+    "cross_vps_endpoints": ["http://107.172.87.113:5001 (Auth Service)"],
+    "request_methods": ["GET", "POST"]
+  },
+  "payment-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": [],
+    "ports": ["5008:5008"],
+    "env_files": [],
+    "code_path": "./services/payment-service",
+    "routes": [
+      "./services/payment-service/app.js",
+      "./services/payment-service/webhook.js"
+    ],
+    "nginx_upstreams": [
+      "upstream block: payment_service",
+      "location /payment/ -> payment_service:5008"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST"]
+  },
+  "ecommerce-poller": {
+    "docker_compose_file": "infra/docker-compose.buffalo.yml",
+    "depends_on": [],
+    "ports": ["5004:5004"],
+    "env_files": [],
+    "code_path": "./services/ecommerce-poller",
+    "routes": ["./services/ecommerce-poller/index.ts"],
+    "nginx_upstreams": ["upstream block: ecommerce_poller"],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET"]
+  },
+  "exchange-rate-updater": {
+    "docker_compose_file": "infra/docker-compose.buffalo.yml",
+    "depends_on": [],
+    "ports": [],
+    "env_files": [],
+    "code_path": "./services/exchange-rate-updater",
+    "routes": ["./services/exchange-rate-updater/exchange_rate_updater.py"],
+    "nginx_upstreams": [],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": []
+  },
+  "r2-sync-service": {
+    "docker_compose_file": "infra/docker-compose.buffalo.yml",
+    "depends_on": [],
+    "ports": ["5011:5011"],
+    "env_files": [],
+    "code_path": "./services/r2-sync-service",
+    "routes": ["./services/r2-sync-service/app.js"],
+    "nginx_upstreams": ["upstream block: r2_sync_service"],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET"]
+  },
+  "ecommerce-api-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": ["redis"],
+    "ports": ["5005:5005"],
+    "env_files": [],
+    "code_path": "./services/ecommerce-api-service",
+    "routes": ["./services/ecommerce-api-service/app.js", "./services/ecommerce-api-service/routes/"],
+    "nginx_upstreams": ["upstream block: ecommerce_api_service"],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST"]
+  },
+  "invite-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": [],
+    "ports": ["5006:5006"],
+    "env_files": [],
+    "code_path": "./services/invite-service",
+    "routes": ["./services/invite-service/app.py"],
+    "nginx_upstreams": [
+      "upstream block: invite_service",
+      "location /invite/ -> invite_service:5006"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST"]
+  },
+  "key-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": [],
+    "ports": ["5013:5009"],
+    "env_files": [],
+    "code_path": "./services/key-service",
+    "routes": ["./services/key-service/app.py"],
+    "nginx_upstreams": ["upstream block: key_service"],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST", "PUT", "DELETE"]
+  },
+  "static-api-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": ["redis"],
+    "ports": ["5010:5010"],
+    "env_files": [],
+    "code_path": "./services/static-api-service",
+    "routes": ["./services/static-api-service/app.js"],
+    "nginx_upstreams": [
+      "upstream block: static_api_service",
+      "location /api/products -> static_api_service:5010",
+      "location /api/stats -> static_api_service:5010",
+      "location /api/exchange-rates -> static_api_service:5010"
+    ],
+    "db_dependency": true,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET"]
+  },
+  "ai-proxy-service": {
+    "docker_compose_file": "infra/docker-compose.san-jose.yml",
+    "depends_on": [],
+    "ports": ["5012:5012"],
+    "env_files": [],
+    "code_path": "./services/ai-proxy-service",
+    "routes": ["./services/ai-proxy-service/app.js", "./services/ai-proxy-service/controllers/"],
+    "nginx_upstreams": ["upstream block: ai_proxy_service"],
+    "db_dependency": false,
+    "cross_vps_endpoints": [],
+    "request_methods": ["GET", "POST"]
+  },
+  "frontend-app": {
+    "docker_compose_file": "",
+    "depends_on": [],
+    "ports": [],
+    "env_files": [],
+    "code_path": "./src",
+    "routes": [
+      "./src/routes/api/",
+      "./src/routes/master/",
+      "./src/routes/components/",
+      "./src/routes/fan/",
+      "./src/routes/demo/",
+      "./src/routes/debug/",
+      "./src/routes/seller/",
+      "./src/routes/member/",
+      "./src/routes/login/",
+      "./src/routes/health/",
+      "./src/routes/firstmate/",
+      "./src/routes/auth/",
+      "./src/routes/chat/",
+      "./src/routes/+page.svelte",
+      "./src/routes/+page.server.ts"
+    ],
+    "nginx_upstreams": [],
+    "db_dependency": false,
+    "cross_vps_endpoints": ["api.baidaohui.com"],
+    "request_methods": ["GET", "POST"]
+  }
+} 

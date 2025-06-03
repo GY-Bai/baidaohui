@@ -1,8 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
-  import Button from './Button.svelte';
-  import Card from './Card.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
   
   export let visible = false;
   export let title = '扫码分享';

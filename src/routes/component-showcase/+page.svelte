@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   
   // 导入基础组件
@@ -15,6 +15,11 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   
+  // 导入新组件
+  import DatePicker from '$lib/components/ui/DatePicker.svelte';
+  import Drawer from '$lib/components/ui/Drawer.svelte';
+  import MessageList from '$lib/components/business/MessageList.svelte';
+
   // 导入聊天和用户组件
   import ChatHeader from '$lib/components/business/ChatHeader.svelte';
   import OnlineStatusIndicator from '$lib/components/business/OnlineStatusIndicator.svelte';
@@ -33,6 +38,18 @@
   let toastMessage = '';
   let showQRModal = false;
   let showDropdown = false;
+
+  // 新组件状态
+  let datePickerValue: string = '2024-03-15';
+  let isDrawerOpen: boolean = false;
+  let drawerPosition: 'left' | 'right' = 'right';
+  let drawerWidth: string = 'w-80';
+  let demoMessages = [
+    { id: '1', sender: 'Alice', content: '你好！', timestamp: '10:00 AM', isUser: false },
+    { id: '2', sender: 'You', content: '嗨，Alice！', timestamp: '10:01 AM', isUser: true },
+    { id: '3', sender: 'Alice', content: '今天天气真好！', timestamp: '10:05 AM', isUser: false },
+    { id: '4', sender: 'You', content: '是啊，非常适合户外活动！', timestamp: '10:06 AM', isUser: true },
+  ];
   
   // 模拟数据
   const mockUser = {
@@ -104,7 +121,8 @@
     { id: 'member', label: 'Member用户界面', icon: '💎' },
     { id: 'master', label: 'Master用户界面', icon: '👨‍💼' },
     { id: 'firstmate', label: 'Firstmate用户界面', icon: '👩‍💼' },
-    { id: 'seller', label: 'Seller用户界面', icon: '🏪' }
+    { id: 'seller', label: 'Seller用户界面', icon: '🏪' },
+    { id: 'new-demos', label: '新组件演示', icon: '✨' }
   ];
 
   function switchView(viewId) {
@@ -303,48 +321,15 @@
       <!-- Member用户界面演示 -->
       <div class="mobile-demo">
         <div class="mobile-frame">
-          <div class="mobile-content">
-            <!-- 聊天头部 -->
+          <div class="mobile-content flex flex-col">
             <ChatHeader
-              user={mockUser}
-              chatTitle="与主播的私信"
-              typing={true}
-              typingUsers={['主播']}
-              on:back={() => handleToast('返回聊天列表')}
-              on:action={(e) => handleToast(`执行操作: ${e.detail.action.label}`)}
+              userName="王大锤"
+              userStatus="在线"
+              avatarUrl="https://api.dicebear.com/7.x/avataaars/svg?seed=wang"
             />
-            
-            <!-- 消息列表区域 -->
-            <div class="chat-messages">
-              <div class="message received">
-                <Avatar src={mockUser.avatar} size="sm" />
-                <div class="message-content">
-                  <p>你好！欢迎来到百刀会</p>
-                  <span class="message-time">14:30</span>
-                </div>
-              </div>
-              
-              <div class="message sent">
-                <div class="message-content">
-                  <p>谢谢！我想了解一下算命服务</p>
-                  <span class="message-time">14:32</span>
-                </div>
-              </div>
-              
-              <div class="typing-indicator">
-                <Avatar src={mockUser.avatar} size="sm" />
-                <div class="typing-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- 输入区域 -->
-            <div class="chat-input">
+            <MessageList messages={demoMessages} />
+            <div class="p-4 border-t border-gray-200">
               <Input placeholder="输入消息..." />
-              <Button variant="primary" size="sm">发送</Button>
             </div>
           </div>
         </div>
@@ -476,77 +461,99 @@
           />
         </div>
       </div>
+
+    {:else if currentView === 'new-demos'}
+      <!-- 新组件演示页面 -->
+      <div class="new-demos-content p-4 space-y-8">
+        <Card variant="elevated">
+          <h2 slot="header">📅 DatePicker 组件演示</h2>
+          <DatePicker bind:value={datePickerValue} label="请选择日期" />
+          <p class="mt-4">当前选择的日期: {datePickerValue}</p>
+        </Card>
+
+        <Card variant="elevated">
+          <h2 slot="header">➡️ Drawer 组件演示</h2>
+          <div class="flex space-x-4">
+            <Button on:click={() => { isDrawerOpen = true; drawerPosition = 'right'; drawerWidth = 'w-80'; }}>打开右侧抽屉 (窄)</Button>
+            <Button on:click={() => { isDrawerOpen = true; drawerPosition = 'left'; drawerWidth = 'w-1/3'; }}>打开左侧抽屉 (宽)</Button>
+          </div>
+          <Drawer bind:isOpen={isDrawerOpen} position={drawerPosition} width={drawerWidth} on:close={() => console.log('Drawer closed')}>
+            <h3 class="text-xl font-bold mb-4">抽屉内容</h3>
+            <p>这是侧边抽屉的示例内容。</p>
+            <Button on:click={() => isDrawerOpen = false} class="mt-4">关闭抽屉</Button>
+          </Drawer>
+        </Card>
+
+        <Card variant="elevated">
+          <h2 slot="header">💬 MessageList 组件演示</h2>
+          <div class="h-96 border rounded-lg flex flex-col">
+            <MessageList messages={demoMessages} />
+            <div class="p-4 border-t">
+              <Input placeholder="发送新消息..." />
+              <Button class="ml-2">发送</Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    {/if}
+
+    {#if showToast}
+      <Toast message={toastMessage} on:close={() => showToast = false} />
     {/if}
   </main>
 </div>
 
-<!-- QR码模态框 -->
-<QRCodeModal
-  bind:visible={showQRModal}
-  title="邀请链接二维码"
-  qrData="https://baidaohui.com/invite/ABCD1234"
-  description="扫描二维码加入百刀会"
-  on:close={() => showQRModal = false}
-  on:download={() => handleToast('二维码已下载')}
-  on:share={() => handleToast('二维码已分享')}
-/>
+<style lang="postcss">
+  /* @tailwind base; */
+  /* @tailwind components; */
+  /* @tailwind utilities; */
 
-<!-- Toast消息 -->
-{#if showToast}
-  <Toast
-    type="success"
-    message={toastMessage}
-    duration={3000}
-    bind:visible={showToast}
-  />
-{/if}
-
-<style>
   .demo-container {
+    font-family: 'Inter', sans-serif;
+    background: #f0f2f5;
     min-height: 100vh;
-    background: #f8fafc;
   }
-  
-  /* 头部导航 */
+
   .demo-header {
-    background: white;
-    border-bottom: 1px solid #e5e7eb;
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: #ffffff;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 20px 24px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
-  
+
   .header-content {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
   }
-  
+
   .header-info h1 {
-    margin: 0 0 4px 0;
     font-size: 24px;
     font-weight: 700;
-    color: #111827;
+    color: #1a1a1a;
+    margin: 0;
   }
-  
+
   .header-info p {
-    margin: 0 0 16px 0;
-    color: #6b7280;
     font-size: 14px;
+    color: #666;
+    margin: 4px 0 0;
   }
-  
+
   .view-nav {
     display: flex;
-    gap: 4px;
-    overflow-x: auto;
+    gap: 8px;
   }
-  
+
   .nav-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 8px 12px;
+    gap: 6px;
+    padding: 8px 16px;
     border: none;
     background: transparent;
     border-radius: 8px;
@@ -554,109 +561,109 @@
     transition: all 0.2s ease;
     white-space: nowrap;
   }
-  
+
   .nav-item:hover {
     background: #f3f4f6;
   }
-  
+
   .nav-item.active {
     background: #667eea;
     color: white;
   }
-  
+
   .nav-icon {
     font-size: 20px;
   }
-  
+
   .nav-label {
     font-size: 12px;
     font-weight: 500;
   }
-  
+
   /* 主要内容 */
   .demo-main {
     max-width: 1400px;
     margin: 0 auto;
     padding: 24px;
   }
-  
+
   /* 总览页面 */
   .overview-content {
     display: flex;
     flex-direction: column;
     gap: 24px;
   }
-  
+
   .architecture-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 20px;
   }
-  
+
   .role-card {
     padding: 20px;
     background: #f9fafb;
     border-radius: 12px;
     border: 1px solid #e5e7eb;
   }
-  
+
   .role-card h3 {
     margin: 0 0 8px 0;
     font-size: 16px;
     font-weight: 600;
     color: #111827;
   }
-  
+
   .role-card p {
     margin: 0 0 12px 0;
     font-size: 13px;
     color: #6b7280;
     font-family: monospace;
   }
-  
+
   .role-card ul {
     margin: 0;
     padding-left: 16px;
     color: #374151;
     font-size: 14px;
   }
-  
+
   .role-card li {
     margin-bottom: 4px;
   }
-  
+
   .principles-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
   }
-  
+
   .principle-item {
     text-align: center;
     padding: 16px;
   }
-  
+
   .principle-item h4 {
     margin: 0 0 8px 0;
     font-size: 16px;
     font-weight: 600;
     color: #111827;
   }
-  
+
   .principle-item p {
     margin: 0;
     font-size: 14px;
     color: #6b7280;
     line-height: 1.4;
   }
-  
+
   /* 移动端演示 */
   .mobile-demo {
     display: flex;
     justify-content: center;
     padding: 40px 20px;
   }
-  
+
   .mobile-frame {
     width: 375px;
     height: 667px;
@@ -665,7 +672,7 @@
     padding: 10px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   }
-  
+
   .mobile-content {
     width: 100%;
     height: 100%;
@@ -676,7 +683,7 @@
     flex-direction: column;
     position: relative;
   }
-  
+
   /* Fan界面样式 */
   .fan-header {
     display: flex;
@@ -685,24 +692,24 @@
     padding: 16px 20px;
     border-bottom: 1px solid #f3f4f6;
   }
-  
+
   .fan-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
   }
-  
+
   .request-item {
     padding: 16px;
     border-bottom: 1px solid #f3f4f6;
   }
-  
+
   .request-header {
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
   }
-  
+
   .request-meta {
     display: flex;
     gap: 16px;
@@ -710,7 +717,7 @@
     color: #6b7280;
     margin-top: 8px;
   }
-  
+
   .bottom-dock {
     position: absolute;
     bottom: 0;
@@ -721,7 +728,7 @@
     border-top: 1px solid #f3f4f6;
     padding: 8px 0;
   }
-  
+
   .dock-item {
     flex: 1;
     display: flex;
@@ -733,15 +740,15 @@
     color: #6b7280;
     cursor: pointer;
   }
-  
+
   .dock-item.active {
     color: #667eea;
   }
-  
+
   .dock-item span:first-child {
     font-size: 24px;
   }
-  
+
   /* 聊天界面样式 */
   .chat-messages {
     flex: 1;
@@ -751,47 +758,47 @@
     flex-direction: column;
     gap: 16px;
   }
-  
+
   .message {
     display: flex;
     gap: 8px;
     align-items: flex-start;
   }
-  
+
   .message.sent {
     flex-direction: row-reverse;
   }
-  
+
   .message-content {
     max-width: 80%;
     padding: 8px 12px;
     border-radius: 12px;
     position: relative;
   }
-  
+
   .message.received .message-content {
     background: #f3f4f6;
     color: #374151;
   }
-  
+
   .message.sent .message-content {
     background: #667eea;
     color: white;
   }
-  
+
   .message-time {
     font-size: 10px;
     opacity: 0.7;
     display: block;
     margin-top: 4px;
   }
-  
+
   .typing-indicator {
     display: flex;
     gap: 8px;
     align-items: center;
   }
-  
+
   .typing-dots {
     display: flex;
     gap: 4px;
@@ -803,43 +810,38 @@
   .typing-dots span {
     width: 6px;
     height: 6px;
-    background: #9ca3af;
+    background: #999;
     border-radius: 50%;
-    animation: typingDot 1.4s infinite ease-in-out;
+    animation: bounce 1.4s infinite ease-in-out both;
   }
   
-  .typing-dots span:nth-child(1) { animation-delay: 0s; }
-  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-  
-  @keyframes typingDot {
-    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-    40% { transform: scale(1); opacity: 1; }
+  .typing-dots span:nth-child(1) {
+    animation-delay: -0.32s;
   }
   
-  .chat-input {
-    display: flex;
-    gap: 8px;
-    padding: 16px;
-    border-top: 1px solid #f3f4f6;
+  .typing-dots span:nth-child(2) {
+    animation-delay: -0.16s;
   }
   
-  /* 桌面端演示 */
-  .desktop-demo {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    min-height: 800px;
+  @keyframes bounce {
+    0%,
+    80%,
+    100% {
+      transform: scale(0);
+    }
+    40% {
+      transform: scale(1);
+    }
   }
   
+  /* Tabs */
   .master-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 16px 24px;
-    border-bottom: 1px solid #e5e7eb;
-    background: white;
+    background: #ffffff;
+    border-bottom: 1px solid #e0e0e0;
   }
   
   .header-left {
@@ -849,17 +851,14 @@
   }
   
   .header-left h2 {
-    margin: 0;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
-    color: #111827;
   }
   
   .header-right {
     display: flex;
     align-items: center;
-    gap: 12px;
-    position: relative;
+    gap: 16px;
   }
   
   .top-tabs {

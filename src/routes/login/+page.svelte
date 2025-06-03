@@ -4,6 +4,7 @@
   import { get } from 'svelte/store';
   import { signInWithGoogle, getSession, redirectToRolePath } from '$lib/auth';
   import { browser } from '$app/environment';
+  import GoogleLoginButton from '$lib/components/ui/GoogleLoginButton.svelte';
 
   export let data;
 
@@ -221,16 +222,11 @@
       <span>🟢认证服务正常运行!</span>
     </div>
     
-    <button 
-      on:click={handleGoogleLogin}
+    <GoogleLoginButton 
+      {loading}
       disabled={loading}
-      class="google-btn"
-    >
-      <div class="google-icon">
-        <i class="fab fa-google" style="color: #4285f4; font-size: 12px;"></i>
-      </div>
-      点击启动曲率引擎!!!<br>一键直达谷歌登录
-    </button>
+      on:click={handleGoogleLogin}
+    />
     
     <div class="footer">
       教主悄悄话💬｜算命申请🔮｜好物推荐🛍️<br><br>
@@ -366,62 +362,6 @@
     color:rgb(18, 200, 60);
   }
 
-  .google-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    color: white;
-    padding: 15px 30px;
-    font-size: 16px;
-    border-radius: 50px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    margin: 0 auto 40px auto;
-    position: relative;
-    overflow: hidden;
-    font-weight: 500;
-  }
-
-  .google-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
-  }
-
-  .google-btn:active {
-    transform: translateY(0);
-  }
-
-  .google-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.5s;
-  }
-
-  .google-btn:hover::before {
-    left: 100%;
-  }
-
-  .google-icon {
-    margin-right: 10px;
-    background: white;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
   .footer {
     font-size: 12px;
     color: #888;
@@ -445,11 +385,6 @@
     
     h1 {
       font-size: 24px;
-    }
-    
-    .google-btn {
-      font-size: 14px;
-      padding: 12px 25px;
     }
     
     .logo-img {

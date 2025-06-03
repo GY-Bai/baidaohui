@@ -1,5 +1,6 @@
 import { getAccessToken } from './auth';
 import type { UserSession } from './auth';
+import { io } from 'socket.io-client';
 
 export interface ChatMessage {
   id: string;
@@ -39,38 +40,34 @@ export function createWebSocketManager(session: UserSession): WebSocketManager {
           throw new Error('未找到访问令牌');
         }
 
-        // 模拟WebSocket连接
-        // 实际项目中这里会使用socket.io-client
-        socket = {
-          emit: (event: string, data: any) => {
-            console.log('WebSocket emit:', event, data);
-            
-            // 模拟服务器响应
-            if (event === 'message') {
-              setTimeout(() => {
-                const response: ChatMessage = {
-                  ...data,
-                  id: Date.now().toString(),
-                  timestamp: new Date().toISOString()
-                };
-                messageCallbacks.forEach(cb => cb(response));
-              }, 100);
-            }
+        socket = io(`${import.meta.env.VITE_API_BASE_URL || ''}/api/chat`, {
+          auth: {
+            token: token
           },
-          
-          on: (event: string, callback: Function) => {
-            console.log('WebSocket on:', event);
-          },
-          
-          disconnect: () => {
-            connected = false;
-            disconnectCallbacks.forEach(cb => cb());
-          }
-        };
+          transports: ['websocket', 'polling']
+        });
 
-        connected = true;
-        connectCallbacks.forEach(cb => cb());
-        
+        socket.on('connect', () => {
+          connected = true;
+          console.log('WebSocket connected');
+          connectCallbacks.forEach(cb => cb());
+        });
+
+        socket.on('disconnect', () => {
+          connected = false;
+          console.log('WebSocket disconnected');
+          disconnectCallbacks.forEach(cb => cb());
+        });
+
+        socket.on('error', (error: any) => {
+          console.error('WebSocket error:', error);
+          errorCallbacks.forEach(cb => cb(error));
+        });
+
+        socket.on('new_message', (message: ChatMessage) => {
+          messageCallbacks.forEach(cb => cb(message));
+        });
+
       } catch (error) {
         errorCallbacks.forEach(cb => cb(error));
         throw error;
@@ -90,13 +87,13 @@ export function createWebSocketManager(session: UserSession): WebSocketManager {
         throw new Error('WebSocket未连接');
       }
       
-      const fullMessage = {
-        ...message,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString()
-      };
-      
-      socket.emit('message', fullMessage);
+      socket.emit('send_message', {
+        chat_id: message.chatId,
+        content: message.content,
+        type: message.type,
+        sender_id: session.user.id,
+        sender_name: session.user.nickname || session.user.email
+      });
     },
 
     joinRoom(roomId, type) {
@@ -104,7 +101,7 @@ export function createWebSocketManager(session: UserSession): WebSocketManager {
         throw new Error('WebSocket未连接');
       }
       
-      socket.emit('join-room', { roomId, type });
+      socket.emit('join_room', { room_id: roomId, room_type: type });
     },
 
     onMessage(callback) {

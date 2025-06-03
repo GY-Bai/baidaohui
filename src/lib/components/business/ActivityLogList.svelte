@@ -1,12 +1,13 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import Card from './Card.svelte';
-  import Badge from './Badge.svelte';
-  import Button from './Button.svelte';
-  import Input from './Input.svelte';
-  import Select from './Select.svelte';
-  import Avatar from './Avatar.svelte';
-  import Pagination from './Pagination.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
+  import DataTable from '$lib/components/ui/DataTable.svelte';
   
   export let activities = [];
   export let loading = false;

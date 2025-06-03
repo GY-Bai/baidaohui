@@ -3,13 +3,13 @@
   import { clientSideRouteGuard, signOut } from '$lib/auth';
   
   // 导入新的UI组件
-  import UserProfileDropdown from '$lib/components/ui/UserProfileDropdown.svelte';
-  import OnlineStatusIndicator from '$lib/components/ui/OnlineStatusIndicator.svelte';
+  import UserProfileDropdown from '$lib/components/business/UserProfileDropdown.svelte';
+  import OnlineStatusIndicator from '$lib/components/business/OnlineStatusIndicator.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Card from '$lib/components/ui/Card.svelte';
-  import ApiKeyManager from '$lib/components/ui/ApiKeyManager.svelte';
+  import ApiKeyManager from '$lib/components/business/ApiKeyManager.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import Toast from '$lib/components/ui/Toast.svelte';
@@ -257,7 +257,7 @@
 </script>
 
 <svelte:head>
-  <title>{getTabTitle()} - 百道慧商户面板</title>
+  <title>{getTabTitle()} - 百刀会商户面板</title>
 </svelte:head>
 
 {#if loading}
@@ -274,7 +274,7 @@
       <div class="welcome-screen">
         <Card variant="elevated" padding="xl">
           <div class="welcome-content">
-            <h1>🎉 欢迎加入百道慧商户平台！</h1>
+            <h1>🎉 欢迎加入百刀会商户平台！</h1>
             <p>为了开始使用我们的服务，您需要先创建API密钥来连接您的系统。</p>
             <div class="welcome-steps">
               <div class="step">

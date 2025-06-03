@@ -97,7 +97,7 @@
 </script>
 
 <svelte:head>
-  <title>UI组件演示 - 百道慧</title>
+  <title>UI组件演示 - 百刀会</title>
 </svelte:head>
 
 <div class="demo-container">

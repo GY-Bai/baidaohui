@@ -74,6 +74,7 @@ services:
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
       - R2_ENDPOINT=${R2_ENDPOINT}
+      - EMAIL_SERVICE_URL=http://email-service:5008
       # 内部配置
       - NODE_ENV=production
       - PORT=5004
@@ -121,6 +122,7 @@ services:
       - R2_SECRET_KEY=${R2_SECRET_KEY}
       - R2_BUCKET=${R2_BUCKET}
       - R2_ENDPOINT=${R2_ENDPOINT}
+      - AUTH_SERVICE_URL=http://107.172.87.113:5001
       # 内部配置
       - NODE_ENV=production
       - PORT=5011

@@ -3,15 +3,15 @@
   import { clientSideRouteGuard, signOut } from '$lib/auth';
   
   // 导入新的UI组件
-  import UserProfileDropdown from '$lib/components/ui/UserProfileDropdown.svelte';
-  import OnlineStatusIndicator from '$lib/components/ui/OnlineStatusIndicator.svelte';
+  import UserProfileDropdown from '$lib/components/business/UserProfileDropdown.svelte';
+  import OnlineStatusIndicator from '$lib/components/business/OnlineStatusIndicator.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Card from '$lib/components/ui/Card.svelte';
-  import ActivityLogList from '$lib/components/ui/ActivityLogList.svelte';
-  import InviteLinkGenerator from '$lib/components/ui/InviteLinkGenerator.svelte';
-  import ApiKeyManager from '$lib/components/ui/ApiKeyManager.svelte';
+  import ActivityLogList from '$lib/components/business/ActivityLogList.svelte';
+  import InviteLinkGenerator from '$lib/components/business/InviteLinkGenerator.svelte';
+  import ApiKeyManager from '$lib/components/business/ApiKeyManager.svelte';
   import DataTable from '$lib/components/ui/DataTable.svelte';
 
   let loading = true;
@@ -29,7 +29,7 @@
     status: 'online',
     verified: true,
     role: 'Firstmate',
-    bio: '百道慧资深助理，协助管理日常事务',
+    bio: '百刀会资深助理，协助管理日常事务',
     location: '上海市',
     joinDate: '2023-06-01',
     stats: {
@@ -42,7 +42,7 @@
   // 模拟组织数据
   const organization = {
     id: '1',
-    name: '百道慧',
+    name: '百刀会',
     domain: 'https://baidaohui.com'
   };
 
@@ -295,7 +295,8 @@
 </script>
 
 <svelte:head>
-  <title>{getTabTitle()} - 百道慧助理工作台</title>
+  <title>{getTabTitle()} - 百刀会助理工作台</title>
+  <meta name="description" content="百刀会助理工作台，协助管理各项事务" />
 </svelte:head>
 
 {#if loading}

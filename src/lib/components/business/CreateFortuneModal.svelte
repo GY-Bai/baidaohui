@@ -1,10 +1,10 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  import Input from './Input.svelte';
-  import TextArea from './TextArea.svelte';
-  import Select from './Select.svelte';
-  import Button from './Button.svelte';
-  import Progress from './Progress.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import TextArea from '$lib/components/ui/TextArea.svelte';
+  import Select from '$lib/components/ui/Select.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Progress from '$lib/components/ui/Progress.svelte';
   
   export let isOpen = false;
   export let initialData = {};
