@@ -238,4 +238,61 @@ export async function validateRoleAndRedirect(expectedRole: UserRole): Promise<b
     goto('/login');
     return false;
   }
+}
+
+// 简化的API调用函数，用于后端服务通信
+export async function apiCall(endpoint: string, options: RequestInit = {}) {
+  if (!browser) {
+    throw new Error('API调用只能在浏览器环境中使用');
+  }
+
+  try {
+    // 获取Supabase访问令牌
+    const token = await getAccessToken();
+    
+    if (!token) {
+      throw new Error('未找到访问令牌，请重新登录');
+    }
+
+    // 默认配置
+    const defaultOptions: RequestInit = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+      credentials: 'include',
+      ...options,
+    };
+
+    // 构建完整URL (假设后端服务在特定端点)
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api.baidaohui.com';
+    const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+
+    const response = await fetch(url, defaultOptions);
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        // 认证失败，重定向到登录页
+        goto('/login');
+        throw new Error('认证失败，请重新登录');
+      }
+      throw new Error(`API调用失败: ${response.statusText}`);
+    }
+
+    // 如果响应是空的，返回null
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  } catch (error) {
+    console.error('API调用错误:', error);
+    throw error;
+  }
 } 
