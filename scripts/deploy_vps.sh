@@ -48,6 +48,47 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 获取 Docker Compose 文件中定义的主机端口
+get_ports_from_compose_file() {
+    local compose_file="$1"
+    if [ ! -f "$compose_file" ]; then
+        log_warning "Docker Compose 文件不存在: $compose_file"
+        echo ""
+        return
+    fi
+    # 使用 grep 查找 ports: 后面的行，并提取主机端口
+    # 注意：这里假设端口格式为 "HOST_PORT:CONTAINER_PORT"
+    grep -E '^\s*-\s*"([0-9]+):[0-9]+"' "$compose_file" | \
+    awk -F'[:"]' '{print $2}' | tr '\n' ' '
+}
+
+# 终止指定端口上的进程
+kill_processes_on_ports() {
+    local ports="$1"
+    if [ -z "$ports" ]; then
+        log_info "没有指定端口，跳过终止进程。"
+        return
+    }
+    
+    log_info "尝试终止以下端口上的进程: $ports"
+    
+    for port in $ports; do
+        log_info "  检查端口 $port..."
+        local pids=$(lsof -ti:"$port" 2>/dev/null)
+        if [ -n "$pids" ]; then
+            log_warning "    端口 $port 被进程 $pids 占用，尝试终止..."
+            kill -9 $pids >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                log_success "    成功终止进程 $pids"
+            else
+                log_error "    无法终止进程 $pids"
+            fi
+        else
+            log_info "    端口 $port 未被占用。"
+        fi
+    done
+}
+
 # 显示横幅
 show_banner() {
     echo -e "${CYAN}========================================${NC}"
@@ -240,6 +281,70 @@ build_images() {
     
     log_success "所有镜像构建成功，开始部署..."
     return 0
+}
+
+# 停止VPS服务
+stop_vps_services() {
+    local target_vps="$1"
+    log_info "停止 $target_vps VPS上的现有服务..."
+
+    local san_jose_compose_file="infra/docker-compose.san-jose.yml"
+    local buffalo_compose_file="infra/docker-compose.buffalo.yml"
+
+    if [ "$target_vps" = "san-jose" ] || [ "$target_vps" = "both" ]; then
+        log_info "尝试终止圣何塞VPS相关的端口进程..."
+        local san_jose_ports=$(get_ports_from_compose_file "$san_jose_compose_file")
+        kill_processes_on_ports "$san_jose_ports"
+        if [ -f "$san_jose_compose_file" ]; then
+            if docker-compose -f "$san_jose_compose_file" ps -q 2>/dev/null | grep -q .; then
+                log_info "停止圣何塞VPS Docker Compose服务..."
+                docker-compose -f "$san_jose_compose_file" down
+                log_success "已停止圣何塞VPS服务"
+            fi
+        fi
+    fi
+
+    if [ "$target_vps" = "buffalo" ] || [ "$target_vps" = "both" ]; then
+        log_info "尝试终止水牛城VPS相关的端口进程..."
+        local buffalo_ports=$(get_ports_from_compose_file "$buffalo_compose_file")
+        kill_processes_on_ports "$buffalo_ports"
+        if [ -f "$buffalo_compose_file" ]; then
+            if docker-compose -f "$buffalo_compose_file" ps -q 2>/dev/null | grep -q .; then
+                log_info "停止水牛城VPS Docker Compose服务..."
+                docker-compose -f "$buffalo_compose_file" down
+                log_success "已停止水牛城VPS服务"
+            fi
+        fi
+    fi
+    
+    # 清理旧容器和镜像
+    log_info "清理旧容器和镜像..."
+    docker system prune -f >/dev/null 2>&1 || true
+    
+    log_success "✅ 服务停止完成"
+    echo ""
+}
+
+# 构建AI代理服务镜像
+build_ai_proxy() {
+    log_step "构建AI代理服务镜像..."
+    
+    if [ ! -d "services/ai-proxy-service" ]; then
+        log_error "AI代理服务目录不存在"
+        exit 1
+    fi
+    
+    cd services/ai-proxy-service
+    
+    if docker build -t baidaohui/ai-proxy-service:latest .; then
+        log_success "AI代理服务镜像构建成功"
+    else
+        log_error "AI代理服务镜像构建失败"
+        exit 1
+    fi
+    
+    cd ../../
+    echo ""
 }
 
 # 部署VPS服务
@@ -440,18 +545,18 @@ show_all_service_status() {
     if docker ps | grep -q "ai-proxy-service"; then
         echo "  容器状态: 运行中"
         if curl -s -f http://localhost:5012/health >/dev/null 2>&1; then
-            echo -e "  健康检查: ${GREEN}✅ 正常${NC}"
+            echo -e "  健康检查: ${GREEN}✅ 正常"
         else
-            echo -e "  健康检查: ${RED}❌ 异常${NC}"
+            echo -e "  健康检查: ${RED}❌ 异常"
         fi
         
         if curl -s -f -H "Authorization: Bearer wjz5788@gmail.com" http://localhost:5012/v1/models >/dev/null 2>&1; then
-            echo -e "  API认证: ${GREEN}✅ 正常${NC}"
+            echo -e "  API认证: ${GREEN}✅ 正常"
         else
-            echo -e "  API认证: ${RED}❌ 异常${NC}"
+            echo -e "  API认证: ${RED}❌ 异常"
         fi
     else
-        echo -e "  容器状态: ${RED}未运行${NC}"
+        echo -e "  容器状态: ${RED}未运行"
     fi
 }
 

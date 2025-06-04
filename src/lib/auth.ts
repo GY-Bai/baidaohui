@@ -87,15 +87,15 @@ export async function getSession(): Promise<User | null> {
 
     console.log('🔍 获取到Supabase会话，用户ID:', session.user.id);
 
-    // 🚀 关键修改：总是从public.profiles表查询最新角色
+    // 🚀 关键修改：使用公共视图查询角色，避免RLS权限问题
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, nickname')
+      .from('profiles_public_roles')
+      .select('role')
       .eq('id', session.user.id)
       .single();
 
     if (profileError) {
-      console.error('❌ 查询用户角色失败:', profileError);
+      console.error('❌ 查询用户角色失败:', profileError.message, profileError);
       // 如果查询失败，使用默认角色，但记录错误
       console.warn('⚠️ 使用默认角色 Fan，原因:', profileError.message);
     }
@@ -117,7 +117,7 @@ export async function getSession(): Promise<User | null> {
       id: session.user.id,
       email: session.user.email || '',
       role: currentRole as UserRole, // 🎯 使用数据库中的最新角色
-      nickname: profile?.nickname || session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
+      nickname: session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
     };
   } catch (error) {
     console.error('❌ 获取会话失败:', error);
@@ -407,24 +407,24 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
 
 // 强制刷新用户角色（用于管理员修改角色后的同步）
 export async function refreshUserRole(): Promise<User | null> {
-  if (!browser || !checkEnvironmentVariables()) {
+  if (!browser) {
+    console.log('⚠️ 非浏览器环境，跳过角色刷新');
     return null;
   }
 
   try {
     console.log('🔄 强制刷新用户角色...');
-    
-    // 首先检查是否有有效会话
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error || !session) {
-      console.log('⚠️ 没有有效会话，无法刷新角色');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!session) {
+      console.log('用户未登录，无法刷新角色');
       return null;
     }
 
-    // 强制从数据库重新查询角色（跳过任何缓存）
+    // 🚀 使用公共视图查询角色，避免RLS权限问题
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, nickname')
+      .from('profiles_public_roles')
+      .select('role')
       .eq('id', session.user.id)
       .single();
 
@@ -433,13 +433,8 @@ export async function refreshUserRole(): Promise<User | null> {
       return null;
     }
 
-    const newRole = profile.role || 'Fan';
+    const newRole = profile?.role || 'Fan';
     const oldRole = session.user.user_metadata?.role || 'Fan';
-
-    console.log(`🔍 角色刷新结果:`);
-    console.log(`   用户ID: ${session.user.id}`);
-    console.log(`   原角色: ${oldRole}`);
-    console.log(`   新角色: ${newRole}`);
 
     if (newRole !== oldRole) {
       console.log(`🎯 检测到角色变更: ${oldRole} -> ${newRole}`);
@@ -457,7 +452,7 @@ export async function refreshUserRole(): Promise<User | null> {
       id: session.user.id,
       email: session.user.email || '',
       role: newRole as UserRole,
-      nickname: profile.nickname || session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
+      nickname: session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
     };
   } catch (error) {
     console.error('❌ 强制刷新用户角色失败:', error);
@@ -529,4 +524,4 @@ export function startRoleChangeListener(intervalMs: number = 30000): () => void 
       console.log('🛑 角色监听器：已停止');
     }
   };
-} 
+}
