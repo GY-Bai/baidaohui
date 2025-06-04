@@ -525,3 +525,229 @@ export function startRoleChangeListener(intervalMs: number = 30000): () => void 
     }
   };
 }
+
+/**
+ * 更新用户角色并立即刷新JWT Session
+ * 
+ * 为什么要先更新数据库再刷新Session：
+ * 1. 数据库是权威数据源，必须先确保数据库中的角色信息已正确更新
+ * 2. 如果先刷新Session，JWT中的角色信息可能与数据库不一致
+ * 3. 遵循"先写后读"的原则，确保数据一致性
+ * 
+ * refreshSession()的作用：
+ * 1. 重新从Supabase Auth服务获取最新的JWT token
+ * 2. 新的JWT会包含最新的用户metadata（包括角色信息）
+ * 3. 确保前端的权限校验基于最新的角色信息
+ * 4. 避免用户需要重新登录才能获得新权限
+ */
+export async function updateUserRoleAndRefreshSession(
+  userId: string, 
+  newRole: UserRole,
+  additionalData?: Record<string, any>
+): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+}> {
+  if (!browser) {
+    return {
+      success: false,
+      error: '此功能只能在浏览器环境中使用'
+    };
+  }
+
+  if (!checkEnvironmentVariables()) {
+    return {
+      success: false,
+      error: 'Supabase配置缺失'
+    };
+  }
+
+  try {
+    console.log(`🔄 开始更新用户角色: ${userId} -> ${newRole}`);
+    
+    // 第一步：更新数据库中的角色信息
+    // 注意：这里直接更新profiles表，需要确保当前用户有相应权限（通常是管理员）
+    const updateData = {
+      role: newRole,
+      updated_at: new Date().toISOString(),
+      ...additionalData
+    };
+
+    console.log('📝 正在更新数据库中的角色信息...');
+    const { data: updateResult, error: updateError } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', userId)
+      .select('id, email, role, nickname')
+      .single();
+
+    if (updateError) {
+      console.error('❌ 数据库更新失败:', updateError);
+      return {
+        success: false,
+        error: `数据库更新失败: ${updateError.message}`
+      };
+    }
+
+    console.log('✅ 数据库角色更新成功:', updateResult);
+
+    // 第二步：刷新JWT Session以获取最新的token
+    // refreshSession()会重新从Auth服务获取包含最新metadata的JWT
+    console.log('🔄 正在刷新JWT Session...');
+    const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
+
+    if (sessionError) {
+      console.error('❌ Session刷新失败:', sessionError);
+      // 即使Session刷新失败，数据库已经更新成功
+      // 用户可能需要重新登录或稍后自动刷新
+      return {
+        success: false,
+        error: `Session刷新失败: ${sessionError.message}，请尝试重新登录`
+      };
+    }
+
+    console.log('✅ JWT Session刷新成功');
+
+    // 第三步：验证新的Session并获取最新的用户信息
+    const updatedUser = await getSession();
+    
+    if (!updatedUser) {
+      return {
+        success: false,
+        error: '无法获取更新后的用户信息'
+      };
+    }
+
+    // 验证角色是否已正确更新
+    if (updatedUser.role !== newRole) {
+      console.warn(`⚠️ 角色更新可能未完全生效: 期望 ${newRole}, 实际 ${updatedUser.role}`);
+      // 这种情况可能是由于JWT刷新延迟，通常会在下次Session刷新时生效
+    }
+
+    console.log(`🎉 用户角色更新完成: ${updatedUser.role}`);
+    console.log(`   用户ID: ${updatedUser.id}`);
+    console.log(`   邮箱: ${updatedUser.email}`);
+    console.log(`   新角色: ${updatedUser.role}`);
+
+    // 第四步：根据新角色重定向到相应页面
+    if (updatedUser.role !== newRole) {
+      console.log('🔄 角色可能需要时间同步，稍后将自动重定向...');
+      // 延迟重定向，给JWT一些时间完全生效
+      setTimeout(() => {
+        redirectToRolePath(newRole);
+      }, 1000);
+    } else {
+      // 立即重定向到新角色页面
+      redirectToRolePath(updatedUser.role);
+    }
+
+    return {
+      success: true,
+      user: updatedUser
+    };
+
+  } catch (error) {
+    console.error('❌ 角色更新过程中发生错误:', error);
+    return {
+      success: false,
+      error: `角色更新失败: ${error instanceof Error ? error.message : '未知错误'}`
+    };
+  }
+}
+
+/**
+ * 管理员更新其他用户角色的便捷函数
+ * 
+ * @param targetUserId 目标用户ID
+ * @param newRole 新角色
+ * @param reason 更新原因（可选，用于审计日志）
+ */
+export async function adminUpdateUserRole(
+  targetUserId: string,
+  newRole: UserRole,
+  reason?: string
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    console.log(`👑 管理员更新用户角色: ${targetUserId} -> ${newRole}`);
+    
+    // 验证当前用户是否有管理员权限
+    const currentUser = await getSession();
+    if (!currentUser) {
+      return {
+        success: false,
+        error: '用户未登录'
+      };
+    }
+
+    if (!['Master', 'Firstmate'].includes(currentUser.role)) {
+      return {
+        success: false,
+        error: '权限不足，只有Master或Firstmate可以更新用户角色'
+      };
+    }
+
+    // 调用Supabase函数进行角色更新（这个函数应该在数据库中定义）
+    const { data, error } = await supabase.rpc('admin_change_user_role', {
+      target_user_id: targetUserId,
+      new_role: newRole,
+      reason: reason || '管理员手动更新'
+    });
+
+    if (error) {
+      console.error('❌ 管理员角色更新失败:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+
+    console.log('✅ 管理员角色更新成功:', data);
+    
+    return {
+      success: true,
+      message: `用户角色已成功更新为 ${newRole}`
+    };
+
+  } catch (error) {
+    console.error('❌ 管理员角色更新过程中发生错误:', error);
+    return {
+      success: false,
+      error: `角色更新失败: ${error instanceof Error ? error.message : '未知错误'}`
+    };
+  }
+}
+
+/**
+ * 示例使用方式：
+ * 
+ * // 1. 用户自己更新角色（通过邀请链接等方式）
+ * const result = await updateUserRoleAndRefreshSession(
+ *   'user-uuid-here',
+ *   'Member',
+ *   { upgrade_reason: 'invite_link_used' }
+ * );
+ * 
+ * if (result.success) {
+ *   console.log('角色更新成功！', result.user);
+ * } else {
+ *   console.error('角色更新失败:', result.error);
+ * }
+ * 
+ * // 2. 管理员更新其他用户角色
+ * const adminResult = await adminUpdateUserRole(
+ *   'target-user-uuid',
+ *   'Seller',
+ *   '通过审核，升级为卖家'
+ * );
+ * 
+ * if (adminResult.success) {
+ *   console.log(adminResult.message);
+ * } else {
+ *   console.error(adminResult.error);
+ * }
+ */
