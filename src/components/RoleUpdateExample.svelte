@@ -4,6 +4,7 @@
     updateUserRoleAndRefreshSession, 
     adminUpdateUserRole, 
     getSession,
+    syncCurrentUserRole,
     type UserRole 
   } from '$lib/auth';
   
@@ -110,6 +111,40 @@
     } catch (err) {
       error = `管理员更新过程中发生错误: ${err instanceof Error ? err.message : '未知错误'}`;
       console.error('❌ 管理员角色更新异常:', err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  /**
+   * 示例3：手动同步JWT角色信息
+   */
+  async function handleManualSync() {
+    loading = true;
+    error = '';
+    message = '';
+
+    try {
+      console.log('🔄 开始手动同步JWT角色...');
+      
+      const result = await syncCurrentUserRole();
+
+      if (result.success) {
+        if (result.oldRole !== result.newRole) {
+          message = `🎉 角色同步成功！从 ${result.oldRole} 同步到 ${result.newRole}`;
+          // 刷新当前用户信息
+          currentUser = await getSession();
+        } else {
+          message = `✅ 角色已同步，无需更新 (${result.newRole})`;
+        }
+        console.log('✅ 手动同步完成');
+      } else {
+        error = result.error || '角色同步失败';
+        console.error('❌ 手动同步失败:', result.error);
+      }
+    } catch (err) {
+      error = `同步过程中发生错误: ${err instanceof Error ? err.message : '未知错误'}`;
+      console.error('❌ 手动同步异常:', err);
     } finally {
       loading = false;
     }
@@ -225,6 +260,22 @@
     {#if currentUser && !['Master', 'Firstmate'].includes(currentUser.role)}
       <p class="warning">⚠️ 只有Master或Firstmate可以使用管理员功能</p>
     {/if}
+  </div>
+
+  <!-- 示例3：手动同步JWT角色信息 -->
+  <div class="section">
+    <h3>🔄 示例3：手动同步JWT角色信息</h3>
+    <p class="description">
+      手动同步JWT角色信息，确保前端和后端角色一致。
+    </p>
+    
+    <button 
+      class="btn btn-outline" 
+      on:click={handleManualSync}
+      disabled={loading || !currentUser}
+    >
+      {loading ? '同步中...' : '手动同步角色信息'}
+    </button>
   </div>
 
   <!-- 清除消息按钮 -->

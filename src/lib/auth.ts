@@ -109,6 +109,21 @@ export async function getSession(): Promise<User | null> {
       console.log(`   数据库角色: ${currentRole}`);
       console.log(`   Metadata角色: ${userMetadataRole}`);
       console.log(`   ✅ 使用数据库角色: ${currentRole}`);
+      
+      // 🚀 自动尝试同步JWT metadata（异步执行，不阻塞当前流程）
+      console.log('🔄 自动启动角色同步...');
+      forceUpdateJWTMetadata(session.user.id, currentRole as UserRole, {
+        auto_sync: true,
+        detected_at: new Date().toISOString()
+      }).then(result => {
+        if (result.success) {
+          console.log('✅ 自动角色同步成功');
+        } else {
+          console.warn('⚠️ 自动角色同步失败:', result.error);
+        }
+      }).catch(error => {
+        console.warn('⚠️ 自动角色同步异常:', error);
+      });
     } else {
       console.log(`✅ 角色同步正常: ${currentRole}`);
     }
@@ -405,125 +420,101 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
   }
 }
 
-// 强制刷新用户角色（用于管理员修改角色后的同步）
-export async function refreshUserRole(): Promise<User | null> {
+/**
+ * 强制同步JWT中的用户metadata与数据库
+ * 这个函数会更新Supabase Auth中的用户metadata，确保JWT包含最新的角色信息
+ */
+export async function forceUpdateJWTMetadata(
+  userId: string,
+  newRole: UserRole,
+  additionalMetadata?: Record<string, any>
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
   if (!browser) {
-    console.log('⚠️ 非浏览器环境，跳过角色刷新');
-    return null;
+    return {
+      success: false,
+      error: '此功能只能在浏览器环境中使用'
+    };
+  }
+
+  if (!checkEnvironmentVariables()) {
+    return {
+      success: false,
+      error: 'Supabase配置缺失'
+    };
   }
 
   try {
-    console.log('🔄 强制刷新用户角色...');
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    if (!session) {
-      console.log('用户未登录，无法刷新角色');
-      return null;
+    console.log(`🔄 强制更新JWT metadata: ${userId} -> ${newRole}`);
+    
+    // 获取当前用户信息
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return {
+        success: false,
+        error: '无法获取当前用户信息'
+      };
     }
 
-    // 🚀 使用公共视图查询角色，避免RLS权限问题
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles_public_roles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (profileError) {
-      console.error('❌ 强制刷新角色失败:', profileError);
-      return null;
+    // 只有当前用户才能更新自己的metadata
+    if (user.id !== userId) {
+      return {
+        success: false,
+        error: '只能更新自己的用户信息'
+      };
     }
 
-    const newRole = profile?.role || 'Fan';
-    const oldRole = session.user.user_metadata?.role || 'Fan';
-
-    if (newRole !== oldRole) {
-      console.log(`🎯 检测到角色变更: ${oldRole} -> ${newRole}`);
-      console.log(`🚀 准备重定向到新角色页面...`);
-      
-      // 重定向到新角色页面
-      setTimeout(() => {
-        redirectToRolePath(newRole as UserRole);
-      }, 100);
-    } else {
-      console.log(`✅ 角色无变化: ${newRole}`);
-    }
-
-    return {
-      id: session.user.id,
-      email: session.user.email || '',
-      role: newRole as UserRole,
-      nickname: session.user.user_metadata?.nickname || session.user.user_metadata?.full_name
+    // 准备新的metadata
+    const newMetadata = {
+      ...user.user_metadata,
+      role: newRole,
+      last_role_update: new Date().toISOString(),
+      ...additionalMetadata
     };
+
+    console.log('📝 更新用户metadata:', newMetadata);
+
+    // 更新用户metadata
+    const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+      data: newMetadata
+    });
+
+    if (updateError) {
+      console.error('❌ 更新用户metadata失败:', updateError);
+      return {
+        success: false,
+        error: `更新metadata失败: ${updateError.message}`
+      };
+    }
+
+    console.log('✅ 用户metadata更新成功:', updateData);
+
+    // 强制刷新session以获取最新的JWT
+    const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
+
+    if (sessionError) {
+      console.error('❌ 刷新session失败:', sessionError);
+      return {
+        success: false,
+        error: `刷新session失败: ${sessionError.message}`
+      };
+    }
+
+    console.log('✅ JWT metadata同步完成');
+    return {
+      success: true
+    };
+
   } catch (error) {
-    console.error('❌ 强制刷新用户角色失败:', error);
-    return null;
+    console.error('❌ 强制更新JWT metadata过程中发生错误:', error);
+    return {
+      success: false,
+      error: `更新失败: ${error instanceof Error ? error.message : '未知错误'}`
+    };
   }
-}
-
-// 角色变更监听器（可在页面中使用）
-export function startRoleChangeListener(intervalMs: number = 30000): () => void {
-  if (!browser) {
-    console.log('⚠️ 非浏览器环境，无法启动角色监听器');
-    return () => {};
-  }
-
-  let currentRole: string | null = null;
-  let intervalId: NodeJS.Timeout;
-
-  const checkRoleChange = async () => {
-    try {
-      const user = await getSession();
-      
-      if (!user) {
-        // 用户已登出
-        if (currentRole) {
-          console.log('👋 角色监听器：检测到用户登出');
-          goto('/login');
-        }
-        currentRole = null;
-        return;
-      }
-
-      // 初始化当前角色
-      if (currentRole === null) {
-        currentRole = user.role;
-        console.log(`🎯 角色监听器：初始化角色 ${currentRole}`);
-        return;
-      }
-
-      // 检查角色是否变更
-      if (user.role !== currentRole) {
-        console.log(`🔄 角色监听器：检测到角色变更 ${currentRole} -> ${user.role}`);
-        currentRole = user.role;
-        
-        // 检查当前页面是否匹配新角色
-        const currentPath = window.location.pathname;
-        const expectedPath = rolePaths[user.role as UserRole];
-        
-        if (currentPath !== expectedPath) {
-          console.log(`🚀 角色监听器：重定向到新角色页面 ${expectedPath}`);
-          redirectToRolePath(user.role as UserRole);
-        }
-      }
-    } catch (error) {
-      console.error('❌ 角色监听器：检查角色变更失败:', error);
-    }
-  };
-
-  // 立即执行一次检查
-  checkRoleChange();
-
-  // 设置定期检查
-  intervalId = setInterval(checkRoleChange, intervalMs);
-  console.log(`🔄 角色监听器：已启动，检查间隔 ${intervalMs}ms`);
-
-  // 返回清理函数
-  return () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      console.log('🛑 角色监听器：已停止');
-    }
-  };
 }
 
 /**
@@ -592,13 +583,24 @@ export async function updateUserRoleAndRefreshSession(
 
     console.log('✅ 数据库角色更新成功:', updateResult);
 
-    // 第二步：刷新JWT Session以获取最新的token
-    // refreshSession()会重新从Auth服务获取包含最新metadata的JWT
-    console.log('🔄 正在刷新JWT Session...');
+    // 第二步：强制更新JWT中的metadata（关键改进）
+    console.log('🔄 正在强制同步JWT metadata...');
+    const metadataResult = await forceUpdateJWTMetadata(userId, newRole, {
+      database_role: newRole,
+      sync_timestamp: new Date().toISOString()
+    });
+
+    if (!metadataResult.success) {
+      console.warn('⚠️ JWT metadata同步失败，但数据库已更新:', metadataResult.error);
+      // 即使metadata同步失败，数据库已经更新，我们仍然可以继续
+    }
+
+    // 第三步：再次刷新session确保获取最新的JWT
+    console.log('🔄 正在最终刷新JWT Session...');
     const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
 
     if (sessionError) {
-      console.error('❌ Session刷新失败:', sessionError);
+      console.error('❌ 最终Session刷新失败:', sessionError);
       // 即使Session刷新失败，数据库已经更新成功
       // 用户可能需要重新登录或稍后自动刷新
       return {
@@ -607,9 +609,9 @@ export async function updateUserRoleAndRefreshSession(
       };
     }
 
-    console.log('✅ JWT Session刷新成功');
+    console.log('✅ JWT Session最终刷新成功');
 
-    // 第三步：验证新的Session并获取最新的用户信息
+    // 第四步：验证新的Session并获取最新的用户信息
     const updatedUser = await getSession();
     
     if (!updatedUser) {
@@ -623,6 +625,8 @@ export async function updateUserRoleAndRefreshSession(
     if (updatedUser.role !== newRole) {
       console.warn(`⚠️ 角色更新可能未完全生效: 期望 ${newRole}, 实际 ${updatedUser.role}`);
       // 这种情况可能是由于JWT刷新延迟，通常会在下次Session刷新时生效
+    } else {
+      console.log('🎉 角色同步验证成功！JWT和数据库角色一致');
     }
 
     console.log(`🎉 用户角色更新完成: ${updatedUser.role}`);
@@ -630,7 +634,7 @@ export async function updateUserRoleAndRefreshSession(
     console.log(`   邮箱: ${updatedUser.email}`);
     console.log(`   新角色: ${updatedUser.role}`);
 
-    // 第四步：根据新角色重定向到相应页面
+    // 第五步：根据新角色重定向到相应页面
     if (updatedUser.role !== newRole) {
       console.log('🔄 角色可能需要时间同步，稍后将自动重定向...');
       // 延迟重定向，给JWT一些时间完全生效
@@ -751,3 +755,199 @@ export async function adminUpdateUserRole(
  *   console.error(adminResult.error);
  * }
  */
+
+/**
+ * 手动同步当前用户的JWT角色信息
+ * 当检测到数据库角色与JWT metadata不一致时，可以调用此函数强制同步
+ */
+export async function syncCurrentUserRole(): Promise<{
+  success: boolean;
+  oldRole?: string;
+  newRole?: string;
+  error?: string;
+}> {
+  if (!browser) {
+    return {
+      success: false,
+      error: '此功能只能在浏览器环境中使用'
+    };
+  }
+
+  try {
+    console.log('🔄 开始同步当前用户角色...');
+    
+    // 获取当前session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      return {
+        success: false,
+        error: '用户未登录或session无效'
+      };
+    }
+
+    const userId = session.user.id;
+    const oldRole = session.user.user_metadata?.role || 'Fan';
+
+    // 从数据库获取最新角色
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles_public_roles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      return {
+        success: false,
+        error: `无法获取数据库角色: ${profileError.message}`
+      };
+    }
+
+    const newRole = profile?.role || 'Fan';
+
+    // 如果角色一致，无需同步
+    if (oldRole === newRole) {
+      console.log(`✅ 角色已同步: ${newRole}`);
+      return {
+        success: true,
+        oldRole,
+        newRole
+      };
+    }
+
+    console.log(`🔄 检测到角色不一致: JWT=${oldRole}, 数据库=${newRole}`);
+
+    // 强制更新JWT metadata
+    const syncResult = await forceUpdateJWTMetadata(userId, newRole as UserRole, {
+      sync_reason: 'manual_role_sync',
+      previous_role: oldRole
+    });
+
+    if (!syncResult.success) {
+      return {
+        success: false,
+        error: syncResult.error,
+        oldRole,
+        newRole
+      };
+    }
+
+    console.log(`✅ 角色同步完成: ${oldRole} -> ${newRole}`);
+    
+    // 重定向到新角色页面
+    setTimeout(() => {
+      redirectToRolePath(newRole as UserRole);
+    }, 500);
+
+    return {
+      success: true,
+      oldRole,
+      newRole
+    };
+
+  } catch (error) {
+    console.error('❌ 同步用户角色失败:', error);
+    return {
+      success: false,
+      error: `同步失败: ${error instanceof Error ? error.message : '未知错误'}`
+    };
+  }
+}
+
+// 强制刷新用户角色（用于管理员修改角色后的同步）
+export async function refreshUserRole(): Promise<User | null> {
+  if (!browser) {
+    console.log('⚠️ 非浏览器环境，跳过角色刷新');
+    return null;
+  }
+
+  try {
+    console.log('🔄 强制刷新用户角色...');
+    
+    // 先尝试同步角色
+    const syncResult = await syncCurrentUserRole();
+    
+    if (syncResult.success && syncResult.oldRole !== syncResult.newRole) {
+      console.log(`🎯 角色已同步: ${syncResult.oldRole} -> ${syncResult.newRole}`);
+    }
+
+    // 返回最新的用户信息
+    return await getSession();
+    
+  } catch (error) {
+    console.error('❌ 强制刷新用户角色失败:', error);
+    return null;
+  }
+}
+
+// 角色变更监听器（可在页面中使用）- 包含自动同步功能
+export function startRoleChangeListener(intervalMs: number = 30000): () => void {
+  if (!browser) {
+    console.log('⚠️ 非浏览器环境，无法启动角色监听器');
+    return () => {};
+  }
+
+  let currentRole: string | null = null;
+  let intervalId: NodeJS.Timeout;
+
+  const checkRoleChange = async () => {
+    try {
+      const user = await getSession();
+      
+      if (!user) {
+        // 用户已登出
+        if (currentRole) {
+          console.log('👋 角色监听器：检测到用户登出');
+          goto('/login');
+        }
+        currentRole = null;
+        return;
+      }
+
+      // 初始化当前角色
+      if (currentRole === null) {
+        currentRole = user.role;
+        console.log(`🎯 角色监听器：初始化角色 ${currentRole}`);
+        return;
+      }
+
+      // 检查角色是否变更
+      if (user.role !== currentRole) {
+        console.log(`🔄 角色监听器：检测到角色变更 ${currentRole} -> ${user.role}`);
+        
+        // 尝试同步JWT metadata
+        const syncResult = await syncCurrentUserRole();
+        if (syncResult.success) {
+          console.log(`✅ 角色监听器：角色同步成功 ${syncResult.oldRole} -> ${syncResult.newRole}`);
+        }
+        
+        currentRole = user.role;
+        
+        // 检查当前页面是否匹配新角色
+        const currentPath = window.location.pathname;
+        const expectedPath = rolePaths[user.role as UserRole];
+        
+        if (currentPath !== expectedPath) {
+          console.log(`🚀 角色监听器：重定向到新角色页面 ${expectedPath}`);
+          redirectToRolePath(user.role as UserRole);
+        }
+      }
+    } catch (error) {
+      console.error('❌ 角色监听器：检查角色变更失败:', error);
+    }
+  };
+
+  // 立即执行一次检查
+  checkRoleChange();
+
+  // 设置定期检查
+  intervalId = setInterval(checkRoleChange, intervalMs);
+  console.log(`🔄 角色监听器：已启动，检查间隔 ${intervalMs}ms`);
+
+  // 返回清理函数
+  return () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      console.log('🛑 角色监听器：已停止');
+    }
+  };
+}
