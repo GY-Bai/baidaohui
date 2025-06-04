@@ -1,6 +1,7 @@
 import { goto } from '$app/navigation';
 import { canAccessPath, isAuthenticated, redirectToRolePage } from './lib/utils/auth';
 import type { HandleClientError } from '@sveltejs/kit';
+import { supabase } from '$lib/supabaseClient';
 
 // 需要认证的路径前缀
 const PROTECTED_PATHS = ['/fan/', '/member/', '/master/', '/firstmate/', '/seller/'];
@@ -62,4 +63,11 @@ export const handleError: HandleClientError = ({ error, event }) => {
     message: '发生了未知错误，请刷新页面重试',
     code: 'UNKNOWN_ERROR'
   };
-}; 
+};
+
+async function refreshUserSession() {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error) console.error('刷新会话失败:', error);
+  else console.log('会话已刷新，角色应已更新');
+  // 在需要的地方调用，例如在页面加载后
+} 

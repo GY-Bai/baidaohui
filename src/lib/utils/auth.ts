@@ -1,184 +1,55 @@
+// utils/auth.ts: 简单的占位文件，用于处理认证相关工具
+
 // 用户角色类型定义
 export type UserRole = 'fan' | 'member' | 'master' | 'firstmate' | 'seller';
 
-// 用户信息接口
-export interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  nickname?: string;
-  avatar?: string;
-  verified: boolean;
-  createdAt: Date;
+export function isAuthenticated() {
+  // 示例函数：检查用户是否认证
+  return false;  // 占位实现，替换为实际逻辑
 }
 
-// 模拟用户存储 (在实际应用中这应该来自Supabase)
-let currentUser: User | null = null;
-
-/**
- * 获取当前用户
- */
-export function getCurrentUser(): User | null {
-  return currentUser;
+export function canAccessPath(path: string) {
+  // 示例函数：检查路径访问权限
+  return true;  // 占位实现，替换为实际逻辑
 }
 
-/**
- * 设置当前用户 (模拟登录)
- */
-export function setCurrentUser(user: User | null): void {
-  currentUser = user;
+export async function signInWithGoogle() {
+  // 示例函数：使用 Google 登录
+  console.log('signInWithGoogle 占位实现');
+  // 替换为实际 Supabase Google 登录逻辑，例如：
+  // return supabase.auth.signInWithOAuth({ provider: 'google' });
+  return Promise.resolve();  // 占位返回
 }
 
-/**
- * 检查用户是否已登录
- */
-export function isAuthenticated(): boolean {
-  return currentUser !== null;
+export function setCurrentUser(user: any) {
+  // 示例函数：设置当前用户
+  console.log('setCurrentUser 占位实现', user);
+  // 替换为实际逻辑，例如存储到本地存储或状态管理
 }
 
-/**
- * 检查用户是否有特定角色
- */
-export function hasRole(role: UserRole): boolean {
-  return currentUser?.role === role;
+export function getCurrentUser() {
+  // 示例函数：获取当前用户
+  console.log('getCurrentUser 占位实现');
+  // 替换为实际逻辑，例如从本地存储或状态管理获取
+  return { role: 'fan' as UserRole };  // 占位返回
 }
 
-/**
- * 检查用户是否有访问特定路径的权限
- */
-export function canAccessPath(path: string): boolean {
-  if (!isAuthenticated()) {
-    return false;
-  }
-
-  const user = getCurrentUser()!;
-  
-  // 根据路径前缀判断权限
-  if (path.startsWith('/fan/')) {
-    return ['fan', 'member', 'master', 'firstmate'].includes(user.role);
-  }
-  
-  if (path.startsWith('/member/')) {
-    return ['member', 'master', 'firstmate'].includes(user.role);
-  }
-  
-  if (path.startsWith('/master/')) {
-    return ['master', 'firstmate'].includes(user.role);
-  }
-  
-  if (path.startsWith('/firstmate/')) {
-    return user.role === 'firstmate';
-  }
-  
-  if (path.startsWith('/seller/')) {
-    return user.role === 'seller';
-  }
-  
-  return true; // 公开路径
-}
-
-/**
- * 获取用户应该重定向到的默认路径
- */
 export function getDefaultPath(role: UserRole): string {
-  const rolePaths = {
-    fan: '/fan/fortune',
-    member: '/member/fortune', 
-    master: '/master/invite',
-    firstmate: '/firstmate/invite',
-    seller: '/seller/keys'
+  // 示例函数：根据角色获取默认路径
+  const rolePaths: Record<UserRole, string> = {
+    fan: '/fan',
+    member: '/member', 
+    master: '/master',
+    firstmate: '/firstmate',
+    seller: '/seller'
   };
-  
   return rolePaths[role] || '/';
 }
 
-/**
- * 根据当前用户角色重定向到合适的页面
- */
 export function redirectToRolePage(): string {
-  const user = getCurrentUser();
-  if (!user) {
-    return '/'; // 未登录，重定向到登录页
-  }
-  
-  return getDefaultPath(user.role);
+  // 示例函数：重定向到角色对应页面
+  const currentUser = getCurrentUser();
+  return getDefaultPath(currentUser.role);
 }
 
-/**
- * 模拟Google OAuth登录
- */
-export async function signInWithGoogle(): Promise<User> {
-  // 模拟登录延迟
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // 模拟成功登录并返回用户信息
-  const mockUser: User = {
-    id: 'user_' + Date.now(),
-    email: 'user@example.com',
-    role: 'fan', // 默认为fan用户
-    nickname: '新用户',
-    verified: true,
-    createdAt: new Date()
-  };
-  
-  setCurrentUser(mockUser);
-  return mockUser;
-}
-
-/**
- * 登出
- */
-export function signOut(): void {
-  setCurrentUser(null);
-}
-
-/**
- * 检查是否需要升级权限
- */
-export function needsUpgrade(requiredRole: UserRole): boolean {
-  const user = getCurrentUser();
-  if (!user) return true;
-  
-  const roleHierarchy = {
-    fan: 0,
-    member: 1,
-    master: 2,
-    firstmate: 2,
-    seller: 1
-  };
-  
-  return roleHierarchy[user.role] < roleHierarchy[requiredRole];
-}
-
-/**
- * 获取角色显示名称
- */
-export function getRoleDisplayName(role: UserRole): string {
-  const roleNames = {
-    fan: 'Fan 用户',
-    member: '会员用户', 
-    master: '主播',
-    firstmate: '助理',
-    seller: '商户'
-  };
-  
-  return roleNames[role];
-}
-
-/**
- * 检查功能权限
- */
-export function hasPermission(feature: string): boolean {
-  const user = getCurrentUser();
-  if (!user) return false;
-  
-  const permissions = {
-    fan: ['fortune', 'shopping', 'profile'],
-    member: ['fortune', 'shopping', 'profile', 'private_chat'],
-    master: ['fortune', 'shopping', 'profile', 'private_chat', 'manage_fortune', 'manage_chat', 'manage_ecommerce', 'invite_links'],
-    firstmate: ['fortune', 'shopping', 'profile', 'private_chat', 'manage_fortune', 'manage_chat', 'manage_ecommerce', 'invite_links', 'activity_log'],
-    seller: ['api_keys', 'info_settings', 'tutorials']
-  };
-  
-  return permissions[user.role]?.includes(feature) || false;
-} 
+// 添加更多需要的导出，如果有的话 
